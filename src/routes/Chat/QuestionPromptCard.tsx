@@ -285,7 +285,7 @@ export function QuestionPromptCard({
 
   return (
     <form
-      className="not-prose rounded-xl border border-border bg-background px-4 py-4 shadow-md"
+      className="not-prose relative overflow-hidden rounded-xl border border-border bg-background px-4 py-4 shadow-md"
       onSubmit={(event) => {
         event.preventDefault()
         if (fields.length > 1 && !isLastStep) {
@@ -295,6 +295,8 @@ export function QuestionPromptCard({
         void handleSubmit()
       }}
     >
+      {/* tinted strip：待回答的彩色顶条（对齐 dsh 的 waiting-approval card 形态） */}
+      <span className="absolute inset-x-0 top-0 h-0.5 bg-[var(--info)]" aria-hidden="true" />
       <div className="space-y-4">
         {fields.length > 1 ? (
           <QuestionStepIndicator

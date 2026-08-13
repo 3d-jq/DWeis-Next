@@ -26,6 +26,8 @@ interface PermissionRequiredCardProps {
   onAllowOnce: (requestId: string) => Promise<void>
   onAllowForSession: (requestId: string) => Promise<void>
   onReject: (requestId: string) => Promise<void>
+  /** 「讨论」：放弃本次审批让输入框恢复，用户直接打字表达诉求（对齐 dsh 的 discuss 第三操作）。 */
+  onDiscuss?: (requestId: string) => void
 }
 
 export function PermissionRequiredCard({
@@ -34,6 +36,7 @@ export function PermissionRequiredCard({
   onAllowOnce,
   onAllowForSession,
   onReject,
+  onDiscuss,
 }: PermissionRequiredCardProps) {
   const t = useT()
   const [submitting, setSubmitting] = React.useState(false)
@@ -152,10 +155,18 @@ export function PermissionRequiredCard({
   return (
     <section
       className={cn(
-        "rounded-xl border bg-background p-4 shadow-md transition-colors",
+        "relative overflow-hidden rounded-xl border bg-background p-4 shadow-md transition-colors",
         highRisk || sensitiveResource ? "border-destructive/50" : "border-border",
       )}
     >
+      {/* tinted strip：待决策的彩色顶条（对齐 dsh 的 waiting-approval card 形态） */}
+      <span
+        className={cn(
+          "absolute inset-x-0 top-0 h-0.5",
+          highRisk || sensitiveResource ? "bg-destructive" : "bg-[var(--info)]",
+        )}
+        aria-hidden="true"
+      />
       <div className="flex items-start gap-3">
         <div
           className={cn(
@@ -229,6 +240,17 @@ export function PermissionRequiredCard({
               <X className="size-4" />
               {t("chat.permissionRequiredReject")}
             </Button>
+            {onDiscuss ? (
+              <Button
+                size="sm"
+                variant="text"
+                onClick={() => onDiscuss(request.id)}
+                disabled={disabled}
+                title={t("chat.permissionRequiredDiscussHint")}
+              >
+                {t("chat.permissionRequiredDiscuss")}
+              </Button>
+            ) : null}
           </div>
         </div>
       </div>

@@ -982,6 +982,8 @@ export const enMessages = {
   "chat.permissionRequiredAllowPathSession": "Allow this folder in this chat",
   "chat.permissionRequiredAllowEditSession": "Allow this path in this chat",
   "chat.permissionRequiredReject": "Cancel this step",
+  "chat.permissionRequiredDiscuss": "Let me say something",
+  "chat.permissionRequiredDiscussHint": "Dismiss this request and type your intent directly",
   "chat.permissionHighRiskBadge": "High risk",
   "chat.permissionSensitiveBadge": "Sensitive",
   "chat.permissionSubmitFailed": "Couldn't send the permission response. Try again.",

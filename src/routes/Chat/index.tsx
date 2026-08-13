@@ -24,10 +24,10 @@ import * as React from "react"
 import { BillingRequestScopeContext } from "./billing-request-scope-context.ts"
 import { chatTurnShowsGenerating, resolveChatTurnState } from "./chat-turn-state.ts"
 import { ChatComposer } from "./ChatComposer.tsx"
-import { PermissionRequiredCard } from "./PermissionRequiredCard.tsx"
-import { QuestionPromptCard } from "./QuestionPromptCard.tsx"
 import { ChatTimeline } from "./ChatTimeline.tsx"
 import { FullAccessConfirmDialog } from "./FullAccessConfirmDialog.tsx"
+import { PermissionRequiredCard } from "./PermissionRequiredCard.tsx"
+import { QuestionPromptCard } from "./QuestionPromptCard.tsx"
 import { ErrorNotice } from "@/components/ErrorNotice"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useT } from "@/i18n/i18n"
@@ -408,9 +408,8 @@ export const ChatArea = React.memo(function ChatArea({
 
           {showCenteredEmptyState ? null : (
             <div className={cn("mx-auto flex w-full flex-col gap-2 px-4", CHAT_CONTENT_MAX_WIDTH_CLASS)}>
-              {pinnedContextBar}
-              {/* 提问/权限确认统一固定显示在输入框上方（不随消息滚动），排队展示 */}
               {pendingQuestions.length > 0 || pendingPermissions.length > 0 ? (
+                // 提问/权限确认接管输入框位置（composer takeover）：请求处理完输入框恢复
                 <div className="flex flex-col gap-2">
                   {pendingQuestions.map((request) => (
                     <QuestionPromptCard
@@ -430,11 +429,19 @@ export const ChatArea = React.memo(function ChatArea({
                       onAllowOnce={(requestId) => onAnswerPermission(requestId, "once")}
                       onAllowForSession={(requestId) => onAnswerPermission(requestId, "always")}
                       onReject={(requestId) => onAnswerPermission(requestId, "reject")}
+                      onDiscuss={(requestId) => {
+                        // 「讨论」= 放弃本次审批让输入框恢复，用户直接打字表达诉求（对齐 dsh 的 discuss 语义）
+                        void onAnswerPermission(requestId, "reject")
+                      }}
                     />
                   ))}
                 </div>
-              ) : null}
-              {composer}
+              ) : (
+                <>
+                  {pinnedContextBar}
+                  {composer}
+                </>
+              )}
             </div>
           )}
         </div>

@@ -941,6 +941,8 @@ export const zhCNMessages = {
   "chat.permissionRequiredAllowPathSession": "本会话内允许此文件夹",
   "chat.permissionRequiredAllowEditSession": "本会话内允许此路径",
   "chat.permissionRequiredReject": "取消此步骤",
+  "chat.permissionRequiredDiscuss": "我想直接说",
+  "chat.permissionRequiredDiscussHint": "放弃本次审批，回到输入框直接说明你的诉求",
   "chat.permissionHighRiskBadge": "高风险",
   "chat.permissionSensitiveBadge": "敏感数据",
   "chat.permissionSubmitFailed": "权限响应发送失败，请重试。",
