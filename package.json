@@ -1,7 +1,7 @@
 {
   "name": "dweis-next",
   "displayName": "DWeis Next",
-  "version": "1.7.9",
+  "version": "1.8.0",
   "private": true,
   "description": "DWeis Next — desktop AI agent for local work, custom models, and automation.",
   "homepage": "https://github.com/oomol-lab/wanta",
