@@ -8,7 +8,6 @@ import {
   llmBaseUrl,
   ooEndpoint,
   teamControlBaseUrl,
-  staticBaseUrl,
 } from "./domain.ts"
 
 test("ooEndpoint is a bare host injected at build time", () => {
@@ -23,5 +22,4 @@ test("all base URLs derive from the single injected endpoint", () => {
   assert.equal(consoleBaseUrl, `https://console.${ooEndpoint}`)
   assert.equal(consoleServerBaseUrl, `https://console-server.${ooEndpoint}`)
   assert.equal(apiBaseUrl, `https://api.${ooEndpoint}`)
-  assert.equal(staticBaseUrl, `https://static.${ooEndpoint}`)
 })

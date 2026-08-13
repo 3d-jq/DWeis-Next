@@ -9,7 +9,6 @@ import { app, powerMonitor } from "electron"
 import updaterPkg from "electron-updater"
 import { branding } from "../branding.ts"
 import { logDiagnostic } from "../diagnostics-log.ts"
-import { staticBaseUrl } from "../domain.ts"
 import { resolveUpdateChannel, updaterChannelName } from "./channel.ts"
 import { UpdateService as UpdateServiceName } from "./common.ts"
 import {
@@ -511,9 +510,12 @@ export class UpdateServiceImpl extends ConnectionService<UpdateService> implemen
 
     const channel = updaterChannelName(this.channel)
     if (this.configuredChannel !== channel) {
+      // GitHub Releases 更新源（owner/repo 单一来源见 branding.updateRepo）：
+      // electron-updater 自动查最新 release 并按渠道取 stable/beta 资产。
       this.autoUpdater.setFeedURL({
-        provider: "generic",
-        url: `${staticBaseUrl}/${branding.updateFeedPath}/${process.platform}/${process.arch}`,
+        provider: "github",
+        owner: branding.updateRepo.owner,
+        repo: branding.updateRepo.repo,
         channel,
       })
       // 显式 false：stable 构建经 generateUpdatesFilesForAllChannels 刷新 beta.yml 时

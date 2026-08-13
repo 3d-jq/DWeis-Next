@@ -33,8 +33,11 @@ export const branding = {
    *  改了会出现双前缀并存、老用户配置静默丢失（详见代码审查结论）。service/bridge 身份走
    *  servicePrefix / windowBridge（均为 dweisnext），与存储 key 命名空间刻意分离。 */
   storageKeyPrefix: "dweis",
-  /** 自动更新 OSS/CDN 路径段（完整基址在 domain.ts 由 endpoint 派生，见 R2/阶段 6）。 */
-  updateFeedPath: "release/apps/dweisnext",
+  /** GitHub 发布仓库（自动更新源：electron-updater github provider 从这里派生 owner/repo）。 */
+  updateRepo: {
+    owner: "3d-jq",
+    repo: "DWeis-Next",
+  },
 } as const
 
 /** 拼接一个 ServiceName 字符串，如 `serviceName("ping-service") === "dweisnext/ping-service"`。 */

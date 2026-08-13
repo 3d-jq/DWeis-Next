@@ -279,8 +279,9 @@ export default {
     output: "release/build224",
   },
   publish: {
-    provider: "generic",
-    url: "",
+    provider: "github",
+    owner: branding.updateRepo.owner,
+    repo: branding.updateRepo.repo,
   },
   // 双渠道（stable/beta）：generic provider 由版本号 prerelease 段自动推导渠道
   // （1.2.3-beta.1 → beta*.yml；detectUpdateChannel 默认开启）。此开关让 stable 构建
