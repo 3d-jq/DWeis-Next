@@ -12,6 +12,7 @@ import {
   FileText,
   Files,
   GitBranch,
+  GitCommitHorizontal,
   ListTodo,
   Loader2,
 } from "lucide-react"
@@ -20,6 +21,8 @@ import * as React from "react"
 import { useArtifactBundles } from "./artifact-bundle-records.ts"
 import { subTasksFromMessages } from "./sub-tasks.ts"
 import { useChatService } from "@/components/AppContext"
+import { Button } from "@/components/ui/button"
+import { Dialog } from "@/components/ui/dialog"
 import { useProjectGit } from "@/hooks/useProjectGit"
 import { useT } from "@/i18n/i18n"
 import { cn } from "@/lib/utils"
@@ -261,6 +264,8 @@ export function PlanSummaryPanel({
   const [newBranchName, setNewBranchName] = React.useState("")
   const [creatingBranch, setCreatingBranch] = React.useState(false)
   const [branchError, setBranchError] = React.useState<string | null>(null)
+  const [branchDialogOpen, setBranchDialogOpen] = React.useState(false)
+  const [graphDialogOpen, setGraphDialogOpen] = React.useState(false)
   const handleCreateBranch = React.useCallback(async (): Promise<void> => {
     const name = newBranchName.trim()
     if (!name || creatingBranch) {
@@ -438,35 +443,28 @@ export function PlanSummaryPanel({
                             {t("chat.planGitUntracked")} {git.state?.untrackedCount ?? 0}
                           </span>
                         </div>
-                        {/* 创建并检出新分支 */}
-                        <div className="flex items-center gap-1.5">
-                          <input
-                            type="text"
-                            value={newBranchName}
-                            placeholder={t("chat.planGitBranchPlaceholder")}
-                            className="h-7 min-w-0 flex-1 rounded border border-[var(--oo-divider)] bg-background px-2 text-xs outline-none focus-visible:border-ring"
-                            onChange={(event) => setNewBranchName(event.target.value)}
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter") {
-                                void handleCreateBranch()
-                              }
-                            }}
-                          />
+                        {/* git 操作：创建分支 / 图谱 弹窗入口 */}
+                        <div className="flex flex-wrap items-center gap-1.5">
                           <button
                             type="button"
-                            disabled={creatingBranch || !newBranchName.trim()}
-                            className="flex h-7 shrink-0 items-center gap-1 rounded px-2 text-xs font-medium text-primary transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
-                            onClick={() => void handleCreateBranch()}
+                            className="flex h-7 items-center gap-1 rounded border border-[var(--oo-divider)] bg-background px-2 text-xs font-medium transition-colors hover:bg-accent hover:text-foreground"
+                            onClick={() => setBranchDialogOpen(true)}
                           >
                             <GitBranch className="size-3.5" aria-hidden="true" />
-                            {creatingBranch ? "…" : t("chat.planGitCreateBranch")}
+                            {t("chat.planGitCreateBranchAction")}
+                          </button>
+                          <button
+                            type="button"
+                            className="flex h-7 items-center gap-1 rounded border border-[var(--oo-divider)] bg-background px-2 text-xs font-medium transition-colors hover:bg-accent hover:text-foreground"
+                            onClick={() => {
+                              void git.refreshGraph()
+                              setGraphDialogOpen(true)
+                            }}
+                          >
+                            <GitCommitHorizontal className="size-3.5" aria-hidden="true" />
+                            {t("chat.planGitGraphAction")}
                           </button>
                         </div>
-                        {branchError ? <p className="text-xs text-destructive">{branchError}</p> : null}
-                        {/* git 图谱：git log --graph 的 ASCII 输出，等宽字体渲染 */}
-                        <pre className="max-h-44 overflow-auto rounded-md bg-muted/40 p-2 font-mono text-[11px] leading-4 whitespace-pre text-foreground/80">
-                          {git.graph && git.graph.length > 0 ? git.graph.join("\n") : t("chat.planGitGraphEmpty")}
-                        </pre>
                       </div>
                     </SectionBody>
                   </section>
@@ -586,6 +584,68 @@ export function PlanSummaryPanel({
           ) : null}
         </div>
       </motion.div>
+      {/* 创建分支弹窗 */}
+      <Dialog
+        open={branchDialogOpen}
+        onClose={() => setBranchDialogOpen(false)}
+        title={t("chat.planGitCreateBranchAction")}
+        description={
+          git.state?.currentBranch ? `${t("chat.planGitCurrentBranch")} ${git.state.currentBranch}` : undefined
+        }
+        footer={
+          <Button type="button" size="sm" onClick={() => setBranchDialogOpen(false)}>
+            {t("common.close")}
+          </Button>
+        }
+      >
+        <div className="space-y-2">
+          <input
+            type="text"
+            value={newBranchName}
+            autoFocus
+            placeholder={t("chat.planGitBranchPlaceholder")}
+            className="h-9 w-full rounded-md border border-[var(--oo-divider)] bg-background px-3 text-sm outline-none focus-visible:border-ring"
+            onChange={(event) => setNewBranchName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                void handleCreateBranch()
+              }
+            }}
+          />
+          {branchError ? <p className="text-xs text-destructive">{branchError}</p> : null}
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              size="sm"
+              disabled={creatingBranch || !newBranchName.trim()}
+              onClick={() => void handleCreateBranch()}
+            >
+              <GitBranch className="size-4" />
+              {creatingBranch ? "…" : t("chat.planGitCreateBranch")}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+      {/* git 图谱弹窗 */}
+      <Dialog
+        open={graphDialogOpen}
+        onClose={() => setGraphDialogOpen(false)}
+        title={t("chat.planGitGraphAction")}
+        footer={
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => void git.refreshGraph()}>
+              {t("chat.planGitRefresh")}
+            </Button>
+            <Button type="button" size="sm" onClick={() => setGraphDialogOpen(false)}>
+              {t("common.close")}
+            </Button>
+          </div>
+        }
+      >
+        <pre className="max-h-80 overflow-auto rounded-md bg-muted/40 p-3 font-mono text-xs leading-5 whitespace-pre text-foreground/80">
+          {git.graph && git.graph.length > 0 ? git.graph.join("\n") : t("chat.planGitGraphEmpty")}
+        </pre>
+      </Dialog>
     </AnimatePresence>
   )
 }
