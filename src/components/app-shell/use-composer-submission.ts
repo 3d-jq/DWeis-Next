@@ -1,0 +1,327 @@
+import type {
+  AgentMode,
+  AgentPermissionMode,
+  ChatContextMention,
+  ChatProjectContext,
+  ReasoningLevel,
+} from "../../../electron/chat/common.ts"
+import type { ModelChoice } from "../../../electron/models/common.ts"
+import type { SessionInfo, SessionProject, SessionScope } from "../../../electron/session/common.ts"
+import type { ChatSendRequest, ChatSendResult, TurnRetryOptions } from "./app-shell-model.ts"
+import type { AppShellRoute } from "./app-shell-types.ts"
+import type { PendingChatTransition } from "./pending-chat.ts"
+import type { UseSessionTitleGenerationResult } from "./use-session-title-generation.ts"
+import type { UseChat } from "@/hooks/useChat"
+
+import * as React from "react"
+import { buildFallbackSessionTitle } from "../../../electron/session/title.ts"
+import { buildSessionTitleInput, rememberTurnRetryOptions, sessionScopeKey } from "./app-shell-model.ts"
+import { chatTurnInputKey } from "@/routes/Chat/chat-turns"
+
+export interface ComposerSubmissionMemory {
+  contextMentionsBySession: React.RefObject<Map<string, ChatContextMention[]>>
+  modeBySession: React.RefObject<Map<string, AgentMode | undefined>>
+  modelBySession: React.RefObject<Map<string, ModelChoice | undefined>>
+  permissionModeBySession: React.RefObject<Map<string, AgentPermissionMode | undefined>>
+  reasoningLevelBySession: React.RefObject<Map<string, ReasoningLevel | undefined>>
+  retryOptionsBySession: React.RefObject<Map<string, Map<string, TurnRetryOptions>>>
+}
+
+export interface ComposerSubmissionController {
+  forgetSession: (sessionId: string) => void
+  isDraftSendInFlight: (draftKey: string) => boolean
+  isSendInFlight: () => boolean
+  memory: ComposerSubmissionMemory
+  resetMemory: () => void
+  sendNow: (request: ChatSendRequest) => Promise<ChatSendResult>
+}
+
+const retainedSubmissionSessionLimit = 12
+
+function touchSessionValue<T>(store: Map<string, T>, sessionId: string): void {
+  if (!store.has(sessionId)) {
+    return
+  }
+  const value = store.get(sessionId) as T
+  store.delete(sessionId)
+  store.set(sessionId, value)
+}
+
+export function useComposerSubmission({
+  activeChatSessionId,
+  activeComposerDraftKey,
+  activeProject,
+  activeProjectContext,
+  activeSession,
+  createSession,
+  currentScopeKey,
+  displayedPermissionMode,
+  messages,
+  messagesLoaded,
+  knowledgeBaseIds,
+  persistPermissionMode,
+  persistKnowledgeBaseIds,
+  send,
+  sessionScope,
+  setIsDraftSession,
+  setPendingChatTransition,
+  setRoute,
+  setSelectedSessionId,
+  titleGeneration,
+}: {
+  activeChatSessionId: string | null
+  activeComposerDraftKey: string
+  activeProject?: SessionProject
+  activeProjectContext?: ChatProjectContext
+  activeSession?: SessionInfo
+  createSession: (title?: string, projectId?: string) => Promise<SessionInfo>
+  currentScopeKey: string
+  displayedPermissionMode: AgentPermissionMode
+  messages: Parameters<typeof buildSessionTitleInput>[0]
+  messagesLoaded: boolean
+  knowledgeBaseIds: string[]
+  persistPermissionMode: (sessionId: string, mode: AgentPermissionMode) => Promise<void>
+  persistKnowledgeBaseIds: (sessionId: string, ids: string[]) => void
+  send: UseChat["send"]
+  sessionScope: SessionScope | null
+  setIsDraftSession: React.Dispatch<React.SetStateAction<boolean>>
+  setPendingChatTransition: React.Dispatch<React.SetStateAction<PendingChatTransition | null>>
+  setRoute: React.Dispatch<React.SetStateAction<AppShellRoute>>
+  setSelectedSessionId: React.Dispatch<React.SetStateAction<string | null>>
+  titleGeneration: Pick<
+    UseSessionTitleGenerationResult,
+    "getAutoFallbackTitle" | "isAutoRefreshable" | "refreshGeneratedTitle" | "rememberAutoFallbackTitle"
+  >
+}): ComposerSubmissionController {
+  const modelBySession = React.useRef<Map<string, ModelChoice | undefined>>(new Map())
+  const reasoningLevelBySession = React.useRef<Map<string, ReasoningLevel | undefined>>(new Map())
+  const modeBySession = React.useRef<Map<string, AgentMode | undefined>>(new Map())
+  const permissionModeBySession = React.useRef<Map<string, AgentPermissionMode | undefined>>(new Map())
+  const contextMentionsBySession = React.useRef<Map<string, ChatContextMention[]>>(new Map())
+  const retryOptionsBySession = React.useRef<Map<string, Map<string, TurnRetryOptions>>>(new Map())
+  const sendInFlightKeys = React.useRef(new Set<string>())
+  const activeDraftKeyRef = React.useRef(activeComposerDraftKey)
+  const scopeKeyRef = React.useRef(currentScopeKey)
+  activeDraftKeyRef.current = activeComposerDraftKey
+  scopeKeyRef.current = currentScopeKey
+
+  const forgetSession = React.useCallback((sessionId: string): void => {
+    modelBySession.current.delete(sessionId)
+    reasoningLevelBySession.current.delete(sessionId)
+    modeBySession.current.delete(sessionId)
+    permissionModeBySession.current.delete(sessionId)
+    contextMentionsBySession.current.delete(sessionId)
+    retryOptionsBySession.current.delete(sessionId)
+  }, [])
+
+  const retainRecentSession = React.useCallback(
+    (sessionId: string): void => {
+      touchSessionValue(modelBySession.current, sessionId)
+      touchSessionValue(reasoningLevelBySession.current, sessionId)
+      touchSessionValue(modeBySession.current, sessionId)
+      touchSessionValue(permissionModeBySession.current, sessionId)
+      touchSessionValue(contextMentionsBySession.current, sessionId)
+      touchSessionValue(retryOptionsBySession.current, sessionId)
+      while (retryOptionsBySession.current.size > retainedSubmissionSessionLimit) {
+        const oldestSessionId = retryOptionsBySession.current.keys().next().value
+        if (!oldestSessionId) {
+          break
+        }
+        forgetSession(oldestSessionId)
+      }
+    },
+    [forgetSession],
+  )
+
+  const sendNow = React.useCallback(
+    async (request: ChatSendRequest): Promise<ChatSendResult> => {
+      const {
+        afterOptimisticSubmit,
+        attachments = [],
+        contextMentions = [],
+        mode,
+        model,
+        permissionMode: permissionModeArg,
+        projectContext: requestProjectContext,
+        reasoningLevel,
+        sessionScope: requestSessionScope,
+        text,
+      } = request
+      const effectiveSessionScope = requestSessionScope ?? sessionScope
+      const effectiveScopeKey = sessionScopeKey(effectiveSessionScope)
+      const effectiveProjectContext = requestProjectContext ?? activeProjectContext
+      const sendKey = activeComposerDraftKey
+      const isCurrentSendTarget = (): boolean =>
+        activeDraftKeyRef.current === sendKey && scopeKeyRef.current === effectiveScopeKey
+      if (sendInFlightKeys.current.has(sendKey)) {
+        return { reason: "send_in_flight", status: "rejected" }
+      }
+      if (!effectiveSessionScope || currentScopeKey !== effectiveScopeKey) {
+        return { reason: "workspace_not_ready", status: "rejected" }
+      }
+      sendInFlightKeys.current.add(sendKey)
+      try {
+        setRoute("chat")
+        let sessionId = activeChatSessionId
+        const titleInput = { ...buildSessionTitleInput(messages, text, attachments), model }
+        const fallbackTitle = buildFallbackSessionTitle(titleInput)
+        const autoFallbackTitle = sessionId ? titleGeneration.getAutoFallbackTitle(sessionId) : undefined
+        const allowPlaceholderTitle =
+          !sessionId || (activeSession ? titleGeneration.isAutoRefreshable(activeSession, true, fallbackTitle) : false)
+        const shouldRefreshTitle =
+          !sessionId ||
+          (activeSession
+            ? titleGeneration.isAutoRefreshable(activeSession, allowPlaceholderTitle, fallbackTitle)
+            : false)
+        const bridgeEmptySend = messagesLoaded && messages.length === 0
+        const createdAt = Date.now()
+        const selectedPermissionMode = permissionModeArg ?? displayedPermissionMode
+        if (bridgeEmptySend && isCurrentSendTarget()) {
+          setPendingChatTransition({
+            sessionId,
+            scopeKey: effectiveScopeKey,
+            text,
+            attachments,
+            contextMentions,
+            model,
+            reasoningLevel,
+            mode,
+            permissionMode: selectedPermissionMode,
+            createdAt,
+          })
+        }
+        if (!sessionId) {
+          let info: SessionInfo
+          try {
+            info = await createSession(fallbackTitle, effectiveProjectContext?.id ?? activeProject?.id)
+          } catch (error) {
+            if (bridgeEmptySend && isCurrentSendTarget()) {
+              setPendingChatTransition(null)
+            }
+            return { error, status: "failed" }
+          }
+          sessionId = info.id
+          titleGeneration.rememberAutoFallbackTitle(sessionId, fallbackTitle)
+          if (isCurrentSendTarget()) {
+            setSelectedSessionId(sessionId)
+            setIsDraftSession(false)
+            setPendingChatTransition((pending) =>
+              pending?.createdAt === createdAt && pending.scopeKey === effectiveScopeKey
+                ? { ...pending, sessionId: info.id }
+                : pending,
+            )
+          }
+        }
+        try {
+          await persistPermissionMode(sessionId, selectedPermissionMode)
+        } catch (error) {
+          if (bridgeEmptySend && isCurrentSendTarget()) {
+            setPendingChatTransition(null)
+          }
+          return { error, status: "failed" }
+        }
+        persistKnowledgeBaseIds(sessionId, knowledgeBaseIds)
+        if (shouldRefreshTitle) {
+          void titleGeneration.refreshGeneratedTitle(
+            sessionId,
+            titleInput,
+            allowPlaceholderTitle,
+            !activeChatSessionId ? fallbackTitle : autoFallbackTitle,
+          )
+        }
+        modelBySession.current.set(sessionId, model)
+        reasoningLevelBySession.current.set(sessionId, reasoningLevel)
+        modeBySession.current.set(sessionId, mode)
+        permissionModeBySession.current.set(sessionId, selectedPermissionMode)
+        contextMentionsBySession.current.set(sessionId, contextMentions)
+        rememberTurnRetryOptions(retryOptionsBySession.current, sessionId, chatTurnInputKey({ text, attachments }), {
+          contextMentions,
+          projectContext: effectiveProjectContext,
+          model,
+          reasoningLevel,
+          mode,
+          permissionMode: selectedPermissionMode,
+          sessionScope: effectiveSessionScope,
+        })
+        retainRecentSession(sessionId)
+        try {
+          const sendPromise = send(sessionId, text, attachments, {
+            contextMentions,
+            model,
+            projectContext: effectiveProjectContext,
+            reasoningLevel,
+            sessionScope: effectiveSessionScope,
+            mode,
+            permissionMode: selectedPermissionMode,
+          })
+          afterOptimisticSubmit?.()
+          await sendPromise
+        } catch (error) {
+          if (bridgeEmptySend && isCurrentSendTarget()) {
+            setPendingChatTransition(null)
+          }
+          return { error, status: "failed" }
+        }
+        return { delivery: "sent", status: "accepted" }
+      } finally {
+        sendInFlightKeys.current.delete(sendKey)
+      }
+    },
+    [
+      activeChatSessionId,
+      activeComposerDraftKey,
+      activeProject?.id,
+      activeProjectContext,
+      activeSession,
+      createSession,
+      currentScopeKey,
+      displayedPermissionMode,
+      messages,
+      messagesLoaded,
+      knowledgeBaseIds,
+      persistKnowledgeBaseIds,
+      persistPermissionMode,
+      retainRecentSession,
+      send,
+      sessionScope,
+      setIsDraftSession,
+      setPendingChatTransition,
+      setRoute,
+      setSelectedSessionId,
+      titleGeneration,
+    ],
+  )
+
+  const isDraftSendInFlight = React.useCallback(
+    (draftKey: string): boolean => sendInFlightKeys.current.has(draftKey),
+    [],
+  )
+  const isSendInFlight = React.useCallback(
+    (): boolean => sendInFlightKeys.current.has(activeComposerDraftKey),
+    [activeComposerDraftKey],
+  )
+  const resetMemory = React.useCallback((): void => {
+    modelBySession.current.clear()
+    reasoningLevelBySession.current.clear()
+    modeBySession.current.clear()
+    permissionModeBySession.current.clear()
+    contextMentionsBySession.current.clear()
+    retryOptionsBySession.current.clear()
+  }, [])
+
+  return {
+    forgetSession,
+    isDraftSendInFlight,
+    isSendInFlight,
+    memory: {
+      contextMentionsBySession,
+      modeBySession,
+      modelBySession,
+      permissionModeBySession,
+      reasoningLevelBySession,
+      retryOptionsBySession,
+    },
+    resetMemory,
+    sendNow,
+  }
+}

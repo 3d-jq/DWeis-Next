@@ -1,0 +1,43 @@
+import assert from "node:assert/strict"
+import path from "node:path"
+import { describe, test } from "vitest"
+import { createBootstrapConfig, preferredWorktreePort, renderEnvScript, shellQuote } from "./bootstrap.ts"
+
+describe("bootstrap helpers", () => {
+  test("preferredWorktreePort is stable and bounded", () => {
+    const portA = preferredWorktreePort("/tmp/worktree-a")
+    const portB = preferredWorktreePort("/tmp/worktree-a")
+    const portC = preferredWorktreePort("/tmp/worktree-b")
+
+    assert.equal(portA, portB)
+    assert.ok(portA >= 5273)
+    assert.ok(portA < 6273)
+    assert.equal(portC, preferredWorktreePort("/tmp/worktree-b"))
+    assert.ok(portC >= 5273)
+    assert.ok(portC < 6273)
+  })
+
+  test("shellQuote escapes single quotes", () => {
+    assert.equal(shellQuote("a'b"), "'a'\\''b'")
+  })
+
+  test("renderEnvScript emits shell exports", () => {
+    const script = renderEnvScript({
+      DWEIS_DEV_SERVER_PORT: "6000",
+      DWEIS_SKIP_PROTOCOL_REGISTRATION: "1",
+      DWEIS_USER_DATA_DIR: "/tmp/dweis",
+    })
+
+    assert.match(script, /export DWEIS_DEV_SERVER_PORT='6000'/)
+    assert.match(script, /export DWEIS_SKIP_PROTOCOL_REGISTRATION='1'/)
+    assert.match(script, /export DWEIS_USER_DATA_DIR='\/tmp\/dweis'/)
+  })
+
+  test("bootstrap config uses repo-local dev userData", async () => {
+    const config = await createBootstrapConfig()
+
+    assert.ok(config.userDataDir.endsWith(path.join("dweis")))
+    assert.equal(config.env["DWEIS_USER_DATA_DIR"], config.userDataDir)
+    assert.doesNotMatch(config.userDataDir, /\.dweis-dev\/user-data$/)
+  })
+})

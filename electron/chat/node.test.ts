@@ -1,0 +1,4055 @@
+import type { AgentManager } from "../agent/manager.ts"
+import type { SessionProject } from "../session/common.ts"
+import type { ChatMessage } from "./common.ts"
+
+import assert from "node:assert/strict"
+import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
+import { afterEach, expect, test, vi } from "vitest"
+import { resolveRuntimeCapabilities } from "../runtime/common.ts"
+import { ExpiringTrustedPathRegistry } from "../trusted-path-registry.ts"
+import {
+  ArtifactBundleStore,
+  buildArtifactBundle,
+  buildArtifactBundleFromGroup,
+  recordArtifactBundle,
+} from "./artifact-bundles.ts"
+import { AuthorizationOverlayStore } from "./authorization.ts"
+import { buildContextMentionsSystem, ChatServiceImpl, isAbortErrorMessage } from "./node.ts"
+import { resolveChatTurnExecution } from "./turn-execution.ts"
+import { TurnOutputStore } from "./turn-outputs.ts"
+import { UserAttachmentStore } from "./user-attachments.ts"
+
+const testTeamScope = {
+  kind: "team" as const,
+  teamId: "team-id",
+  teamName: "team-name",
+}
+
+afterEach(() => {
+  vi.useRealTimers()
+  vi.unstubAllGlobals()
+})
+
+test("runtime capabilities remain credential-free across the chat service boundary", async () => {
+  const service = new ChatServiceImpl()
+  expect(await service.getRuntimeCapabilities()).toEqual(
+    resolveRuntimeCapabilities({ mode: "local", localAgentAvailable: false }),
+  )
+
+  const capabilities = resolveRuntimeCapabilities({
+    mode: "oomol",
+    localAgentAvailable: true,
+  })
+  service.setRuntimeCapabilities(capabilities)
+
+  expect(await service.getRuntimeCapabilities()).toEqual(capabilities)
+  expect(await service.getRuntimeCapabilities()).not.toHaveProperty("sessionToken")
+})
+
+function createBridgeAgent(): {
+  agent: AgentManager
+  abort: ReturnType<typeof vi.fn>
+  answerPermission: ReturnType<typeof vi.fn>
+  answerQuestion: ReturnType<typeof vi.fn>
+  artifactSessionDir: ReturnType<typeof vi.fn>
+  createArtifactDir: ReturnType<typeof vi.fn>
+  createProcessDir: ReturnType<typeof vi.fn>
+  emit: (event: { type: string; data?: Record<string, unknown>; properties?: Record<string, unknown> }) => void
+  getMessages: ReturnType<typeof vi.fn>
+  getPendingPermissions: ReturnType<typeof vi.fn>
+  getPendingPermissionsForSessions: ReturnType<typeof vi.fn>
+  getPendingQuestions: ReturnType<typeof vi.fn>
+  getPendingQuestionsForSessions: ReturnType<typeof vi.fn>
+  inheritSessionKnowledgeBaseIds: ReturnType<typeof vi.fn>
+  promptStreaming: ReturnType<typeof vi.fn>
+  rejectQuestion: ReturnType<typeof vi.fn>
+  setSessionKnowledgeBaseIds: ReturnType<typeof vi.fn>
+  setSessionTeamName: ReturnType<typeof vi.fn>
+} {
+  let listener:
+    | ((event: { type: string; data?: Record<string, unknown>; properties?: Record<string, unknown> }) => void)
+    | undefined
+  const abort = vi.fn(async () => undefined)
+  const answerPermission = vi.fn(async () => undefined)
+  const answerQuestion = vi.fn(async () => undefined)
+  const artifactSessionDir = vi.fn(() => path.join(os.tmpdir(), "dweis-test-artifacts"))
+  const createArtifactDir = vi.fn(async () => path.join(os.tmpdir(), "dweis-test-artifacts"))
+  const createProcessDir = vi.fn(async () => path.join(os.tmpdir(), "dweis-test-process"))
+  const activeAssistantIds = new Map<string, string>()
+  const getPendingPermissions = vi.fn(async (_sessionId: string) => [])
+  const getPendingQuestions = vi.fn(async (_sessionId: string) => [])
+  const getPendingPermissionsForSessions = vi.fn(async (sessionIds: string[]) => {
+    const results = await Promise.all(sessionIds.map((sessionId) => getPendingPermissions(sessionId)))
+    return results.flat()
+  })
+  const getPendingQuestionsForSessions = vi.fn(async (sessionIds: string[]) => {
+    const results = await Promise.all(sessionIds.map((sessionId) => getPendingQuestions(sessionId)))
+    return results.flat()
+  })
+  const inheritSessionKnowledgeBaseIds = vi.fn(async () => undefined)
+  const promptStreaming = vi.fn(
+    async (_sessionId: string, _text: string, _options: { messageId?: string }) => undefined,
+  )
+  const getMessages = vi.fn(async (sessionId: string) => {
+    const promptCall = [...promptStreaming.mock.calls].reverse().find((call) => call[0] === sessionId)
+    const userMessageId = promptCall?.[2]?.messageId
+    const assistantMessageId = activeAssistantIds.get(sessionId)
+    return [
+      ...(userMessageId ? [{ id: userMessageId, role: "user" as const, createdAt: 1, parts: [] }] : []),
+      ...(assistantMessageId
+        ? [
+            {
+              id: assistantMessageId,
+              role: "assistant" as const,
+              createdAt: 2,
+              completedAt: 3,
+              finishReason: "stop",
+              parts: [],
+            },
+          ]
+        : []),
+    ]
+  })
+  const rejectQuestion = vi.fn(async () => undefined)
+  const clearSessionTeamName = vi.fn(async () => undefined)
+  const clearSessionKnowledgeBaseIds = vi.fn(async () => undefined)
+  const setSessionKnowledgeBaseIds = vi.fn(async () => undefined)
+  const setSessionTeamName = vi.fn(async () => undefined)
+  const agent = {
+    isReady: () => true,
+    subscribe: (
+      callback: (event: { type: string; data?: Record<string, unknown>; properties?: Record<string, unknown> }) => void,
+    ) => {
+      listener = callback
+      return () => {
+        listener = undefined
+      }
+    },
+    abort,
+    answerPermission,
+    answerQuestion,
+    artifactSessionDir,
+    createArtifactDir,
+    createProcessDir,
+    clearSessionTeamName,
+    clearSessionKnowledgeBaseIds,
+    rejectQuestion,
+    setSessionTeamName,
+    setSessionKnowledgeBaseIds,
+    promptStreaming,
+    getMessages,
+    getPendingPermissions,
+    getPendingPermissionsForSessions,
+    getPendingQuestions,
+    getPendingQuestionsForSessions,
+    inheritSessionKnowledgeBaseIds,
+  } as unknown as AgentManager
+  return {
+    agent,
+    abort,
+    answerPermission,
+    answerQuestion,
+    artifactSessionDir,
+    createArtifactDir,
+    createProcessDir,
+    emit: (event) => {
+      if (event.type === "message.updated") {
+        const info = event.properties?.info as { id?: unknown; role?: unknown; sessionID?: unknown } | undefined
+        if (info?.role === "assistant" && typeof info.id === "string" && typeof info.sessionID === "string") {
+          activeAssistantIds.set(info.sessionID, info.id)
+        }
+      }
+      listener?.(event)
+    },
+    getPendingPermissions,
+    getPendingPermissionsForSessions,
+    getPendingQuestions,
+    getPendingQuestionsForSessions,
+    inheritSessionKnowledgeBaseIds,
+    getMessages,
+    promptStreaming,
+    rejectQuestion,
+    setSessionKnowledgeBaseIds,
+    setSessionTeamName,
+  }
+}
+
+function captureServiceEvents(service: ChatServiceImpl): Array<{ event: string; data: unknown }> {
+  const events: Array<{ event: string; data: unknown }> = []
+  ;(service as unknown as { send: (event: string, data: unknown) => Promise<void> }).send = async (event, data) => {
+    events.push({ event, data })
+  }
+  return events
+}
+
+function projectStore(projects: SessionProject[]): { read: () => Promise<Map<string, SessionProject>> } {
+  return {
+    read: async () => new Map(projects.map((project) => [project.id, project])),
+  }
+}
+
+async function waitForInactiveGeneration(service: ChatServiceImpl): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (!service.hasActiveGeneration()) {
+      return
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5))
+  }
+}
+
+async function waitForEventCount(events: Array<{ event: string; data: unknown }>, count: number): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (events.length >= count) {
+      return
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5))
+  }
+}
+
+async function waitForCondition(condition: () => boolean): Promise<void> {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    if (condition()) {
+      return
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5))
+  }
+  assert.fail("Timed out waiting for condition")
+}
+
+async function waitForMessageErrorCount(events: Array<{ event: string; data: unknown }>, count: number): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (events.filter((event) => event.event === "messageError").length >= count) {
+      return
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5))
+  }
+}
+
+function lastEventData<T>(events: Array<{ event: string; data: unknown }>): T {
+  const event = events.at(-1)
+  assert.ok(event)
+  return event.data as T
+}
+
+test("isAbortErrorMessage recognizes controlled stop errors only", () => {
+  assert.equal(isAbortErrorMessage("Aborted"), true)
+  assert.equal(isAbortErrorMessage("AbortError"), true)
+  assert.equal(isAbortErrorMessage("AbortError: The operation was aborted."), true)
+  assert.equal(isAbortErrorMessage("The operation was aborted."), true)
+  assert.equal(isAbortErrorMessage("Task failed"), false)
+  assert.equal(isAbortErrorMessage("Remote service cancelled the request"), false)
+})
+
+test("setAgentTeam waits for the scope synchronization callback", async () => {
+  let resolveScope: (() => void) | undefined
+  const service = new ChatServiceImpl(null, {
+    onSetAgentTeam: async () =>
+      new Promise<void>((resolve) => {
+        resolveScope = resolve
+      }),
+  })
+
+  let completed = false
+  const request = service.setAgentTeam({ teamName: "acme-corp" }).then(() => {
+    completed = true
+  })
+  await waitForCondition(() => Boolean(resolveScope))
+
+  assert.equal(completed, false)
+  resolveScope?.()
+  await request
+  assert.equal(completed, true)
+})
+
+test("sendMessage waits for the request team scope before prompting", async () => {
+  const bridge = createBridgeAgent()
+  let resolveScope: (() => void) | undefined
+  bridge.setSessionTeamName.mockImplementationOnce(
+    async () =>
+      new Promise<void>((resolve) => {
+        resolveScope = resolve
+      }),
+  )
+  const service = new ChatServiceImpl(bridge.agent)
+
+  const request = service.sendMessage({
+    scope: { kind: "team", teamId: "team-id", teamName: " acme-corp " },
+    sessionId: "session-1",
+    text: "hello",
+  })
+  await waitForCondition(() => Boolean(resolveScope))
+
+  assert.deepEqual(bridge.setSessionTeamName.mock.calls, [["session-1", "acme-corp"]])
+  assert.equal((await service.getActiveRun("session-1"))?.phase, "sending")
+  assert.equal(bridge.createArtifactDir.mock.calls.length, 0)
+  assert.equal(bridge.promptStreaming.mock.calls.length, 0)
+
+  resolveScope?.()
+  await request
+
+  assert.equal(bridge.createArtifactDir.mock.calls.length, 1)
+  assert.equal(bridge.promptStreaming.mock.calls.length, 1)
+})
+
+test("sendMessage persists original attachments and hides internal spreadsheet parts", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "dweis-user-attachment-flow-"))
+  const bridge = createBridgeAgent()
+  const store = new UserAttachmentStore(directory)
+  const originalPath = path.join(directory, "inventory.xlsx")
+  const agentPath = path.join(directory, "inventory-extracted.txt")
+  await Promise.all([writeFile(originalPath, "workbook"), writeFile(agentPath, "extracted")])
+  const service = new ChatServiceImpl(bridge.agent, {
+    trustedAttachmentPaths: new Set([originalPath, agentPath]),
+    userAttachmentStore: store,
+  })
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+  const attachment = {
+    agentMime: "text/plain",
+    agentName: "inventory-extracted.txt",
+    agentPath,
+    agentSize: 50,
+    id: "attachment-1",
+    kind: "file" as const,
+    mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    name: "inventory.xlsx",
+    path: originalPath,
+    size: 100,
+  }
+
+  await service.sendMessage({
+    attachments: [attachment],
+    scope: testTeamScope,
+    sessionId: "session-1",
+    text: "Analyze this workbook",
+  })
+  const messageId = (bridge.promptStreaming.mock.calls[0]?.[2] as { messageId?: string } | undefined)?.messageId
+  assert.match(messageId ?? "", /^msg_[a-f0-9]{12}[0-9A-Za-z]{14}$/)
+  assert.deepEqual((await store.read()).get("session-1")?.get(messageId ?? "")?.attachments[0], {
+    id: "attachment-1",
+    kind: "file",
+    mime: attachment.mime,
+    name: "inventory.xlsx",
+    path: originalPath,
+    size: 100,
+  })
+  assert.equal((await store.read()).get("session-1")?.get(messageId ?? "")?.userText, "Analyze this workbook")
+
+  bridge.emit({
+    type: "message.updated",
+    properties: { info: { id: messageId, role: "user", sessionID: "session-1" } },
+  })
+  bridge.emit({
+    type: "message.part.updated",
+    properties: {
+      part: {
+        id: "synthetic-read",
+        messageID: messageId,
+        sessionID: "session-1",
+        synthetic: true,
+        text: "<content>internal spreadsheet extraction</content>",
+        type: "text",
+      },
+    },
+  })
+  bridge.emit({
+    type: "message.part.updated",
+    properties: {
+      part: {
+        filename: "inventory-extracted.txt",
+        id: "internal-file",
+        messageID: messageId,
+        mime: "text/plain",
+        sessionID: "session-1",
+        source: { path: attachment.agentPath },
+        type: "file",
+      },
+    },
+  })
+  await waitForCondition(() => events.some((event) => event.event === "messageStarted"))
+  assert.equal(
+    events.some((event) => event.event === "messageDelta"),
+    false,
+  )
+  assert.equal(
+    events.some((event) => event.event === "messageAttachment"),
+    false,
+  )
+
+  bridge.getMessages.mockResolvedValueOnce([
+    {
+      createdAt: 1,
+      id: messageId,
+      parts: [
+        {
+          attachment: {
+            id: "internal-file",
+            kind: "file",
+            mime: "text/plain",
+            name: "inventory-extracted.txt",
+            path: attachment.agentPath,
+            size: 0,
+          },
+          kind: "attachment",
+          partId: "internal-file",
+        },
+        {
+          kind: "text",
+          partId: "internal-attachment-reference",
+          text: [
+            `Attached local file: ${attachment.name}`,
+            `Path: ${attachment.path}`,
+            `Media type: ${attachment.mime}; size: 100 B`,
+            "The file was not embedded in the model request because its media type is not safe to pass through.",
+            `A prepared copy exists at ${attachment.agentPath}, but it was not embedded. Use local tools against the original or prepared path as appropriate.`,
+          ].join("\n"),
+        },
+        { kind: "text", partId: "user-text", text: "Analyze this workbook" },
+      ],
+      role: "user",
+    },
+  ])
+  const messages = await service.getMessages("session-1")
+  assert.equal(messages[0]?.parts[0]?.attachment?.name, "inventory.xlsx")
+  assert.equal(
+    messages[0]?.parts.some((part) => part.attachment?.name === "inventory-extracted.txt"),
+    false,
+  )
+  assert.equal(
+    messages[0]?.parts.some((part) => part.text?.includes("Attached local file:")),
+    false,
+  )
+  assert.equal(messages[0]?.parts.find((part) => part.kind === "text")?.text, "Analyze this workbook")
+
+  await rm(directory, { force: true, recursive: true })
+})
+
+test("sendMessage exposes active run snapshots with the request workspace", async () => {
+  const bridge = createBridgeAgent()
+  const service = new ChatServiceImpl(bridge.agent)
+  const events = captureServiceEvents(service)
+
+  await service.sendMessage({
+    scope: { kind: "team", teamId: "team-id", teamName: " acme-corp " },
+    sessionId: "session-1",
+    text: "hello",
+  })
+
+  const run = await service.getActiveRun("session-1")
+  assert.equal(run?.sessionId, "session-1")
+  assert.equal(run?.phase, "submitted")
+  assert.deepEqual(run?.workspace, { kind: "team", teamId: "team-id", teamName: "acme-corp" })
+  assert.ok(events.some((event) => event.event === "activeRunUpdated"))
+})
+
+test("sendMessage accepts a local workspace without assigning a team", async () => {
+  const bridge = createBridgeAgent()
+  const service = new ChatServiceImpl(bridge.agent)
+
+  await service.sendMessage({
+    scope: { kind: "local", workspaceId: "local", workspaceName: "Local" },
+    sessionId: "local-session",
+    text: "hello locally",
+  })
+
+  assert.deepEqual((await service.getActiveRun("local-session"))?.workspace, {
+    kind: "local",
+    workspaceId: "local",
+    workspaceName: "Local",
+  })
+  assert.deepEqual(bridge.setSessionTeamName.mock.calls, [["local-session", undefined]])
+})
+
+test("getSessionSnapshot returns messages, pending asks, and active run together", async () => {
+  const bridge = createBridgeAgent()
+  const service = new ChatServiceImpl(bridge.agent)
+  const messages: ChatMessage[] = [
+    { id: "user-1", role: "user", createdAt: 1, parts: [{ kind: "text", partId: "text-1", text: "hello" }] },
+  ]
+  bridge.getMessages.mockResolvedValue(messages)
+  bridge.getPendingQuestions.mockResolvedValue([
+    {
+      id: "question-1",
+      sessionId: "session-1",
+      questions: [{ header: "Pick", question: "Which one?", options: [{ label: "A" }] }],
+    },
+  ])
+
+  await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "hello" })
+
+  const snapshot = await service.getSessionSnapshot("session-1")
+
+  assert.equal(snapshot.sessionId, "session-1")
+  assert.deepEqual(snapshot.messages, messages)
+  assert.equal(snapshot.pendingQuestions[0]?.id, "question-1")
+  assert.deepEqual(snapshot.pendingPermissions, [])
+  assert.equal(snapshot.activeRun?.phase, "submitted")
+  assert.equal(bridge.getMessages.mock.calls.length, 1)
+  assert.equal(bridge.getPendingQuestions.mock.calls.length, 1)
+  assert.equal(bridge.getPendingPermissions.mock.calls.length, 1)
+})
+
+test("setAgent clears active run snapshots", async () => {
+  const bridge = createBridgeAgent()
+  const service = new ChatServiceImpl(bridge.agent)
+  const events = captureServiceEvents(service)
+
+  await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "hello" })
+  assert.notEqual(await service.getActiveRun("session-1"), null)
+
+  service.setAgent(null)
+
+  assert.equal(await service.getActiveRun("session-1"), null)
+  assert.ok(
+    events.some(
+      (event) =>
+        event.event === "activeRunUpdated" &&
+        (event.data as { endedRunId?: string; run?: unknown }).run === null &&
+        Boolean((event.data as { endedRunId?: string }).endedRunId),
+    ),
+  )
+})
+
+test("active run snapshots track permission waits and completion", async () => {
+  const bridge = createBridgeAgent()
+  const service = new ChatServiceImpl(bridge.agent)
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+
+  await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "hello" })
+  bridge.emit({
+    type: "permission.asked",
+    properties: {
+      action: "bash",
+      id: "permission-1",
+      resources: ["npm install"],
+      metadata: { command: "npm install" },
+      sessionID: "session-1",
+    },
+  })
+
+  assert.equal((await service.getActiveRun("session-1"))?.phase, "awaiting_permission")
+  assert.deepEqual((await service.getActiveRun("session-1"))?.blockingRequestIds, ["permission-1"])
+
+  bridge.emit({
+    type: "message.updated",
+    properties: { info: { id: "assistant-1", sessionID: "session-1", role: "assistant" } },
+  })
+  bridge.emit({ type: "session.idle", properties: { sessionID: "session-1" } })
+  await waitForCondition(() => !service.hasActiveGeneration())
+
+  assert.equal(await service.getActiveRun("session-1"), null)
+  assert.ok(
+    events.some(
+      (event) =>
+        event.event === "activeRunUpdated" &&
+        (event.data as { run?: { phase?: string } | null }).run?.phase === "awaiting_permission",
+    ),
+  )
+  assert.ok(
+    events.some((event) => event.event === "activeRunUpdated" && (event.data as { run?: unknown }).run === null),
+  )
+})
+
+test("sendMessage allows concurrent generations in different team scopes", async () => {
+  const bridge = createBridgeAgent()
+  const service = new ChatServiceImpl(bridge.agent)
+  service.startEventBridge()
+
+  await service.sendMessage({
+    scope: { kind: "team", teamId: "team-a", teamName: "team-a" },
+    sessionId: "session-1",
+    text: "first",
+  })
+  let secondCompleted = false
+  const second = service
+    .sendMessage({
+      scope: { kind: "team", teamId: "team-b", teamName: "team-b" },
+      sessionId: "session-2",
+      text: "second",
+    })
+    .then(() => {
+      secondCompleted = true
+    })
+
+  await second
+
+  assert.equal(secondCompleted, true)
+  assert.deepEqual(bridge.setSessionTeamName.mock.calls, [
+    ["session-1", "team-a"],
+    ["session-2", "team-b"],
+  ])
+  assert.equal(bridge.promptStreaming.mock.calls.length, 2)
+  assert.equal(bridge.promptStreaming.mock.calls[0]?.[2]?.teamName, "team-a")
+  assert.equal(bridge.promptStreaming.mock.calls[1]?.[2]?.teamName, "team-b")
+})
+
+test("sendMessage allows concurrent generations in the same team scope", async () => {
+  const bridge = createBridgeAgent()
+  const service = new ChatServiceImpl(bridge.agent)
+  service.startEventBridge()
+
+  await service.sendMessage({
+    scope: { kind: "team", teamId: "team-a", teamName: "team-a" },
+    sessionId: "session-1",
+    text: "first",
+  })
+  let secondCompleted = false
+  const second = service
+    .sendMessage({
+      scope: { kind: "team", teamId: "team-a", teamName: "team-a" },
+      sessionId: "session-2",
+      text: "second",
+    })
+    .then(() => {
+      secondCompleted = true
+    })
+
+  await second
+
+  assert.equal(secondCompleted, true)
+  assert.deepEqual(bridge.setSessionTeamName.mock.calls, [
+    ["session-1", "team-a"],
+    ["session-2", "team-a"],
+  ])
+  assert.equal(service.hasActiveGeneration(), true)
+  assert.equal(bridge.promptStreaming.mock.calls.length, 2)
+})
+
+test("setAgentTeam applies only the latest queued workspace scope", async () => {
+  const bridge = createBridgeAgent()
+  const scopeCalls: Array<string | undefined> = []
+  const service = new ChatServiceImpl(bridge.agent, {
+    onSetAgentTeam: async (teamName) => {
+      scopeCalls.push(teamName)
+    },
+  })
+  service.startEventBridge()
+
+  await service.sendMessage({
+    scope: { kind: "team", teamId: "team-a", teamName: "team-a" },
+    sessionId: "session-1",
+    text: "first",
+  })
+
+  const firstSync = service.setAgentTeam({ teamName: "team-b" })
+  const secondSync = service.setAgentTeam({ teamName: "team-c" })
+  await Promise.resolve()
+
+  await Promise.all([firstSync, secondSync])
+
+  assert.deepEqual(scopeCalls, ["team-c"])
+})
+
+test("setAgentTeam is not superseded by per-turn team scopes", async () => {
+  const bridge = createBridgeAgent()
+  const scopeCalls: Array<string | undefined> = []
+  let releaseFirstScope: (() => void) | undefined
+  const service = new ChatServiceImpl(bridge.agent, {
+    onSetAgentTeam: async (teamName) => {
+      scopeCalls.push(teamName)
+      if (teamName === "team-a") {
+        await new Promise<void>((resolve) => {
+          releaseFirstScope = resolve
+        })
+      }
+    },
+  })
+  service.startEventBridge()
+
+  const firstSync = service.setAgentTeam({ teamName: "team-a" })
+  await waitForCondition(() => Boolean(releaseFirstScope))
+  const secondSync = service.setAgentTeam({ teamName: "team-b" })
+  await service.sendMessage({
+    scope: { kind: "team", teamId: "team-c", teamName: "team-c" },
+    sessionId: "session-1",
+    text: "turn scoped to team-c",
+  })
+
+  releaseFirstScope?.()
+  await Promise.all([firstSync, secondSync])
+
+  assert.deepEqual(scopeCalls, ["team-a", "team-b"])
+})
+
+test("setAgentTeam does not interrupt active generations from other team scopes", async () => {
+  const bridge = createBridgeAgent()
+  const scopeCalls: Array<string | undefined> = []
+  const service = new ChatServiceImpl(bridge.agent, {
+    onSetAgentTeam: async (teamName) => {
+      scopeCalls.push(teamName)
+    },
+  })
+  service.startEventBridge()
+
+  await service.sendMessage({
+    scope: { kind: "team", teamId: "team-a", teamName: "team-a" },
+    sessionId: "session-1",
+    text: "first",
+  })
+  assert.equal(service.hasActiveGeneration(), true)
+
+  await service.setAgentTeam({ teamName: "team-b" })
+
+  assert.deepEqual(scopeCalls, ["team-b"])
+  assert.equal(bridge.abort.mock.calls.length, 0)
+  assert.equal(service.hasActiveGeneration(), true)
+})
+
+test("setAgentTeam does not wait on active generations for the requested team scope", async () => {
+  const bridge = createBridgeAgent()
+  const scopeCalls: Array<string | undefined> = []
+  const service = new ChatServiceImpl(bridge.agent, {
+    onSetAgentTeam: async (teamName) => {
+      scopeCalls.push(teamName)
+    },
+  })
+  service.startEventBridge()
+
+  await service.sendMessage({
+    scope: { kind: "team", teamId: "team-a", teamName: "team-a" },
+    sessionId: "session-1",
+    text: "first",
+  })
+  let completed = false
+  const sync = service.setAgentTeam({ teamName: "team-a" }).then(() => {
+    completed = true
+  })
+
+  await sync
+
+  assert.equal(bridge.abort.mock.calls.length, 0)
+  assert.equal(completed, true)
+  assert.deepEqual(scopeCalls, ["team-a"])
+})
+
+test("stopGeneration suppresses delayed streaming events until the next send", async () => {
+  const bridge = createBridgeAgent()
+  const service = new ChatServiceImpl(bridge.agent)
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+
+  bridge.emit({
+    type: "message.updated",
+    properties: { info: { id: "assistant-1", sessionID: "session-1", role: "assistant" } },
+  })
+  assert.deepEqual(
+    events.map((event) => event.event),
+    ["messageStarted"],
+  )
+
+  await service.stopGeneration("session-1")
+  assert.equal(bridge.abort.mock.calls.length, 1)
+  assert.equal(events.at(-1)?.event, "generationStopped")
+
+  const stoppedEventCount = events.length
+  bridge.emit({
+    type: "message.part.updated",
+    properties: {
+      part: { id: "text-1", sessionID: "session-1", messageID: "assistant-1", type: "text", text: "late" },
+    },
+  })
+  bridge.emit({
+    type: "message.part.updated",
+    properties: {
+      part: {
+        id: "tool-1",
+        sessionID: "session-1",
+        messageID: "assistant-1",
+        type: "tool",
+        callID: "call-1",
+        tool: "search_actions",
+        state: { status: "running", input: {} },
+      },
+    },
+  })
+  bridge.emit({
+    type: "message.part.updated",
+    properties: { part: { id: "step-1", sessionID: "session-1", messageID: "assistant-1", type: "step-start" } },
+  })
+  assert.equal(events.length, stoppedEventCount)
+
+  const beforeAbortEventCount = events.length
+  bridge.emit({
+    type: "session.error",
+    properties: { sessionID: "session-1", error: { name: "AbortError" } },
+  })
+  await waitForEventCount(events, beforeAbortEventCount + 1)
+  assert.equal(events.length, beforeAbortEventCount + 1)
+  assert.equal(events.at(-1)?.event, "generationStopped")
+  const abortEventCount = events.length
+  bridge.emit({
+    type: "message.part.updated",
+    properties: {
+      part: { id: "text-2", sessionID: "session-1", messageID: "assistant-1", type: "text", text: "later" },
+    },
+  })
+  assert.equal(events.length, abortEventCount)
+
+  await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "next" })
+  bridge.emit({
+    type: "message.updated",
+    properties: { info: { id: "assistant-2", sessionID: "session-1", role: "assistant" } },
+  })
+  assert.equal(events.at(-1)?.event, "messageStarted")
+})
+
+test("compaction shows lifecycle activity without exposing internal messages", async () => {
+  const bridge = createBridgeAgent()
+  const service = new ChatServiceImpl(bridge.agent)
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+
+  bridge.emit({
+    type: "message.part.updated",
+    properties: {
+      part: { id: "compact-part", sessionID: "session-1", messageID: "compact-user", type: "compaction" },
+    },
+  })
+  bridge.emit({
+    type: "message.updated",
+    properties: {
+      info: { id: "compact-summary", sessionID: "session-1", role: "assistant", summary: true },
+    },
+  })
+  bridge.emit({
+    type: "message.part.updated",
+    properties: {
+      part: {
+        id: "summary-text",
+        sessionID: "session-1",
+        messageID: "compact-summary",
+        type: "text",
+        text: "## Goal\n- internal checkpoint",
+      },
+    },
+  })
+  bridge.emit({
+    type: "message.updated",
+    properties: {
+      info: { id: "compact-continue", sessionID: "session-1", role: "user" },
+    },
+  })
+  bridge.emit({
+    type: "message.part.updated",
+    properties: {
+      part: {
+        id: "continue-text",
+        sessionID: "session-1",
+        messageID: "compact-continue",
+        type: "text",
+        text: "Continue",
+        synthetic: true,
+      },
+    },
+  })
+  bridge.emit({ type: "session.compacted", properties: { sessionID: "session-1" } })
+
+  await waitForEventCount(events, 2)
+  assert.deepEqual(events, [
+    { event: "assistantActivity", data: { sessionId: "session-1", phase: "compacting" } },
+    { event: "assistantActivity", data: { sessionId: "session-1", phase: "resuming" } },
+  ])
+})
+
+test("stopping during compaction clears internal state before the next generation", async () => {
+  const bridge = createBridgeAgent()
+  const service = new ChatServiceImpl(bridge.agent)
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+
+  await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "first" })
+  bridge.emit({
+    type: "message.part.updated",
+    properties: {
+      part: { id: "compact-part", sessionID: "session-1", messageID: "compact-user", type: "compaction" },
+    },
+  })
+  bridge.emit({
+    type: "message.updated",
+    properties: {
+      info: { id: "reused-message", sessionID: "session-1", role: "assistant", summary: true },
+    },
+  })
+
+  await service.stopGeneration("session-1")
+  await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "second" })
+  const eventCount = events.length
+  bridge.emit({
+    type: "message.updated",
+    properties: {
+      info: { id: "reused-message", sessionID: "session-1", role: "user" },
+    },
+  })
+
+  assert.deepEqual(events.slice(eventCount), [
+    {
+      event: "messageStarted",
+      data: { sessionId: "session-1", messageId: "reused-message", role: "user" },
+    },
+  ])
+})
+
+test("a late idle from a stopped generation does not complete the retried generation", async () => {
+  const bridge = createBridgeAgent()
+  const service = new ChatServiceImpl(bridge.agent)
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+
+  await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "first" })
+  bridge.emit({
+    type: "message.updated",
+    properties: { info: { id: "assistant-1", sessionID: "session-1", role: "assistant" } },
+  })
+  await service.stopGeneration("session-1")
+  await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "second" })
+  const userMessageId = bridge.promptStreaming.mock.calls[1]?.[2]?.messageId as string
+  bridge.emit({
+    type: "message.updated",
+    properties: { info: { id: "assistant-2", sessionID: "session-1", role: "assistant" } },
+  })
+  bridge.getMessages.mockResolvedValue([
+    { id: userMessageId, role: "user", createdAt: 1, parts: [] },
+    { id: "assistant-2", role: "assistant", createdAt: 2, parts: [] },
+  ])
+
+  bridge.emit({ type: "session.idle", properties: { sessionID: "session-1" } })
+  await new Promise((resolve) => setTimeout(resolve, 175))
+
+  assert.equal(service.hasActiveGeneration(), true)
+  assert.equal(events.filter((event) => event.event === "messageCompleted").length, 0)
+
+  bridge.getMessages.mockResolvedValue([
+    { id: userMessageId, role: "user", createdAt: 1, parts: [] },
+    { id: "assistant-2", role: "assistant", createdAt: 2, completedAt: 3, finishReason: "stop", parts: [] },
+  ])
+  await waitForCondition(() => !service.hasActiveGeneration())
+
+  assert.equal(service.hasActiveGeneration(), false)
+  assert.equal(events.filter((event) => event.event === "messageCompleted").length, 1)
+})
+
+test("an indeterminate idle check does not complete the active generation", async () => {
+  const bridge = createBridgeAgent()
+  const service = new ChatServiceImpl(bridge.agent)
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+
+  await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "hello" })
+  bridge.emit({
+    type: "message.updated",
+    properties: { info: { id: "assistant-1", sessionID: "session-1", role: "assistant" } },
+  })
+  bridge.getMessages.mockRejectedValueOnce(new Error("history unavailable")).mockResolvedValue([])
+
+  bridge.emit({ type: "session.idle", properties: { sessionID: "session-1" } })
+  await new Promise((resolve) => setTimeout(resolve, 400))
+
+  assert.equal(service.hasActiveGeneration(), true)
+  assert.equal(events.filter((event) => event.event === "messageCompleted").length, 0)
+  service.dispose()
+})
+
+test("an idle generation fails recoverably when completion cannot be verified before the retry deadline", async () => {
+  vi.useFakeTimers()
+  const bridge = createBridgeAgent()
+  const service = new ChatServiceImpl(bridge.agent)
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+
+  await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "hello" })
+  bridge.emit({
+    type: "message.updated",
+    properties: { info: { id: "assistant-1", sessionID: "session-1", role: "assistant" } },
+  })
+  bridge.getMessages.mockResolvedValue([])
+
+  bridge.emit({ type: "session.idle", properties: { sessionID: "session-1" } })
+  await Promise.resolve()
+  for (let attempt = 0; attempt < 40 && service.hasActiveGeneration(); attempt += 1) {
+    await vi.advanceTimersByTimeAsync(2_100)
+    await Promise.resolve()
+  }
+  vi.useRealTimers()
+  await waitForCondition(() => !service.hasActiveGeneration())
+
+  assert.equal(service.hasActiveGeneration(), false)
+  assert.equal(events.filter((event) => event.event === "messageCompleted").length, 0)
+  assert.equal(events.filter((event) => event.event === "messageError").length, 1)
+})
+
+test("sendMessage rejects a second active generation for the same session", async () => {
+  const bridge = createBridgeAgent()
+  const service = new ChatServiceImpl(bridge.agent)
+
+  await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "first" })
+
+  await assert.rejects(service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "duplicate" }), {
+    message: "A generation is already active for this session.",
+  })
+  assert.equal(bridge.promptStreaming.mock.calls.length, 1)
+})
+
+test("event bridge deduplicates message starts and coalesces text updates", async () => {
+  const bridge = createBridgeAgent()
+  const service = new ChatServiceImpl(bridge.agent)
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+
+  const started = {
+    type: "message.updated",
+    properties: { info: { id: "assistant-1", sessionID: "session-1", role: "assistant" } },
+  }
+  bridge.emit(started)
+  bridge.emit(started)
+  for (const text of ["H", "Hello", "Hello world"]) {
+    bridge.emit({
+      type: "message.part.updated",
+      properties: {
+        delta: text === "H" ? "H" : undefined,
+        part: { id: "text-1", sessionID: "session-1", messageID: "assistant-1", type: "text", text },
+      },
+    })
+  }
+
+  await waitForCondition(() => events.some((event) => event.event === "messageDelta"))
+
+  assert.equal(events.filter((event) => event.event === "messageStarted").length, 1)
+  const deltas = events.filter((event) => event.event === "messageDelta")
+  assert.equal(deltas.length, 1)
+  assert.equal((deltas[0]?.data as { text?: string } | undefined)?.text, "Hello world")
+})
+
+test("stopGeneration finalizes process files produced before cancellation", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "dweis-chat-stop-turn-output-"))
+  try {
+    const artifactDir = path.join(root, "artifacts")
+    const processDir = path.join(root, "process")
+    await mkdir(artifactDir, { recursive: true })
+    await mkdir(processDir, { recursive: true })
+
+    const bridge = createBridgeAgent()
+    bridge.createArtifactDir.mockResolvedValue(artifactDir)
+    bridge.createProcessDir.mockResolvedValue(processDir)
+    const store = new TurnOutputStore(root)
+    const service = new ChatServiceImpl(bridge.agent, { turnOutputStore: store })
+    const events = captureServiceEvents(service)
+    service.startEventBridge()
+
+    await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "hello" })
+    bridge.emit({
+      type: "message.updated",
+      properties: { info: { id: "assistant-1", sessionID: "session-1", role: "assistant" } },
+    })
+    await writeFile(path.join(processDir, "create.js"), "console.log(1)\n", "utf8")
+
+    await service.stopGeneration("session-1")
+    const record = (await store.read()).get("session-1")?.get("assistant-1")
+
+    assert.equal(record?.summary.processFileCount, 1)
+    assert.equal(record?.files[0]?.name, "create.js")
+    assert.ok(events.some((event) => event.event === "turnOutputUpdated"))
+    assert.equal(events.at(-1)?.event, "generationStopped")
+  } finally {
+    await rm(root, { force: true, recursive: true })
+  }
+})
+
+test("getTurnOutputs returns requested records in order without exposing stored diffs", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "dweis-chat-turn-outputs-"))
+  try {
+    const store = new TurnOutputStore(root)
+    await store.write(
+      new Map([
+        [
+          "session-1",
+          new Map([
+            [
+              "assistant-1",
+              {
+                sessionId: "session-1",
+                messageId: "assistant-1",
+                processRoot: path.join(root, "process-1"),
+                createdAt: 1,
+                completedAt: 2,
+                files: [
+                  {
+                    path: path.join(root, "process-1", "create.js"),
+                    name: "create.js",
+                    role: "process",
+                    changeKind: "added",
+                    mime: "text/plain",
+                    additions: 1,
+                    deletions: 0,
+                    diff: {
+                      kind: "text",
+                      path: path.join(root, "process-1", "create.js"),
+                      mime: "text/plain",
+                      additions: 1,
+                      deletions: 0,
+                      patch: "+console.log(1)\n",
+                    },
+                  },
+                ],
+                summary: { processFileCount: 1, changedFileCount: 0, additions: 1, deletions: 0 },
+              },
+            ],
+            [
+              "assistant-2",
+              {
+                sessionId: "session-1",
+                messageId: "assistant-2",
+                createdAt: 3,
+                completedAt: 4,
+                files: [],
+                summary: { processFileCount: 0, changedFileCount: 1, additions: 0, deletions: 0 },
+              },
+            ],
+          ]),
+        ],
+      ]),
+    )
+    const service = new ChatServiceImpl(null, { turnOutputStore: store })
+
+    const result = await service.getTurnOutputs({
+      sessionId: "session-1",
+      messageIds: ["assistant-2", "assistant-2", "missing", "assistant-1"],
+    })
+
+    assert.deepEqual(
+      result.map((record) => record.messageId),
+      ["assistant-2", "assistant-1"],
+    )
+    assert.deepEqual(Object.keys(result[1]?.files[0] ?? {}).includes("diff"), false)
+  } finally {
+    await rm(root, { force: true, recursive: true })
+  }
+})
+
+test("message completion records intermediate code files left in artifact root", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "dweis-chat-artifact-intermediate-"))
+  try {
+    const artifactDir = path.join(root, "artifacts")
+    const processDir = path.join(root, "process")
+    await mkdir(artifactDir, { recursive: true })
+    await mkdir(processDir, { recursive: true })
+
+    const bridge = createBridgeAgent()
+    bridge.createArtifactDir.mockResolvedValue(artifactDir)
+    bridge.createProcessDir.mockResolvedValue(processDir)
+    const store = new TurnOutputStore(root)
+    const service = new ChatServiceImpl(bridge.agent, { turnOutputStore: store })
+    const events = captureServiceEvents(service)
+    service.startEventBridge()
+
+    await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "帮我生成一个 PPT" })
+    bridge.emit({
+      type: "message.updated",
+      properties: { info: { id: "assistant-1", sessionID: "session-1", role: "assistant" } },
+    })
+    await writeFile(path.join(artifactDir, "create_ppt.js"), "console.log(1)\n", "utf8")
+    bridge.emit({ type: "session.idle", properties: { sessionID: "session-1" } })
+    await waitForCondition(() => events.some((event) => event.event === "turnOutputUpdated"))
+
+    const record = (await store.read()).get("session-1")?.get("assistant-1")
+    assert.equal(record?.summary.processFileCount, 1)
+    assert.equal(record?.files[0]?.name, "create_ppt.js")
+  } finally {
+    await rm(root, { force: true, recursive: true })
+  }
+})
+
+test("message completion treats a standalone HTML report as an artifact without requiring web keywords", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "dweis-chat-html-artifact-"))
+  try {
+    const artifactDir = path.join(root, "artifacts")
+    const processDir = path.join(root, "process")
+    await mkdir(artifactDir, { recursive: true })
+    await mkdir(processDir, { recursive: true })
+
+    const bridge = createBridgeAgent()
+    bridge.createArtifactDir.mockResolvedValue(artifactDir)
+    bridge.createProcessDir.mockResolvedValue(processDir)
+    const artifactBundleStore = new ArtifactBundleStore(root)
+    const turnOutputStore = new TurnOutputStore(root)
+    const service = new ChatServiceImpl(bridge.agent, { artifactBundleStore, turnOutputStore })
+    const events = captureServiceEvents(service)
+    service.startEventBridge()
+
+    await service.sendMessage({
+      scope: testTeamScope,
+      sessionId: "session-1",
+      text: "你帮我生成一份分析报告，再带图，然后再带建议",
+    })
+    bridge.emit({
+      type: "message.updated",
+      properties: { info: { id: "assistant-1", sessionID: "session-1", role: "assistant" } },
+    })
+    await writeFile(path.join(artifactDir, "analysis-report.html"), "<!doctype html><title>Report</title>", "utf8")
+    bridge.emit({ type: "session.idle", properties: { sessionID: "session-1" } })
+    await waitForCondition(() => events.some((event) => event.event === "artifactBundleUpdated"))
+
+    const bundle = (await artifactBundleStore.read()).get("session-1")?.get("assistant-1")
+    assert.equal(bundle?.kind, "web_page")
+    assert.equal(bundle?.display, "single")
+    assert.equal(bundle?.items[0]?.mime, "text/html")
+    assert.equal(bundle?.items[0]?.name, "analysis-report.html")
+    assert.equal((await turnOutputStore.read()).get("session-1")?.get("assistant-1"), undefined)
+  } finally {
+    await rm(root, { force: true, recursive: true })
+  }
+})
+
+test("message completion publishes artifact-only outputs without turn output records", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "dweis-chat-artifact-only-"))
+  try {
+    const artifactDir = path.join(root, "artifacts")
+    const processDir = path.join(root, "process")
+    await mkdir(artifactDir, { recursive: true })
+    await mkdir(processDir, { recursive: true })
+
+    const bridge = createBridgeAgent()
+    bridge.createArtifactDir.mockResolvedValue(artifactDir)
+    bridge.createProcessDir.mockResolvedValue(processDir)
+    const artifactBundleStore = new ArtifactBundleStore(root)
+    const turnOutputStore = new TurnOutputStore(root)
+    const service = new ChatServiceImpl(bridge.agent, { artifactBundleStore, turnOutputStore })
+    const events = captureServiceEvents(service)
+    service.startEventBridge()
+
+    await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "Create a report" })
+    bridge.emit({
+      type: "message.updated",
+      properties: { info: { id: "assistant-1", sessionID: "session-1", role: "assistant" } },
+    })
+    await writeFile(path.join(artifactDir, "report.pdf"), "pdf", "utf8")
+    bridge.emit({ type: "session.idle", properties: { sessionID: "session-1" } })
+    await waitForCondition(() => events.some((event) => event.event === "artifactBundleUpdated"))
+
+    assert.equal((await artifactBundleStore.read()).get("session-1")?.get("assistant-1")?.items[0]?.name, "report.pdf")
+    assert.equal((await turnOutputStore.read()).get("session-1")?.get("assistant-1"), undefined)
+    assert.equal(
+      events.some((event) => event.event === "turnOutputUpdated"),
+      false,
+    )
+  } finally {
+    await rm(root, { force: true, recursive: true })
+  }
+})
+
+test("message completion publishes project deliverables as visible project files", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "dweis-chat-project-output-"))
+  try {
+    const artifactDir = path.join(root, "managed-artifacts")
+    const processDir = path.join(root, "process")
+    const projectPath = path.join(root, "project")
+    await Promise.all([
+      mkdir(artifactDir, { recursive: true }),
+      mkdir(processDir, { recursive: true }),
+      mkdir(projectPath, { recursive: true }),
+    ])
+
+    const bridge = createBridgeAgent()
+    bridge.createArtifactDir.mockResolvedValue(artifactDir)
+    bridge.createProcessDir.mockResolvedValue(processDir)
+    const artifactBundleStore = new ArtifactBundleStore(root)
+    const service = new ChatServiceImpl(bridge.agent, {
+      artifactBundleStore,
+      projectStore: projectStore([
+        {
+          id: "project-1",
+          name: "Project",
+          path: projectPath,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ]),
+    })
+    const events = captureServiceEvents(service)
+    service.startEventBridge()
+
+    await service.sendMessage({
+      scope: testTeamScope,
+      projectContext: { id: "project-1", name: "Project", path: projectPath },
+      sessionId: "session-1",
+      text: "Create a report",
+    })
+    bridge.emit({
+      type: "message.updated",
+      properties: { info: { id: "assistant-1", sessionID: "session-1", role: "assistant" } },
+    })
+    await writeFile(path.join(artifactDir, "报告.pdf"), "pdf", "utf8")
+    bridge.emit({ type: "session.idle", properties: { sessionID: "session-1" } })
+    await waitForCondition(() => events.some((event) => event.event === "artifactBundleUpdated"))
+
+    const item = (await artifactBundleStore.read()).get("session-1")?.get("assistant-1")?.items[0]
+    assert.equal(item?.path, path.join(await realpath(projectPath), "报告.pdf"))
+    assert.equal(await readFile(path.join(projectPath, "报告.pdf"), "utf8"), "pdf")
+  } finally {
+    await rm(root, { force: true, recursive: true })
+  }
+})
+
+test("message completion recovers files that a reused script writes into an old artifact turn", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "dweis-chat-artifact-recovery-"))
+  try {
+    const sessionRoot = path.join(root, "artifacts", "session-1")
+    const oldArtifactDir = path.join(sessionRoot, "old-turn")
+    const artifactDir = path.join(sessionRoot, "current-turn")
+    const processDir = path.join(root, "process", "session-1", "current-turn")
+    await mkdir(oldArtifactDir, { recursive: true })
+    await mkdir(artifactDir)
+    await mkdir(processDir, { recursive: true })
+    await writeFile(path.join(oldArtifactDir, "existing.pdf"), "existing")
+
+    const artifactBundleStore = new ArtifactBundleStore(root)
+    const oldBundle = await buildArtifactBundle({
+      artifactRoot: oldArtifactDir,
+      completedAt: 2,
+      createdAt: 1,
+      generatedPreviewCount: 0,
+      messageId: "assistant-old",
+      sessionId: "session-1",
+    })
+    assert.ok(oldBundle)
+    const records = new Map()
+    recordArtifactBundle(records, oldBundle)
+    await artifactBundleStore.write(records)
+
+    const bridge = createBridgeAgent()
+    bridge.artifactSessionDir.mockReturnValue(sessionRoot)
+    bridge.createArtifactDir.mockResolvedValue(artifactDir)
+    bridge.createProcessDir.mockResolvedValue(processDir)
+    const service = new ChatServiceImpl(bridge.agent, { artifactBundleStore })
+    const events = captureServiceEvents(service)
+    service.startEventBridge()
+
+    await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "Create three mock files" })
+    bridge.emit({
+      type: "message.updated",
+      properties: { info: { id: "assistant-1", sessionID: "session-1", role: "assistant" } },
+    })
+    await writeFile(path.join(oldArtifactDir, "sales.xlsx"), "sales")
+    await writeFile(path.join(oldArtifactDir, "training.pdf"), "training")
+    await writeFile(path.join(oldArtifactDir, "budget.pdf"), "budget")
+    bridge.emit({ type: "session.idle", properties: { sessionID: "session-1" } })
+    await waitForCondition(() => events.some((event) => event.event === "artifactBundleUpdated"))
+
+    const stored = await artifactBundleStore.read()
+    const currentBundle = stored.get("session-1")?.get("assistant-1")
+    assert.deepEqual(
+      currentBundle?.items.map((item) => item.name),
+      ["budget.pdf", "sales.xlsx", "training.pdf"],
+    )
+    assert.ok(currentBundle?.items.every((item) => item.origin === "recovered_output"))
+    assert.deepEqual(
+      stored
+        .get("session-1")
+        ?.get("assistant-old")
+        ?.items.map((item) => item.name),
+      ["existing.pdf"],
+    )
+  } finally {
+    await rm(root, { force: true, recursive: true })
+  }
+})
+
+test("message completion exposes a failed artifact bundle when an image preview was not persisted", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "dweis-chat-artifact-failed-"))
+  try {
+    const artifactDir = path.join(root, "artifacts")
+    const processDir = path.join(root, "process")
+    await mkdir(artifactDir, { recursive: true })
+    await mkdir(processDir, { recursive: true })
+
+    const bridge = createBridgeAgent()
+    bridge.createArtifactDir.mockResolvedValue(artifactDir)
+    bridge.createProcessDir.mockResolvedValue(processDir)
+    bridge.getMessages.mockResolvedValue([
+      {
+        id: "assistant-1",
+        role: "assistant",
+        createdAt: 1,
+        completedAt: 2,
+        finishReason: "stop",
+        parts: [
+          {
+            kind: "text",
+            partId: "text-1",
+            text: "![generated](https://127.0.0.1/generated.png)",
+          },
+        ],
+      },
+    ])
+    const artifactBundleStore = new ArtifactBundleStore(root)
+    const service = new ChatServiceImpl(bridge.agent, { artifactBundleStore })
+    const events = captureServiceEvents(service)
+    service.startEventBridge()
+
+    await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "Create an image" })
+    bridge.emit({
+      type: "message.updated",
+      properties: { info: { id: "assistant-1", sessionID: "session-1", role: "assistant" } },
+    })
+    bridge.emit({ type: "session.idle", properties: { sessionID: "session-1" } })
+    await waitForCondition(() => events.some((event) => event.event === "artifactBundleUpdated"))
+
+    const bundle = (await artifactBundleStore.read()).get("session-1")?.get("assistant-1")
+    assert.equal(bundle?.status, "failed")
+    assert.equal(bundle?.failure, "generated_preview_not_persisted")
+  } finally {
+    await rm(root, { force: true, recursive: true })
+  }
+})
+
+test("message completion materializes a data image preview into a ready artifact bundle", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "dweis-chat-artifact-data-preview-"))
+  try {
+    const artifactDir = path.join(root, "artifacts")
+    const processDir = path.join(root, "process")
+    await mkdir(artifactDir, { recursive: true })
+    await mkdir(processDir, { recursive: true })
+
+    const bridge = createBridgeAgent()
+    bridge.createArtifactDir.mockResolvedValue(artifactDir)
+    bridge.createProcessDir.mockResolvedValue(processDir)
+    bridge.getMessages.mockResolvedValue([
+      {
+        id: "assistant-1",
+        role: "assistant",
+        createdAt: 1,
+        completedAt: 2,
+        finishReason: "stop",
+        parts: [
+          {
+            kind: "text",
+            partId: "text-1",
+            text: "![generated](data:image/png;base64,aW1hZ2U=)",
+          },
+        ],
+      },
+    ])
+    const artifactBundleStore = new ArtifactBundleStore(root)
+    const service = new ChatServiceImpl(bridge.agent, { artifactBundleStore })
+    const events = captureServiceEvents(service)
+    service.startEventBridge()
+
+    await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "Create an image" })
+    bridge.emit({
+      type: "message.updated",
+      properties: { info: { id: "assistant-1", sessionID: "session-1", role: "assistant" } },
+    })
+    bridge.emit({ type: "session.idle", properties: { sessionID: "session-1" } })
+    await waitForCondition(() => events.some((event) => event.event === "artifactBundleUpdated"))
+
+    const bundle = (await artifactBundleStore.read()).get("session-1")?.get("assistant-1")
+    assert.equal(bundle?.status, "ready")
+    assert.equal(bundle?.items[0]?.name, "generated-001.png")
+    assert.equal(bundle?.items[0]?.origin, "assistant_preview")
+    assert.equal(await readFile(path.join(artifactDir, "generated-001.png"), "utf8"), "image")
+  } finally {
+    await rm(root, { force: true, recursive: true })
+  }
+})
+
+test("message completion materializes assistant file attachments into managed artifact storage", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "dweis-chat-artifact-attachment-"))
+  try {
+    const artifactDir = path.join(root, "artifacts")
+    const processDir = path.join(root, "process")
+    const temporaryImage = path.join(root, "generated.png")
+    await mkdir(artifactDir, { recursive: true })
+    await mkdir(processDir, { recursive: true })
+    await writeFile(temporaryImage, "image")
+
+    const bridge = createBridgeAgent()
+    bridge.createArtifactDir.mockResolvedValue(artifactDir)
+    bridge.createProcessDir.mockResolvedValue(processDir)
+    bridge.getMessages.mockResolvedValue([
+      {
+        id: "assistant-1",
+        role: "assistant",
+        createdAt: 1,
+        completedAt: 2,
+        finishReason: "stop",
+        parts: [
+          {
+            kind: "attachment",
+            partId: "image-1",
+            attachment: {
+              id: "image-1",
+              kind: "file",
+              mime: "image/png",
+              name: "generated.png",
+              path: temporaryImage,
+              size: 5,
+            },
+          },
+        ],
+      },
+    ])
+    const artifactBundleStore = new ArtifactBundleStore(root)
+    const service = new ChatServiceImpl(bridge.agent, { artifactBundleStore })
+    const events = captureServiceEvents(service)
+    service.startEventBridge()
+
+    await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "Create an image" })
+    bridge.emit({
+      type: "message.updated",
+      properties: { info: { id: "assistant-1", sessionID: "session-1", role: "assistant" } },
+    })
+    bridge.emit({ type: "session.idle", properties: { sessionID: "session-1" } })
+    await waitForCondition(() => events.some((event) => event.event === "artifactBundleUpdated"))
+
+    const item = (await artifactBundleStore.read()).get("session-1")?.get("assistant-1")?.items[0]
+    assert.equal(item?.name, "generated.png")
+    assert.equal(item?.origin, "assistant_attachment")
+    assert.equal(await readFile(path.join(artifactDir, "generated.png"), "utf8"), "image")
+  } finally {
+    await rm(root, { force: true, recursive: true })
+  }
+})
+
+test("late prompt rejection does not clear the replacement generation output", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "dweis-chat-late-generation-"))
+  try {
+    let artifactIndex = 0
+    let processIndex = 0
+    let rejectFirstPrompt: ((error: Error) => void) | undefined
+    const bridge = createBridgeAgent()
+    bridge.createArtifactDir.mockImplementation(async () => {
+      artifactIndex += 1
+      const dir = path.join(root, `artifacts-${artifactIndex}`)
+      await mkdir(dir, { recursive: true })
+      return dir
+    })
+    bridge.createProcessDir.mockImplementation(async () => {
+      processIndex += 1
+      const dir = path.join(root, `process-${processIndex}`)
+      await mkdir(dir, { recursive: true })
+      return dir
+    })
+    bridge.promptStreaming
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((_, reject) => {
+            rejectFirstPrompt = reject
+          }),
+      )
+      .mockImplementationOnce(async () => undefined)
+    const store = new TurnOutputStore(root)
+    const service = new ChatServiceImpl(bridge.agent, { turnOutputStore: store })
+    const events = captureServiceEvents(service)
+    service.startEventBridge()
+
+    await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "first" })
+    await service.stopGeneration("session-1")
+    await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "second" })
+    rejectFirstPrompt?.(new Error("first failed late"))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    bridge.emit({
+      type: "message.updated",
+      properties: { info: { id: "assistant-2", sessionID: "session-1", role: "assistant" } },
+    })
+    await writeFile(path.join(root, "process-2", "second.js"), "console.log(2)\n", "utf8")
+    bridge.emit({ type: "session.idle", properties: { sessionID: "session-1" } })
+    await waitForCondition(() => events.some((event) => event.event === "turnOutputUpdated"))
+
+    const records = (await store.read()).get("session-1")
+    assert.equal(records?.get("assistant-1"), undefined)
+    assert.equal(records?.get("assistant-2")?.files[0]?.name, "second.js")
+  } finally {
+    await rm(root, { force: true, recursive: true })
+  }
+})
+
+test("agent errors from multiple opencode channels produce one message error per send", async () => {
+  const bridge = createBridgeAgent()
+  let rejectPrompt: ((error: Error) => void) | undefined
+  bridge.promptStreaming.mockImplementationOnce(
+    () =>
+      new Promise<void>((_, reject) => {
+        rejectPrompt = reject
+      }),
+  )
+  const service = new ChatServiceImpl(bridge.agent)
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+
+  await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "hello" })
+
+  const error = {
+    name: "APIError",
+    data: { message: "The selected model does not exist." },
+  }
+  bridge.emit({
+    type: "message.updated",
+    properties: { info: { id: "assistant-1", sessionID: "session-1", role: "assistant", error } },
+  })
+  bridge.emit({
+    type: "session.error",
+    properties: { sessionID: "session-1", error },
+  })
+  rejectPrompt?.(new Error("The selected model does not exist."))
+  await waitForMessageErrorCount(events, 1)
+
+  const messageErrors = events.filter((event) => event.event === "messageError")
+  assert.equal(messageErrors.length, 1)
+  const messageError = messageErrors[0] as { data: { message?: string } }
+  assert.equal(messageError.data.message, "The selected model does not exist.")
+
+  await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "retry" })
+  bridge.emit({
+    type: "message.updated",
+    properties: { info: { id: "assistant-2", sessionID: "session-1", role: "assistant", error } },
+  })
+
+  await waitForMessageErrorCount(events, 2)
+  assert.equal(events.filter((event) => event.event === "messageError").length, 2)
+})
+
+test("only OOMOL runtime chat 401 expires the global session", async () => {
+  const localBridge = createBridgeAgent()
+  const localExpiry = vi.fn(async () => undefined)
+  const localService = new ChatServiceImpl(localBridge.agent, { onOomolAuthRequired: localExpiry })
+  const localEvents = captureServiceEvents(localService)
+  localService.startEventBridge()
+  await localService.sendMessage({ scope: testTeamScope, sessionId: "local-session", text: "hello" })
+  localBridge.emit({
+    type: "session.error",
+    properties: {
+      sessionID: "local-session",
+      error: { name: "APIError", data: { message: '{"status":401,"message":"invalid api key"}' } },
+    },
+  })
+  await waitForMessageErrorCount(localEvents, 1)
+
+  const localError = localEvents.find((event) => event.event === "messageError") as
+    | { data: { errorKind?: string } }
+    | undefined
+  assert.equal(localError?.data.errorKind, "model_auth_required")
+  assert.equal(localExpiry.mock.calls.length, 0)
+
+  const oomolBridge = createBridgeAgent()
+  const oomolExpiry = vi.fn(async () => undefined)
+  const oomolService = new ChatServiceImpl(oomolBridge.agent, { onOomolAuthRequired: oomolExpiry })
+  oomolService.setRuntimeCapabilities(
+    resolveRuntimeCapabilities({ mode: "oomol", localAgentAvailable: true }),
+  )
+  const oomolEvents = captureServiceEvents(oomolService)
+  oomolService.startEventBridge()
+  await oomolService.sendMessage({ scope: testTeamScope, sessionId: "oomol-session", text: "hello" })
+  oomolBridge.emit({
+    type: "session.error",
+    properties: {
+      sessionID: "oomol-session",
+      error: { name: "APIError", data: { message: '{"status":401,"message":"session expired"}' } },
+    },
+  })
+  await waitForMessageErrorCount(oomolEvents, 1)
+  await vi.waitFor(() => expect(oomolExpiry).toHaveBeenCalledOnce())
+
+  const oomolError = oomolEvents.find((event) => event.event === "messageError") as
+    | { data: { errorKind?: string } }
+    | undefined
+  assert.equal(oomolError?.data.errorKind, "auth_required")
+})
+
+test("hasActiveGeneration tracks pending and completed assistant turns", async () => {
+  const bridge = createBridgeAgent()
+  const service = new ChatServiceImpl(bridge.agent)
+  captureServiceEvents(service)
+  service.startEventBridge()
+
+  assert.equal(service.hasActiveGeneration(), false)
+
+  await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "hello" })
+  assert.equal(service.hasActiveGeneration(), true)
+
+  bridge.emit({
+    type: "message.updated",
+    properties: { info: { id: "assistant-1", sessionID: "session-1", role: "assistant" } },
+  })
+  assert.equal(service.hasActiveGeneration(), true)
+
+  bridge.emit({
+    type: "session.idle",
+    properties: { sessionID: "session-1" },
+  })
+  await waitForInactiveGeneration(service)
+  assert.equal(service.hasActiveGeneration(), false)
+})
+
+test("authorization overlays survive service restart", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "dweis-chat-auth-overlays-"))
+  const store = new AuthorizationOverlayStore(root)
+  const bridge = createBridgeAgent()
+  const service = new ChatServiceImpl(bridge.agent, { authorizationOverlayStore: store })
+  captureServiceEvents(service)
+  service.startEventBridge()
+
+  bridge.emit({
+    type: "message.part.updated",
+    properties: {
+      part: {
+        id: "tool-1",
+        sessionID: "session-1",
+        messageID: "assistant-1",
+        type: "tool",
+        callID: "call-1",
+        tool: "call_action",
+        state: {
+          status: "completed",
+          input: {},
+          output: JSON.stringify({
+            status: "authorization_required",
+            service: "supabase",
+            action: "list_projects",
+            displayName: "Supabase",
+            errorCode: "connection_required",
+          }),
+        },
+      },
+    },
+  })
+
+  await vi.waitFor(async () => {
+    assert.equal((await store.read()).get("session-1")?.get("assistant-1")?.get("tool-1")?.service, "supabase")
+  })
+
+  const restartedBridge = createBridgeAgent()
+  const restoredMessage: ChatMessage = {
+    id: "assistant-1",
+    role: "assistant",
+    createdAt: 1,
+    parts: [
+      {
+        kind: "tool",
+        partId: "tool-1",
+        callId: "call-1",
+        tool: "call_action",
+        status: "completed",
+        input: {},
+      },
+    ],
+  }
+  restartedBridge.agent.getMessages = vi.fn(async () => [restoredMessage]) as AgentManager["getMessages"]
+  const restarted = new ChatServiceImpl(restartedBridge.agent, { authorizationOverlayStore: store })
+
+  const [message] = await restarted.getMessages("session-1")
+
+  assert.equal(message?.parts[0]?.authorization?.service, "supabase")
+  assert.equal(message?.parts[0]?.authorization?.displayName, "Supabase")
+})
+
+test("stopGeneration cancels a submitted turn before prompt streaming starts", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "dweis-chat-cancelled-directories-"))
+  try {
+    const artifactDir = path.join(root, "artifacts")
+    const processDir = path.join(root, "process")
+    const bridge = createBridgeAgent()
+    let releaseDirectories: (() => void) | undefined
+    const directoriesReady = new Promise<void>((resolve) => {
+      releaseDirectories = resolve
+    })
+    bridge.createArtifactDir.mockImplementationOnce(async () => {
+      await directoriesReady
+      await mkdir(artifactDir)
+      return artifactDir
+    })
+    bridge.createProcessDir.mockImplementationOnce(async () => {
+      await directoriesReady
+      await mkdir(processDir)
+      return processDir
+    })
+    const service = new ChatServiceImpl(bridge.agent)
+    const events = captureServiceEvents(service)
+
+    const sendPromise = service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "hello" })
+    await vi.waitFor(() => {
+      assert.equal(bridge.createArtifactDir.mock.calls.length, 1)
+    })
+    assert.equal(service.hasActiveGeneration(), true)
+
+    await service.stopGeneration("session-1")
+    assert.equal(bridge.abort.mock.calls.length, 1)
+    assert.equal(events.at(-1)?.event, "generationStopped")
+    assert.equal(service.hasActiveGeneration(), false)
+
+    releaseDirectories?.()
+    await sendPromise
+
+    assert.equal(bridge.promptStreaming.mock.calls.length, 0)
+    await assert.rejects(readFile(artifactDir), { code: "ENOENT" })
+    await assert.rejects(readFile(processDir), { code: "ENOENT" })
+  } finally {
+    await rm(root, { force: true, recursive: true })
+  }
+})
+
+test("sendMessage cleans a turn directory when its sibling directory creation fails", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "dweis-chat-partial-directories-"))
+  try {
+    const artifactDir = path.join(root, "artifacts")
+    const snapshotDirectory = path.join(root, "attachments", "originals", "attachment-1")
+    const snapshotPath = path.join(snapshotDirectory, "input.txt")
+    await mkdir(snapshotDirectory, { recursive: true })
+    await writeFile(snapshotPath, "input")
+    const bridge = createBridgeAgent()
+    bridge.createArtifactDir.mockImplementationOnce(async () => {
+      await mkdir(artifactDir)
+      return artifactDir
+    })
+    bridge.createProcessDir.mockRejectedValueOnce(new Error("process directory failed"))
+    const store = new UserAttachmentStore(root)
+    const trustedAttachmentPaths = new Set([snapshotPath])
+    const service = new ChatServiceImpl(bridge.agent, {
+      trustedAttachmentPaths,
+      userAttachmentStore: store,
+    })
+
+    await assert.rejects(
+      service.sendMessage({
+        attachments: [
+          {
+            id: "attachment-1",
+            kind: "file",
+            mime: "text/plain",
+            name: "input.txt",
+            path: snapshotPath,
+            size: 5,
+          },
+        ],
+        scope: testTeamScope,
+        sessionId: "session-1",
+        text: "hello",
+      }),
+      /process directory failed/,
+    )
+    await assert.rejects(readFile(artifactDir), { code: "ENOENT" })
+    await assert.rejects(readFile(snapshotPath), { code: "ENOENT" })
+    assert.equal((await store.read()).has("session-1"), false)
+    assert.equal(trustedAttachmentPaths.has(snapshotPath), false)
+    assert.equal(service.hasActiveGeneration(), false)
+  } finally {
+    await rm(root, { force: true, recursive: true })
+  }
+})
+
+test("sendMessage does not start the OpenCode submit watchdog before prompt streaming starts", async () => {
+  vi.useFakeTimers()
+  const bridge = createBridgeAgent()
+  let resolveArtifactDir: ((value: string) => void) | undefined
+  bridge.createArtifactDir.mockImplementationOnce(
+    () =>
+      new Promise<string>((resolve) => {
+        resolveArtifactDir = resolve
+      }),
+  )
+  bridge.promptStreaming.mockImplementationOnce(() => new Promise<void>(() => undefined))
+  const service = new ChatServiceImpl(bridge.agent)
+  const events = captureServiceEvents(service)
+
+  const sendPromise = service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "hello" })
+  await vi.waitFor(() => {
+    assert.equal(bridge.createArtifactDir.mock.calls.length, 1)
+  })
+
+  await vi.advanceTimersByTimeAsync(45_000)
+  assert.equal(service.hasActiveGeneration(), true)
+  assert.equal(bridge.abort.mock.calls.length, 0)
+  assert.equal(
+    events.some((event) => event.event === "messageError"),
+    false,
+  )
+
+  resolveArtifactDir?.(path.join(os.tmpdir(), "dweis-test-artifacts"))
+  await sendPromise
+  assert.equal(bridge.promptStreaming.mock.calls.length, 1)
+
+  await vi.advanceTimersByTimeAsync(45_000)
+  await vi.waitFor(() => {
+    assert.equal(service.hasActiveGeneration(), false)
+    assert.equal(events.at(-1)?.event, "messageError")
+  })
+  const messageError = events.at(-1) as { data: { message?: string }; event: string }
+  assert.equal(
+    messageError.data.message,
+    "CHAT_COMPLETION_INTERRUPTED: Agent runtime did not accept this message. Please retry.",
+  )
+})
+
+test("sendMessage releases a submitted turn when OpenCode never accepts it", async () => {
+  vi.useFakeTimers()
+  const bridge = createBridgeAgent()
+  bridge.promptStreaming.mockImplementationOnce(() => new Promise<void>(() => undefined))
+  const service = new ChatServiceImpl(bridge.agent)
+  const events = captureServiceEvents(service)
+
+  await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "hello" })
+  assert.equal(service.hasActiveGeneration(), true)
+
+  await vi.advanceTimersByTimeAsync(45_000)
+  await vi.waitFor(() => {
+    assert.equal(service.hasActiveGeneration(), false)
+    assert.equal(events.at(-1)?.event, "messageError")
+  })
+
+  assert.equal(bridge.abort.mock.calls.length, 1)
+  assert.ok(events.some((event) => event.event === "generationInterrupted"))
+  assert.equal(
+    events.some((event) => event.event === "generationStopped"),
+    false,
+  )
+  const messageError = events.at(-1) as { data: { message?: string }; event: string }
+  assert.equal(
+    messageError.data.message,
+    "CHAT_COMPLETION_INTERRUPTED: Agent runtime did not accept this message. Please retry.",
+  )
+})
+
+test("sendMessage releases an accepted turn when OpenCode never acknowledges it", async () => {
+  vi.useFakeTimers()
+  const bridge = createBridgeAgent()
+  const service = new ChatServiceImpl(bridge.agent)
+  const events = captureServiceEvents(service)
+
+  await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "hello" })
+  await Promise.resolve()
+  assert.equal(service.hasActiveGeneration(), true)
+
+  await vi.advanceTimersByTimeAsync(45_000)
+  await vi.waitFor(() => {
+    assert.equal(service.hasActiveGeneration(), false)
+    assert.equal(events.at(-1)?.event, "messageError")
+  })
+
+  assert.equal(bridge.abort.mock.calls.length, 1)
+  const interrupted = events.find((event) => event.event === "generationInterrupted") as
+    | { data: { reason?: string } }
+    | undefined
+  assert.equal(interrupted?.data.reason, "start_timeout")
+  const messageError = events.at(-1) as { data: { message?: string }; event: string }
+  assert.equal(
+    messageError.data.message,
+    "CHAT_COMPLETION_INTERRUPTED: Agent runtime did not acknowledge this message. Please retry.",
+  )
+})
+
+test("sendMessage reports a stale turn without stopping it when OpenCode is silent before idle", async () => {
+  vi.useFakeTimers()
+  const bridge = createBridgeAgent()
+  bridge.promptStreaming.mockImplementationOnce(() => new Promise<void>(() => undefined))
+  const service = new ChatServiceImpl(bridge.agent)
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+
+  await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "hello" })
+  bridge.emit({
+    type: "message.updated",
+    properties: { info: { id: "assistant-1", sessionID: "session-1", role: "assistant" } },
+  })
+  bridge.emit({
+    type: "message.part.updated",
+    properties: {
+      part: {
+        id: "tool-1",
+        sessionID: "session-1",
+        messageID: "assistant-1",
+        type: "tool",
+        callID: "call-1",
+        tool: "search_actions",
+        state: { status: "completed", input: {}, output: "{}", time: { start: 1_000, end: 2_000 } },
+      },
+    },
+  })
+  assert.equal(service.hasActiveGeneration(), true)
+
+  await vi.advanceTimersByTimeAsync(2 * 60_000)
+  assert.equal(service.hasActiveGeneration(), true)
+  assert.equal(events.at(-1)?.event, "generationNotice")
+
+  assert.equal(bridge.abort.mock.calls.length, 0)
+  assert.equal(
+    events.some((event) => event.event === "generationStopped"),
+    false,
+  )
+  assert.equal(
+    events.some((event) => event.event === "messageError"),
+    false,
+  )
+  assert.equal(lastEventData<{ kind?: string }>(events).kind, "generation_stale")
+})
+
+test("sendMessage keeps a silent running tool alive past the short inactivity timeout", async () => {
+  vi.useFakeTimers()
+  const bridge = createBridgeAgent()
+  bridge.promptStreaming.mockImplementationOnce(() => new Promise<void>(() => undefined))
+  const service = new ChatServiceImpl(bridge.agent)
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+
+  await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "hello" })
+  bridge.emit({
+    type: "message.updated",
+    properties: { info: { id: "assistant-1", sessionID: "session-1", role: "assistant" } },
+  })
+  bridge.emit({
+    type: "message.part.updated",
+    properties: {
+      part: {
+        id: "tool-1",
+        sessionID: "session-1",
+        messageID: "assistant-1",
+        type: "tool",
+        callID: "call-1",
+        tool: "bash",
+        state: { status: "running", input: { command: "sleep 300" }, time: { start: 1_000 } },
+      },
+    },
+  })
+
+  await vi.advanceTimersByTimeAsync(2 * 60_000)
+  assert.equal(service.hasActiveGeneration(), true)
+  assert.equal(events.at(-1)?.event, "toolCallStarted")
+
+  await vi.advanceTimersByTimeAsync(8 * 60_000)
+  assert.equal(service.hasActiveGeneration(), true)
+  assert.equal(events.at(-1)?.event, "generationNotice")
+  assert.equal(lastEventData<{ kind?: string }>(events).kind, "tool_running_without_output")
+  assert.equal(bridge.abort.mock.calls.length, 0)
+})
+
+test("answerQuestion restarts inactivity monitoring after a waiting question", async () => {
+  vi.useFakeTimers()
+  const bridge = createBridgeAgent()
+  bridge.promptStreaming.mockImplementationOnce(() => new Promise<void>(() => undefined))
+  const service = new ChatServiceImpl(bridge.agent)
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+
+  await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "hello" })
+  bridge.emit({
+    type: "message.updated",
+    properties: { info: { id: "assistant-1", sessionID: "session-1", role: "assistant" } },
+  })
+  bridge.emit({
+    type: "message.part.updated",
+    properties: {
+      part: {
+        id: "question-tool",
+        sessionID: "session-1",
+        messageID: "assistant-1",
+        type: "tool",
+        callID: "question-tool",
+        tool: "question",
+        state: {
+          status: "running",
+          input: {
+            questions: [{ header: "Title", question: "What title?", options: [] }],
+          },
+        },
+      },
+    },
+  })
+  bridge.emit({
+    type: "question.asked",
+    properties: {
+      id: "question-1",
+      sessionID: "session-1",
+      questions: [{ header: "Title", question: "What title?", options: [] }],
+      tool: { messageID: "assistant-1", callID: "question-tool" },
+    },
+  })
+
+  await vi.advanceTimersByTimeAsync(10 * 60_000)
+  assert.equal(service.hasActiveGeneration(), true)
+
+  await service.answerQuestion({ sessionId: "session-1", requestId: "question-1", answers: [["Test"]] })
+  await vi.advanceTimersByTimeAsync(10 * 60_000)
+  assert.equal(service.hasActiveGeneration(), true)
+  assert.equal(events.at(-1)?.event, "generationNotice")
+  assert.equal(lastEventData<{ kind?: string }>(events).kind, "tool_running_without_output")
+  assert.equal(bridge.abort.mock.calls.length, 0)
+})
+
+test("answerPermission restarts inactivity monitoring after a waiting permission", async () => {
+  vi.useFakeTimers()
+  const bridge = createBridgeAgent()
+  bridge.promptStreaming.mockImplementationOnce(() => new Promise<void>(() => undefined))
+  const service = new ChatServiceImpl(bridge.agent)
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+
+  await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "hello" })
+  bridge.emit({
+    type: "message.updated",
+    properties: { info: { id: "assistant-1", sessionID: "session-1", role: "assistant" } },
+  })
+  bridge.emit({
+    type: "permission.v2.asked",
+    properties: {
+      id: "permission-1",
+      sessionID: "session-1",
+      action: "bash",
+      resources: ["npm install"],
+      metadata: { command: "npm install" },
+    },
+  })
+
+  await vi.advanceTimersByTimeAsync(2 * 60_000)
+  assert.equal(service.hasActiveGeneration(), true)
+
+  await service.answerPermission({ sessionId: "session-1", requestId: "permission-1", reply: "once" })
+  await vi.advanceTimersByTimeAsync(2 * 60_000)
+  assert.equal(service.hasActiveGeneration(), true)
+  assert.equal(events.at(-1)?.event, "generationNotice")
+  assert.equal(lastEventData<{ kind?: string }>(events).kind, "generation_stale")
+  assert.equal(bridge.abort.mock.calls.length, 0)
+})
+
+test("rejectQuestion resolves the waiting question without stopping the generation", async () => {
+  const bridge = createBridgeAgent()
+  const service = new ChatServiceImpl(bridge.agent)
+  service.startEventBridge()
+
+  await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "hello" })
+  bridge.emit({
+    type: "message.updated",
+    properties: { info: { id: "assistant-1", sessionID: "session-1", role: "assistant" } },
+  })
+  bridge.emit({
+    type: "message.part.updated",
+    properties: {
+      part: {
+        id: "question-tool",
+        sessionID: "session-1",
+        messageID: "assistant-1",
+        type: "tool",
+        callID: "question-tool",
+        tool: "question",
+        state: { status: "running", input: {} },
+      },
+    },
+  })
+  bridge.emit({
+    type: "question.asked",
+    properties: {
+      id: "question-1",
+      sessionID: "session-1",
+      questions: [{ header: "Title", question: "What title?", options: [] }],
+      tool: { messageID: "assistant-1", callID: "question-tool" },
+    },
+  })
+  assert.equal(service.hasActiveGeneration(), true)
+  const waitingRun = await service.getActiveRun("session-1")
+  assert.equal(waitingRun?.activeAssistantMessageId, "assistant-1")
+  assert.deepEqual(waitingRun?.activeToolPartIds, ["question-tool"])
+  assert.deepEqual(waitingRun?.blockingRequestIds, ["question-1"])
+  assert.equal(waitingRun?.phase, "awaiting_question")
+  assert.equal(waitingRun?.sessionId, "session-1")
+  assert.deepEqual(waitingRun?.workspace, {
+    kind: "team",
+    teamId: "team-id",
+    teamName: "team-name",
+  })
+
+  await service.rejectQuestion({ sessionId: "session-1", requestId: "question-1" })
+
+  assert.deepEqual(bridge.rejectQuestion.mock.calls, [["session-1", "question-1"]])
+  assert.equal(bridge.abort.mock.calls.length, 0)
+  assert.equal(service.hasActiveGeneration(), true)
+  const activeRun = await service.getActiveRun("session-1")
+  assert.equal(activeRun?.phase, "thinking")
+  assert.deepEqual(activeRun?.blockingRequestIds, [])
+})
+
+test("rejectQuestion does not stop the generation when OpenCode rejects the cancellation", async () => {
+  const bridge = createBridgeAgent()
+  bridge.rejectQuestion.mockRejectedValueOnce(new Error("reject failed"))
+  const service = new ChatServiceImpl(bridge.agent)
+
+  await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "hello" })
+  assert.equal(service.hasActiveGeneration(), true)
+
+  await assert.rejects(() => service.rejectQuestion({ sessionId: "session-1", requestId: "question-1" }), {
+    message: "reject failed",
+  })
+
+  assert.equal(bridge.abort.mock.calls.length, 0)
+  assert.equal(service.hasActiveGeneration(), true)
+})
+
+test("rejectQuestion times out without stopping the generation", async () => {
+  vi.useFakeTimers()
+  const bridge = createBridgeAgent()
+  bridge.rejectQuestion.mockImplementationOnce(() => new Promise<void>(() => undefined))
+  const service = new ChatServiceImpl(bridge.agent)
+
+  await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "hello" })
+  assert.equal(service.hasActiveGeneration(), true)
+
+  const request = service.rejectQuestion({ sessionId: "session-1", requestId: "question-1" })
+  const rejection = assert.rejects(request, {
+    message: "Timed out (question rejection, 5000ms)",
+  })
+  await vi.advanceTimersByTimeAsync(5_000)
+  await rejection
+  assert.equal(bridge.abort.mock.calls.length, 0)
+  assert.equal(service.hasActiveGeneration(), true)
+})
+
+test("sendMessage passes selected context, team skills, and project as per-turn system prompt", async () => {
+  const bridge = createBridgeAgent()
+  const service = new ChatServiceImpl(bridge.agent)
+
+  await service.sendMessage({
+    scope: testTeamScope,
+    appLocale: "en",
+    contextMentions: [
+      { description: "Generate market-ready assets", id: "ecommerce-image-studio", kind: "skill", name: "Ecommerce" },
+      {
+        accountLabel: "work",
+        appId: "app-1",
+        displayName: "Gmail",
+        kind: "connection",
+        service: "gmail",
+      },
+      { id: "knowledge-1", kind: "knowledge", name: "Product handbook" },
+    ],
+    projectContext: {
+      id: "project-1",
+      name: "dweis",
+      path: "/Users/example/code/dweis",
+    },
+    reasoningLevel: "high",
+    mode: "plan",
+    sessionId: "session-1",
+    text: "Please summarize the new sales leads",
+  })
+
+  assert.equal(bridge.promptStreaming.mock.calls.length, 1)
+  const options = bridge.promptStreaming.mock.calls[0]?.[2] as
+    | {
+        mode?: string
+        outputProjectRoot?: string
+        reasoningLevel?: string
+        system?: string
+        stableSystem?: string
+      }
+    | undefined
+  assert.equal(options?.mode, "plan")
+  assert.equal(options?.outputProjectRoot, undefined)
+  assert.equal(options?.reasoningLevel, "high")
+  assert.match(options?.system ?? "", /User-selected context for this turn/)
+  assert.match(options?.system ?? "", /ecommerce-image-studio/)
+  assert.match(options?.system ?? "", /gmail/)
+  assert.match(options?.system ?? "", /Product handbook/)
+  assert.doesNotMatch(options?.system ?? "", /account: "work"/)
+  assert.match(options?.system ?? "", /consider the selected connection first/)
+  assert.match(options?.system ?? "", /Do not use it for unrelated local files/)
+  assert.match(options?.system ?? "", /Current local project context/)
+  assert.match(options?.system ?? "", /\/Users\/example\/code\/dweis/)
+  assert.match(options?.system ?? "", /use this project directory as an absolute path/)
+  assert.match(options?.system ?? "", /Do not mention the full project directory/)
+  assert.match(options?.system ?? "", /Response language policy for this turn/)
+  assert.match(options?.system ?? "", /classified the latest user instruction as English/)
+  assert.match(options?.system ?? "", /Respond in English/)
+  assert.match(options?.system ?? "", /primary language of the user's latest substantive request/)
+  assert.match(options?.system ?? "", /application interface language: English/)
+  assert.deepEqual(bridge.setSessionKnowledgeBaseIds.mock.calls, [["session-1", ["knowledge-1"]]])
+  assert.deepEqual(bridge.createArtifactDir.mock.calls, [["session-1", undefined]])
+})
+
+test("sendMessage turns /bug-report into a Markdown artifact-only turn", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "dweis-bug-report-"))
+  const artifactDir = path.join(root, "artifacts")
+  const bridge = createBridgeAgent()
+  bridge.createArtifactDir.mockResolvedValue(artifactDir)
+  const service = new ChatServiceImpl(bridge.agent, {
+    bugReportRuntime: {
+      appCommit: "abc123",
+      appVersion: "1.2.3",
+      platform: "darwin",
+    },
+  })
+
+  try {
+    await service.sendMessage({
+      mode: "plan",
+      model: { id: "oopilot", kind: "builtin" },
+      permissionMode: "default",
+      scope: { kind: "team", teamId: "team-id", teamName: "team-name" },
+      sessionId: "session-1",
+      text: "/bug-report Focus on the authorization state mismatch.",
+    })
+
+    assert.equal(bridge.promptStreaming.mock.calls.length, 1)
+    assert.equal(bridge.promptStreaming.mock.calls[0]?.[1], "/bug-report Focus on the authorization state mismatch.")
+    const options = bridge.promptStreaming.mock.calls[0]?.[2] as { mode?: string; system?: string; stableSystem?: string } | undefined
+    assert.equal(options?.mode, "build")
+    assert.match(options?.system ?? "", /built-in \/bug-report command/)
+    assert.match(options?.system ?? "", /Focus on the authorization state mismatch/)
+    assert.match(options?.system ?? "", /dweis-bug-report\.md/)
+    assert.match(options?.system ?? "", /DWeis Next version: 1\.2\.3/)
+    assert.match(options?.system ?? "", /Build commit: abc123/)
+    assert.match(options?.system ?? "", /Do not reproduce the report body in the assistant response/)
+  } finally {
+    await rm(root, { force: true, recursive: true })
+  }
+})
+
+test("plan mode bug report resolves a Build artifact root and bundle in memory", () => {
+  const projectPath = "/projects/dweis"
+  const artifactRoot = `${projectPath}/.dweis/artifacts/session-1/turn-1`
+  const execution = resolveChatTurnExecution({
+    forcedMode: "build",
+    requestedMode: "plan",
+    trustedProjectRoot: projectPath,
+  })
+  const bundle = buildArtifactBundleFromGroup({
+    artifactRoot,
+    completedAt: 2,
+    createdAt: 1,
+    generatedPreviewCount: 0,
+    group: {
+      items: [
+        {
+          kind: "file",
+          mime: "text/markdown",
+          name: "dweis-bug-report.md",
+          path: `${artifactRoot}/dweis-bug-report.md`,
+          size: 20,
+        },
+      ],
+      totalItems: 1,
+      truncated: false,
+    },
+    messageId: "assistant-1",
+    sessionId: "session-1",
+  })
+
+  assert.deepEqual(execution, { artifactProjectRoot: projectPath, mode: "build" })
+  assert.equal(bundle?.rootPath, artifactRoot)
+  assert.equal(bundle?.kind, "document")
+  assert.equal(bundle?.display, "single")
+  assert.equal(bundle?.items[0]?.name, "dweis-bug-report.md")
+})
+
+test("build mode stores artifacts under the registered project", async () => {
+  const bridge = createBridgeAgent()
+  const projectPath = "/Users/example/code/dweis"
+  const service = new ChatServiceImpl(bridge.agent, {
+    projectStore: projectStore([
+      {
+        id: "project-1",
+        name: "dweis",
+        path: projectPath,
+        createdAt: 1_000,
+        updatedAt: 1_000,
+      },
+    ]),
+  })
+
+  await service.sendMessage({
+    scope: testTeamScope,
+    projectContext: { id: "project-1", name: "dweis", path: projectPath },
+    sessionId: "session-1",
+    text: "Create a report",
+  })
+
+  assert.deepEqual(bridge.createArtifactDir.mock.calls, [["session-1", projectPath]])
+  assert.deepEqual(bridge.artifactSessionDir.mock.calls, [["session-1", projectPath]])
+  expect(bridge.promptStreaming.mock.calls[0]?.[2]).toMatchObject({ outputProjectRoot: projectPath })
+})
+
+test("unregistered project context keeps artifacts in managed storage", async () => {
+  const bridge = createBridgeAgent()
+  const service = new ChatServiceImpl(bridge.agent)
+
+  await service.sendMessage({
+    scope: testTeamScope,
+    projectContext: { id: "project-1", name: "dweis", path: "/Users/example/code/dweis" },
+    sessionId: "session-1",
+    text: "Create a report",
+  })
+
+  assert.deepEqual(bridge.createArtifactDir.mock.calls, [["session-1", undefined]])
+  assert.deepEqual(bridge.artifactSessionDir.mock.calls, [["session-1", undefined]])
+  expect(bridge.promptStreaming.mock.calls[0]?.[2]).toMatchObject({ outputProjectRoot: undefined })
+})
+
+test("trusted project permissions are approved without showing a permission card", async () => {
+  const bridge = createBridgeAgent()
+  const projectPath = "/Users/example/code/dweis"
+  const service = new ChatServiceImpl(bridge.agent, {
+    projectStore: projectStore([
+      {
+        id: "project-1",
+        name: "dweis",
+        path: projectPath,
+        createdAt: 1_000,
+        updatedAt: 1_000,
+      },
+    ]),
+  })
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+
+  await service.sendMessage({
+    scope: testTeamScope,
+    projectContext: {
+      id: "project-1",
+      name: "dweis",
+      path: projectPath,
+    },
+    sessionId: "session-1",
+    text: "Analyze this project",
+  })
+
+  bridge.emit({
+    type: "permission.v2.asked",
+    properties: {
+      id: "permission-1",
+      sessionID: "session-1",
+      action: "external_directory",
+      resources: [`${projectPath}/src`],
+      save: [`${projectPath}/*`],
+    },
+  })
+  bridge.emit({
+    type: "permission.v2.asked",
+    properties: {
+      id: "permission-2",
+      sessionID: "session-1",
+      action: "edit",
+      resources: [`${projectPath}/src/main.tsx`],
+    },
+  })
+
+  await waitForCondition(() => bridge.answerPermission.mock.calls.length === 2)
+
+  assert.deepEqual(bridge.answerPermission.mock.calls, [
+    ["session-1", "permission-1", "once"],
+    ["session-1", "permission-2", "once"],
+  ])
+  assert.equal(
+    events.some((event) => event.event === "permissionAsked"),
+    false,
+  )
+})
+
+test("trusted project permission approval restarts inactivity monitoring", async () => {
+  vi.useFakeTimers()
+  const bridge = createBridgeAgent()
+  bridge.promptStreaming.mockImplementationOnce(() => new Promise<void>(() => undefined))
+  const projectPath = "/Users/example/code/dweis"
+  const service = new ChatServiceImpl(bridge.agent, {
+    projectStore: projectStore([
+      {
+        id: "project-1",
+        name: "dweis",
+        path: projectPath,
+        createdAt: 1_000,
+        updatedAt: 1_000,
+      },
+    ]),
+  })
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+
+  await service.sendMessage({
+    scope: testTeamScope,
+    projectContext: {
+      id: "project-1",
+      name: "dweis",
+      path: projectPath,
+    },
+    sessionId: "session-1",
+    text: "Analyze this project",
+  })
+  bridge.emit({
+    type: "message.updated",
+    properties: { info: { id: "assistant-1", sessionID: "session-1", role: "assistant" } },
+  })
+  bridge.emit({
+    type: "permission.v2.asked",
+    properties: {
+      id: "permission-1",
+      sessionID: "session-1",
+      action: "external_directory",
+      resources: [`${projectPath}/src`],
+      save: [`${projectPath}/*`],
+    },
+  })
+
+  await vi.waitFor(() => {
+    assert.equal(bridge.answerPermission.mock.calls.length, 1)
+  })
+  await vi.advanceTimersByTimeAsync(2 * 60_000)
+  assert.equal(service.hasActiveGeneration(), true)
+  assert.equal(events.at(-1)?.event, "generationNotice")
+  assert.equal(lastEventData<{ kind?: string }>(events).kind, "generation_stale")
+  assert.equal(bridge.abort.mock.calls.length, 0)
+})
+
+test("trusted project permissions are approved for task subagent sessions", async () => {
+  const bridge = createBridgeAgent()
+  const projectPath = "/Users/example/code/dweis"
+  const service = new ChatServiceImpl(bridge.agent, {
+    projectStore: projectStore([
+      {
+        id: "project-1",
+        name: "dweis",
+        path: projectPath,
+        createdAt: 1_000,
+        updatedAt: 1_000,
+      },
+    ]),
+  })
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+
+  await service.sendMessage({
+    scope: testTeamScope,
+    contextMentions: [{ id: "knowledge-1", kind: "knowledge", name: "Product handbook" }],
+    projectContext: {
+      id: "project-1",
+      name: "dweis",
+      path: projectPath,
+    },
+    sessionId: "parent-session",
+    text: "Analyze this project",
+  })
+
+  bridge.emit({
+    type: "message.part.updated",
+    properties: {
+      part: {
+        id: "task-1",
+        sessionID: "parent-session",
+        messageID: "assistant-1",
+        type: "tool",
+        callID: "call-1",
+        tool: "task",
+        state: {
+          status: "running",
+          input: {},
+          metadata: {
+            parentSessionId: "parent-session",
+            sessionId: "child-session",
+          },
+        },
+      },
+    },
+  })
+  await waitForCondition(() => bridge.inheritSessionKnowledgeBaseIds.mock.calls.length === 1)
+  assert.deepEqual(bridge.inheritSessionKnowledgeBaseIds.mock.calls, [["parent-session", "child-session"]])
+  bridge.emit({
+    type: "permission.v2.asked",
+    properties: {
+      id: "permission-1",
+      sessionID: "child-session",
+      action: "external_directory",
+      resources: [`${projectPath}/*`],
+    },
+  })
+
+  await waitForCondition(() => bridge.answerPermission.mock.calls.length === 1)
+
+  assert.deepEqual(bridge.answerPermission.mock.calls, [["child-session", "permission-1", "once"]])
+  assert.equal(
+    events.some((event) => event.event === "permissionAsked"),
+    false,
+  )
+})
+
+test("task subagent permission prompts pause the parent generation inactivity watchdog", async () => {
+  vi.useFakeTimers()
+  const bridge = createBridgeAgent()
+  bridge.promptStreaming.mockImplementationOnce(() => new Promise<void>(() => undefined))
+  const projectPath = "/Users/example/code/dweis"
+  const service = new ChatServiceImpl(bridge.agent, {
+    projectStore: projectStore([
+      {
+        id: "project-1",
+        name: "dweis",
+        path: projectPath,
+        createdAt: 1_000,
+        updatedAt: 1_000,
+      },
+    ]),
+  })
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+
+  await service.sendMessage({
+    scope: testTeamScope,
+    projectContext: {
+      id: "project-1",
+      name: "dweis",
+      path: projectPath,
+    },
+    sessionId: "parent-session",
+    text: "Analyze this project",
+  })
+  bridge.emit({
+    type: "message.updated",
+    properties: { info: { id: "assistant-1", sessionID: "parent-session", role: "assistant" } },
+  })
+  bridge.emit({
+    type: "message.part.updated",
+    properties: {
+      part: {
+        id: "task-1",
+        sessionID: "parent-session",
+        messageID: "assistant-1",
+        type: "tool",
+        callID: "call-1",
+        tool: "task",
+        state: {
+          status: "running",
+          input: {},
+          metadata: {
+            parentSessionId: "parent-session",
+            sessionId: "child-session",
+          },
+        },
+      },
+    },
+  })
+  bridge.emit({
+    type: "permission.v2.asked",
+    properties: {
+      id: "permission-1",
+      sessionID: "child-session",
+      action: "external_directory",
+      resources: ["/Users/example/.ssh"],
+    },
+  })
+
+  assert.ok(events.some((event) => event.event === "permissionAsked"))
+  await vi.advanceTimersByTimeAsync(10 * 60_000)
+
+  assert.equal(service.hasActiveGeneration(), true)
+  assert.equal(bridge.abort.mock.calls.length, 0)
+})
+
+test("task subagent activity keeps the parent generation fresh without trusted project context", async () => {
+  vi.useFakeTimers()
+  const bridge = createBridgeAgent()
+  bridge.promptStreaming.mockImplementationOnce(() => new Promise<void>(() => undefined))
+  const service = new ChatServiceImpl(bridge.agent)
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+
+  await service.sendMessage({ scope: testTeamScope, sessionId: "parent-session", text: "Analyze broadly" })
+  bridge.emit({
+    type: "message.updated",
+    properties: { info: { id: "assistant-1", sessionID: "parent-session", role: "assistant" } },
+  })
+  bridge.emit({
+    type: "message.part.updated",
+    properties: {
+      part: {
+        id: "task-1",
+        sessionID: "parent-session",
+        messageID: "assistant-1",
+        type: "tool",
+        callID: "call-1",
+        tool: "task",
+        state: {
+          status: "running",
+          input: {},
+          metadata: {
+            parentSessionId: "parent-session",
+            sessionId: "child-session",
+          },
+        },
+      },
+    },
+  })
+
+  await vi.advanceTimersByTimeAsync(9 * 60_000)
+  bridge.emit({
+    type: "message.updated",
+    properties: { info: { id: "child-assistant-1", sessionID: "child-session", role: "assistant" } },
+  })
+  await vi.advanceTimersByTimeAsync(2 * 60_000)
+
+  assert.equal(service.hasActiveGeneration(), true)
+  assert.equal(
+    events.some((event) => event.event === "generationNotice"),
+    false,
+  )
+
+  await vi.advanceTimersByTimeAsync(8 * 60_000)
+  assert.equal(events.at(-1)?.event, "generationNotice")
+  assert.equal(lastEventData<{ kind?: string }>(events).kind, "tool_running_without_output")
+})
+
+test("task subagent abort errors are attributed to the user-stopped parent generation", async () => {
+  const bridge = createBridgeAgent()
+  const service = new ChatServiceImpl(bridge.agent)
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+
+  await service.sendMessage({ scope: testTeamScope, sessionId: "parent-session", text: "Analyze broadly" })
+  bridge.emit({
+    type: "message.updated",
+    properties: { info: { id: "assistant-1", sessionID: "parent-session", role: "assistant" } },
+  })
+  bridge.emit({
+    type: "message.part.updated",
+    properties: {
+      part: {
+        id: "task-1",
+        sessionID: "parent-session",
+        messageID: "assistant-1",
+        type: "tool",
+        callID: "call-1",
+        tool: "task",
+        state: {
+          status: "running",
+          input: {},
+          metadata: { parentSessionId: "parent-session", sessionId: "child-session" },
+        },
+      },
+    },
+  })
+  bridge.abort.mockImplementationOnce(async () => {
+    bridge.emit({
+      type: "session.error",
+      properties: { sessionID: "child-session", error: { name: "AbortError" } },
+    })
+  })
+
+  await service.stopGeneration("parent-session")
+  await waitForCondition(() => events.some((event) => event.event === "generationStopped"))
+
+  assert.equal(
+    events.some((event) => event.event === "messageError"),
+    false,
+  )
+  assert.equal(
+    events
+      .filter((event) => event.event === "generationStopped")
+      .every((event) => (event.data as { sessionId?: string }).sessionId === "parent-session"),
+    true,
+  )
+})
+
+test("task subagent permission prompts are displayed on the parent run without trusted project context", async () => {
+  vi.useFakeTimers()
+  const bridge = createBridgeAgent()
+  bridge.promptStreaming.mockImplementationOnce(() => new Promise<void>(() => undefined))
+  const service = new ChatServiceImpl(bridge.agent)
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+
+  await service.sendMessage({ scope: testTeamScope, sessionId: "parent-session", text: "Analyze broadly" })
+  bridge.emit({
+    type: "message.updated",
+    properties: { info: { id: "assistant-1", sessionID: "parent-session", role: "assistant" } },
+  })
+  bridge.emit({
+    type: "message.part.updated",
+    properties: {
+      part: {
+        id: "task-1",
+        sessionID: "parent-session",
+        messageID: "assistant-1",
+        type: "tool",
+        callID: "call-1",
+        tool: "task",
+        state: {
+          status: "running",
+          input: {},
+          metadata: {
+            parentSessionId: "parent-session",
+            sessionId: "child-session",
+          },
+        },
+      },
+    },
+  })
+  bridge.emit({
+    type: "permission.v2.asked",
+    properties: {
+      id: "permission-1",
+      sessionID: "child-session",
+      action: "external_directory",
+      resources: ["/Users/example"],
+    },
+  })
+
+  const permissionEvent = events.find((event) => event.event === "permissionAsked") as
+    | { data: { request?: { sessionId?: string }; sessionId?: string } }
+    | undefined
+  assert.equal(permissionEvent?.data.sessionId, "parent-session")
+  assert.equal(permissionEvent?.data.request?.sessionId, "parent-session")
+  assert.equal((await service.getActiveRun("parent-session"))?.phase, "awaiting_permission")
+
+  await vi.advanceTimersByTimeAsync(10 * 60_000)
+
+  assert.equal(service.hasActiveGeneration(), true)
+  assert.equal(
+    events.some((event) => event.event === "generationNotice"),
+    false,
+  )
+  assert.equal(bridge.abort.mock.calls.length, 0)
+})
+
+test("full access mode propagates to active task subagents and clears their parent-facing permissions", async () => {
+  const bridge = createBridgeAgent()
+  const service = new ChatServiceImpl(bridge.agent)
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+
+  await service.sendMessage({
+    scope: testTeamScope,
+    permissionMode: "default",
+    permissionModeVersion: 1,
+    sessionId: "parent-session",
+    text: "Analyze broadly",
+  })
+  bridge.emit({
+    type: "message.part.updated",
+    properties: {
+      part: {
+        id: "task-1",
+        sessionID: "parent-session",
+        messageID: "assistant-1",
+        type: "tool",
+        callID: "call-1",
+        tool: "task",
+        state: {
+          status: "running",
+          input: {},
+          metadata: {
+            parentSessionId: "parent-session",
+            sessionId: "child-session",
+          },
+        },
+      },
+    },
+  })
+  const childPermission = {
+    id: "permission-1",
+    sessionId: "child-session",
+    action: "bash",
+    resources: ["npm install"],
+    metadata: { command: "npm install" },
+  }
+  bridge.getPendingPermissions.mockImplementation(async (sessionId: string) =>
+    sessionId === "child-session" ? [childPermission] : [],
+  )
+
+  assert.deepEqual(await service.getPendingPermissions("parent-session"), [
+    { ...childPermission, sessionId: "parent-session" },
+  ])
+  await service.setPermissionMode({
+    permissionMode: "full_access",
+    sessionId: "parent-session",
+    version: 2,
+  })
+  await waitForCondition(() => bridge.answerPermission.mock.calls.length === 1)
+
+  assert.deepEqual(bridge.answerPermission.mock.calls, [["child-session", "permission-1", "once"]])
+  await waitForCondition(() => events.some((event) => event.event === "permissionReplied"))
+  const replied = events.find((event) => event.event === "permissionReplied") as
+    | { data: { requestId?: string; sessionId?: string } }
+    | undefined
+  assert.deepEqual(replied?.data, { requestId: "permission-1", sessionId: "parent-session" })
+
+  bridge.getPendingPermissions.mockResolvedValue([])
+  bridge.emit({
+    type: "permission.v2.asked",
+    properties: {
+      id: "permission-2",
+      sessionID: "child-session",
+      action: "bash",
+      resources: ["npm install another-package"],
+      metadata: { command: "npm install another-package" },
+    },
+  })
+  await waitForCondition(() => bridge.answerPermission.mock.calls.length === 2)
+
+  assert.deepEqual(bridge.answerPermission.mock.calls[1], ["child-session", "permission-2", "once"])
+  assert.equal(
+    events.some(
+      (event) =>
+        event.event === "permissionAsked" &&
+        (event.data as { request?: { id?: string } }).request?.id === "permission-2",
+    ),
+    false,
+  )
+})
+
+test("trusted project permission approval does not cover paths outside the project", async () => {
+  const bridge = createBridgeAgent()
+  const projectPath = "/Users/example/code/dweis"
+  const service = new ChatServiceImpl(bridge.agent, {
+    projectStore: projectStore([
+      {
+        id: "project-1",
+        name: "dweis",
+        path: projectPath,
+        createdAt: 1_000,
+        updatedAt: 1_000,
+      },
+    ]),
+  })
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+
+  await service.sendMessage({
+    scope: testTeamScope,
+    projectContext: {
+      id: "project-1",
+      name: "dweis",
+      path: projectPath,
+    },
+    sessionId: "session-1",
+    text: "Analyze this project",
+  })
+
+  bridge.emit({
+    type: "permission.v2.asked",
+    properties: {
+      id: "permission-1",
+      sessionID: "session-1",
+      action: "external_directory",
+      resources: ["/Users/example/.ssh"],
+    },
+  })
+
+  await waitForCondition(() => events.some((event) => event.event === "permissionAsked"))
+
+  assert.equal(bridge.answerPermission.mock.calls.length, 0)
+})
+
+test("trusted project read-only shell commands are approved without showing a permission card", async () => {
+  const bridge = createBridgeAgent()
+  const projectPath = "/Users/example/code/dweis"
+  const service = new ChatServiceImpl(bridge.agent, {
+    projectStore: projectStore([
+      {
+        id: "project-1",
+        name: "dweis",
+        path: projectPath,
+        createdAt: 1_000,
+        updatedAt: 1_000,
+      },
+    ]),
+  })
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+
+  await service.sendMessage({
+    scope: testTeamScope,
+    projectContext: {
+      id: "project-1",
+      name: "dweis",
+      path: projectPath,
+    },
+    sessionId: "session-1",
+    text: "Inspect this project",
+  })
+  bridge.emit({
+    type: "permission.v2.asked",
+    properties: {
+      id: "permission-1",
+      sessionID: "session-1",
+      action: "bash",
+      resources: [`rg "permissionMode" ${projectPath}`],
+      metadata: { command: `rg "permissionMode" ${projectPath}` },
+    },
+  })
+
+  await waitForCondition(() => bridge.answerPermission.mock.calls.length === 1)
+
+  assert.deepEqual(bridge.answerPermission.mock.calls, [["session-1", "permission-1", "once"]])
+  assert.equal(
+    events.some((event) => event.event === "permissionAsked"),
+    false,
+  )
+})
+
+test("full access permissions are approved in the main process", async () => {
+  const bridge = createBridgeAgent()
+  const service = new ChatServiceImpl(bridge.agent)
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+
+  await service.setPermissionMode({ sessionId: "session-1", permissionMode: "full_access" })
+  bridge.emit({
+    type: "permission.v2.asked",
+    properties: {
+      id: "permission-1",
+      sessionID: "session-1",
+      action: "bash",
+      resources: ["npm install"],
+      metadata: { command: "npm install" },
+    },
+  })
+
+  await waitForCondition(() => bridge.answerPermission.mock.calls.length === 1)
+
+  assert.deepEqual(bridge.answerPermission.mock.calls, [["session-1", "permission-1", "once"]])
+  assert.equal(
+    events.some((event) => event.event === "permissionAsked"),
+    false,
+  )
+})
+
+test("stale permission mode updates do not override newer modes", async () => {
+  const bridge = createBridgeAgent()
+  const service = new ChatServiceImpl(bridge.agent)
+  service.startEventBridge()
+
+  await service.setPermissionMode({ sessionId: "session-1", permissionMode: "full_access", version: 2 })
+  await service.setPermissionMode({ sessionId: "session-1", permissionMode: "default", version: 1 })
+  bridge.emit({
+    type: "permission.v2.asked",
+    properties: {
+      id: "permission-1",
+      sessionID: "session-1",
+      action: "bash",
+      resources: ["npm install"],
+      metadata: { command: "npm install" },
+    },
+  })
+
+  await waitForCondition(() => bridge.answerPermission.mock.calls.length === 1)
+
+  assert.deepEqual(bridge.answerPermission.mock.calls, [["session-1", "permission-1", "once"]])
+})
+
+test("forgetSession clears session-scoped permission state", async () => {
+  const bridge = createBridgeAgent()
+  const service = new ChatServiceImpl(bridge.agent)
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+
+  await service.setPermissionMode({ sessionId: "session-1", permissionMode: "full_access", version: 2 })
+  service.forgetSession("session-1")
+  bridge.emit({
+    type: "permission.v2.asked",
+    properties: {
+      id: "permission-1",
+      sessionID: "session-1",
+      action: "bash",
+      resources: ["npm install"],
+      metadata: { command: "npm install" },
+    },
+  })
+
+  await waitForCondition(() => events.some((event) => event.event === "permissionAsked"))
+
+  assert.equal(bridge.answerPermission.mock.calls.length, 0)
+})
+
+test("permission mode updates use the persistence callback without emitting session activity", async () => {
+  const bridge = createBridgeAgent()
+  const persistedModes: string[] = []
+  const service = new ChatServiceImpl(bridge.agent, {
+    onPermissionModeChanged: (_sessionId, permissionMode) => {
+      persistedModes.push(permissionMode)
+    },
+  })
+  const activities: Array<{ sessionId: string; usedAt: number }> = []
+  service.sessionActivity.on((activity) => activities.push(activity))
+
+  await service.setPermissionMode({ sessionId: "session-1", permissionMode: "default", version: 1 })
+  await service.setPermissionMode({ sessionId: "session-1", permissionMode: "full_access", version: 2 })
+  await service.setPermissionMode({ sessionId: "session-1", permissionMode: "full_access", version: 3 })
+
+  assert.deepEqual(persistedModes, ["full_access"])
+  assert.equal(activities.length, 0)
+})
+
+test("permission mode persistence failures roll back the runtime mode", async () => {
+  const bridge = createBridgeAgent()
+  const service = new ChatServiceImpl(bridge.agent, {
+    onPermissionModeChanged: async () => {
+      throw new Error("metadata unavailable")
+    },
+  })
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+
+  await assert.rejects(
+    service.setPermissionMode({ sessionId: "session-1", permissionMode: "full_access", version: 1 }),
+    /metadata unavailable/,
+  )
+  bridge.emit({
+    type: "permission.v2.asked",
+    properties: {
+      id: "permission-1",
+      sessionID: "session-1",
+      action: "bash",
+      resources: ["npm install"],
+      metadata: { command: "npm install" },
+    },
+  })
+
+  await waitForCondition(() => events.some((event) => event.event === "permissionAsked"))
+  assert.equal(bridge.answerPermission.mock.calls.length, 0)
+})
+
+test("automatic permission replies are deduplicated across pending reload and events", async () => {
+  const bridge = createBridgeAgent()
+  const service = new ChatServiceImpl(bridge.agent)
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+  await service.setPermissionMode({ sessionId: "session-1", permissionMode: "full_access" })
+  let resolveReply: (() => void) | undefined
+  bridge.answerPermission.mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        resolveReply = resolve
+      }),
+  )
+  bridge.getPendingPermissions.mockResolvedValueOnce([
+    {
+      id: "permission-1",
+      sessionId: "session-1",
+      action: "bash",
+      resources: ["npm install"],
+      metadata: { command: "npm install" },
+    },
+  ])
+
+  const pending = await service.getPendingPermissions("session-1")
+  bridge.emit({
+    type: "permission.v2.asked",
+    properties: {
+      id: "permission-1",
+      sessionID: "session-1",
+      action: "bash",
+      resources: ["npm install"],
+      metadata: { command: "npm install" },
+    },
+  })
+
+  assert.deepEqual(pending, [])
+  assert.deepEqual(bridge.answerPermission.mock.calls, [["session-1", "permission-1", "once"]])
+  resolveReply?.()
+  await waitForCondition(() => events.some((event) => event.event === "permissionReplied"))
+})
+
+test("pure oo permissions are approved in the main process", async () => {
+  const bridge = createBridgeAgent()
+  const service = new ChatServiceImpl(bridge.agent)
+  service.setLinkRuntime("oomol")
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+
+  bridge.emit({
+    type: "permission.v2.asked",
+    properties: {
+      id: "permission-1",
+      sessionID: "session-1",
+      action: "bash",
+      resources: ['oo search "gmail" --json'],
+    },
+  })
+
+  await waitForCondition(() => bridge.answerPermission.mock.calls.length === 1)
+
+  assert.deepEqual(bridge.answerPermission.mock.calls, [["session-1", "permission-1", "once"]])
+  assert.equal(
+    events.some((event) => event.event === "permissionAsked"),
+    false,
+  )
+})
+
+test("OpenConnector direct oo commands are approved in the main process", async () => {
+  const bridge = createBridgeAgent()
+  const service = new ChatServiceImpl(bridge.agent)
+  service.setLinkRuntime("openconnector")
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+
+  bridge.emit({
+    type: "permission.v2.asked",
+    properties: {
+      id: "permission-1",
+      sessionID: "session-1",
+      action: "bash",
+      resources: ["oo connector apps --json"],
+    },
+  })
+
+  await waitForCondition(() => bridge.answerPermission.mock.calls.length === 1)
+  assert.deepEqual(bridge.answerPermission.mock.calls, [["session-1", "permission-1", "once"]])
+  assert.equal(
+    events.some((event) => event.event === "permissionAsked"),
+    false,
+  )
+})
+
+test("OpenConnector credential commands are rejected even in full-access mode", async () => {
+  const bridge = createBridgeAgent()
+  const service = new ChatServiceImpl(bridge.agent)
+  service.setLinkRuntime("openconnector")
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+  await service.setPermissionMode({ sessionId: "session-1", permissionMode: "full_access" })
+
+  bridge.emit({
+    type: "permission.v2.asked",
+    properties: {
+      id: "permission-1",
+      sessionID: "session-1",
+      action: "bash",
+      resources: ["echo $OO_CONNECTOR_TOKEN"],
+      metadata: { command: "echo $OO_CONNECTOR_TOKEN" },
+    },
+  })
+
+  await waitForCondition(() => bridge.answerPermission.mock.calls.length === 1)
+  assert.deepEqual(bridge.answerPermission.mock.calls, [["session-1", "permission-1", "reject"]])
+  assert.equal(
+    events.some((event) => event.event === "permissionAsked"),
+    false,
+  )
+})
+
+test("OpenConnector unmodeled local wrappers are approved in full-access mode", async () => {
+  const bridge = createBridgeAgent()
+  const service = new ChatServiceImpl(bridge.agent)
+  service.setLinkRuntime("openconnector")
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+  await service.setPermissionMode({ sessionId: "session-1", permissionMode: "full_access" })
+
+  bridge.emit({
+    type: "permission.v2.asked",
+    properties: {
+      id: "permission-1",
+      sessionID: "session-1",
+      action: "bash",
+      resources: ["bash render-pdf.sh"],
+      metadata: { command: "bash render-pdf.sh" },
+    },
+  })
+
+  await waitForCondition(() => bridge.answerPermission.mock.calls.length === 1)
+  assert.deepEqual(bridge.answerPermission.mock.calls, [["session-1", "permission-1", "once"]])
+  assert.equal(events.filter((event) => event.event === "permissionAsked").length, 0)
+})
+
+test("always permission reply stores a main-process session grant", async () => {
+  const bridge = createBridgeAgent()
+  const service = new ChatServiceImpl(bridge.agent)
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+  bridge.emit({
+    type: "permission.v2.asked",
+    properties: {
+      id: "permission-1",
+      sessionID: "session-1",
+      action: "external_directory",
+      resources: ["/Users/example"],
+    },
+  })
+
+  await waitForCondition(() => events.some((event) => event.event === "permissionAsked"))
+
+  await service.answerPermission({ sessionId: "session-1", requestId: "permission-1", reply: "always" })
+  bridge.emit({
+    type: "permission.v2.asked",
+    properties: {
+      id: "permission-2",
+      sessionID: "session-1",
+      action: "external_directory",
+      resources: ["/Users/example/Documents/finance/report.xlsx"],
+    },
+  })
+
+  await waitForCondition(() => bridge.answerPermission.mock.calls.length === 2)
+
+  assert.deepEqual(bridge.answerPermission.mock.calls, [
+    ["session-1", "permission-1", "once"],
+    ["session-1", "permission-2", "once"],
+  ])
+  assert.equal(events.filter((event) => event.event === "permissionAsked").length, 1)
+  assert.equal(bridge.getPendingPermissions.mock.calls.length, 0)
+})
+
+test.skipIf(process.platform === "win32")("direct managed Python dependencies are approved automatically in the active turn environment", async () => {
+  const bridge = createBridgeAgent()
+  const processRoot = path.join(os.tmpdir(), "dweis-python-task-1")
+  bridge.createProcessDir.mockResolvedValue(processRoot)
+  const service = new ChatServiceImpl(bridge.agent)
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+  await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "Create a spreadsheet" })
+
+  const command = `${processRoot}/.wanta-python/bin/python -m pip install --upgrade 'pandas>=2' openpyxl`
+  bridge.emit({
+    type: "permission.v2.asked",
+    properties: {
+      id: "permission-1",
+      sessionID: "session-1",
+      action: "bash",
+      resources: [command],
+      metadata: { command },
+    },
+  })
+
+  await waitForCondition(() => bridge.answerPermission.mock.calls.length === 1)
+  assert.deepEqual(bridge.answerPermission.mock.calls, [["session-1", "permission-1", "once"]])
+  assert.equal(events.filter((event) => event.event === "permissionAsked").length, 0)
+})
+
+test.skipIf(process.platform === "win32")("task Python environment bootstrap and dependency install are approved as one bounded operation", async () => {
+  const bridge = createBridgeAgent()
+  const processRoot = path.join(os.tmpdir(), "dweis-python-bootstrap-task")
+  bridge.createProcessDir.mockResolvedValue(processRoot)
+  const service = new ChatServiceImpl(bridge.agent)
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+  await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "Create a Word document" })
+
+  const command =
+    `python3 -m venv "${processRoot}/.wanta-python" && ` +
+    `"${processRoot}/.wanta-python/bin/python" -m pip install python-docx 2>&1`
+  bridge.emit({
+    type: "permission.v2.asked",
+    properties: {
+      id: "permission-1",
+      sessionID: "session-1",
+      action: "bash",
+      resources: [command],
+      metadata: { command },
+    },
+  })
+
+  await waitForCondition(() => bridge.answerPermission.mock.calls.length === 1)
+  assert.deepEqual(bridge.answerPermission.mock.calls, [["session-1", "permission-1", "once"]])
+  assert.equal(events.filter((event) => event.event === "permissionAsked").length, 0)
+})
+
+test.skipIf(process.platform === "win32")("task-scoped dependencies inherit the parent process boundary in task subagents", async () => {
+  const bridge = createBridgeAgent()
+  const processRoot = path.join(os.tmpdir(), "dweis-python-parent-task")
+  bridge.createProcessDir.mockResolvedValue(processRoot)
+  const service = new ChatServiceImpl(bridge.agent)
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+  await service.sendMessage({ scope: testTeamScope, sessionId: "parent-session", text: "Delegate the PDF work" })
+  bridge.emit({
+    type: "message.part.updated",
+    properties: {
+      part: {
+        id: "task-1",
+        sessionID: "parent-session",
+        messageID: "assistant-1",
+        type: "tool",
+        callID: "call-1",
+        tool: "task",
+        state: {
+          status: "running",
+          input: {},
+          metadata: { parentSessionId: "parent-session", sessionId: "child-session" },
+        },
+      },
+    },
+  })
+
+  const command = `${processRoot}/.wanta-python/bin/python -m pip install pypdf reportlab`
+  bridge.emit({
+    type: "permission.v2.asked",
+    properties: {
+      id: "permission-1",
+      sessionID: "child-session",
+      action: "bash",
+      resources: [command],
+      metadata: { command },
+    },
+  })
+
+  await waitForCondition(() => bridge.answerPermission.mock.calls.length === 1)
+  assert.deepEqual(bridge.answerPermission.mock.calls, [["child-session", "permission-1", "once"]])
+  assert.equal(events.filter((event) => event.event === "permissionAsked").length, 0)
+})
+
+test.skipIf(process.platform === "win32")("managed Python dependency approval does not depend on package popularity", async () => {
+  const bridge = createBridgeAgent()
+  const processRoot = path.join(os.tmpdir(), "dweis-python-task-1")
+  bridge.createProcessDir.mockResolvedValue(processRoot)
+  const service = new ChatServiceImpl(bridge.agent)
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+  await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "Create a spreadsheet" })
+
+  const command = `${processRoot}/.wanta-python/bin/python -m pip install pendulum`
+  bridge.emit({
+    type: "permission.v2.asked",
+    properties: {
+      id: "permission-1",
+      sessionID: "session-1",
+      action: "bash",
+      resources: [command],
+      metadata: { command },
+    },
+  })
+
+  await waitForCondition(() => bridge.answerPermission.mock.calls.length === 1)
+  assert.deepEqual(bridge.answerPermission.mock.calls, [["session-1", "permission-1", "once"]])
+  assert.equal(events.filter((event) => event.event === "permissionAsked").length, 0)
+})
+
+test("default command approvals still prompt unsafe package mutations", async () => {
+  const bridge = createBridgeAgent()
+  const projectPath = "/Users/example/code/dweis"
+  const service = new ChatServiceImpl(bridge.agent, {
+    projectStore: projectStore([
+      {
+        id: "project-1",
+        name: "dweis",
+        path: projectPath,
+        createdAt: 1_000,
+        updatedAt: 1_000,
+      },
+    ]),
+  })
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+
+  await service.sendMessage({
+    scope: testTeamScope,
+    projectContext: {
+      id: "project-1",
+      name: "dweis",
+      path: projectPath,
+    },
+    sessionId: "session-1",
+    text: "Run checks",
+  })
+  bridge.emit({
+    type: "permission.v2.asked",
+    properties: {
+      id: "permission-1",
+      sessionID: "session-1",
+      action: "bash",
+      resources: ["npm test"],
+      metadata: { command: "npm test" },
+    },
+  })
+  bridge.emit({
+    type: "permission.v2.asked",
+    properties: {
+      id: "permission-2",
+      sessionID: "session-1",
+      action: "bash",
+      resources: ["pnpm lint"],
+      metadata: { command: "pnpm lint" },
+    },
+  })
+  bridge.emit({
+    type: "permission.v2.asked",
+    properties: {
+      id: "permission-3",
+      sessionID: "session-1",
+      action: "bash",
+      resources: ["npm install"],
+      metadata: { command: "npm install" },
+    },
+  })
+
+  await waitForCondition(() => bridge.answerPermission.mock.calls.length === 2)
+  await waitForCondition(() => events.filter((event) => event.event === "permissionAsked").length === 1)
+
+  assert.deepEqual(bridge.answerPermission.mock.calls, [
+    ["session-1", "permission-1", "once"],
+    ["session-1", "permission-2", "once"],
+  ])
+})
+
+test("standard registry Node dependencies are approved automatically in the selected project", async () => {
+  const bridge = createBridgeAgent()
+  const projectPath = "/Users/example/code/customer-project"
+  const service = new ChatServiceImpl(bridge.agent, {
+    projectStore: projectStore([
+      {
+        id: "project-1",
+        name: "customer-project",
+        path: projectPath,
+        createdAt: 1_000,
+        updatedAt: 1_000,
+      },
+    ]),
+  })
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+  await service.sendMessage({
+    scope: testTeamScope,
+    projectContext: { id: "project-1", name: "customer-project", path: projectPath },
+    sessionId: "session-1",
+    text: "Create a PDF report",
+  })
+
+  const command = `cd ${projectPath} && pnpm add pdf-lib unreviewed-agent-package`
+  bridge.emit({
+    type: "permission.v2.asked",
+    properties: {
+      id: "permission-1",
+      sessionID: "session-1",
+      action: "bash",
+      resources: [command],
+      metadata: { command },
+    },
+  })
+
+  await waitForCondition(() => bridge.answerPermission.mock.calls.length === 1)
+  assert.deepEqual(bridge.answerPermission.mock.calls, [["session-1", "permission-1", "once"]])
+  assert.equal(events.filter((event) => event.event === "permissionAsked").length, 0)
+})
+
+test.skipIf(process.platform === "win32")("bounded Python dependencies are approved automatically in the selected project", async () => {
+  const bridge = createBridgeAgent()
+  const projectPath = "/Users/example/code/customer-project"
+  const service = new ChatServiceImpl(bridge.agent, {
+    projectStore: projectStore([
+      {
+        id: "project-1",
+        name: "customer-project",
+        path: projectPath,
+        createdAt: 1_000,
+        updatedAt: 1_000,
+      },
+    ]),
+  })
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+  await service.sendMessage({
+    scope: testTeamScope,
+    projectContext: { id: "project-1", name: "customer-project", path: projectPath },
+    sessionId: "session-1",
+    text: "Create a PDF report",
+  })
+
+  const commands = [
+    `${projectPath}/.venv/bin/python -m pip install --compile --use-feature=fast-deps weasyprint`,
+    `uv pip install --python=${projectPath}/venv/bin/python3 pypdf`,
+  ]
+  for (const [index, command] of commands.entries()) {
+    bridge.emit({
+      type: "permission.v2.asked",
+      properties: {
+        id: `permission-${index + 1}`,
+        sessionID: "session-1",
+        action: "bash",
+        resources: [command],
+        metadata: { command },
+      },
+    })
+  }
+
+  await waitForCondition(() => bridge.answerPermission.mock.calls.length === 2)
+  assert.deepEqual(bridge.answerPermission.mock.calls, [
+    ["session-1", "permission-1", "once"],
+    ["session-1", "permission-2", "once"],
+  ])
+  assert.equal(events.filter((event) => event.event === "permissionAsked").length, 0)
+})
+
+test.skipIf(process.platform === "win32")("browser libraries are approved automatically in the active PDF task directory", async () => {
+  const bridge = createBridgeAgent()
+  const processRoot = path.join(os.tmpdir(), "DWeis PDF Task", "process-1")
+  bridge.createProcessDir.mockResolvedValue(processRoot)
+  const service = new ChatServiceImpl(bridge.agent)
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+  await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "Create a PDF report" })
+
+  const commands = [
+    `cd "${processRoot}" && npm install puppeteer-core 2>&1 | tail -5`,
+    `cd "${processRoot}" && npm install playwright puppeteer canvas --unknown-option 2>&1 | tail -5`,
+  ]
+  for (const [index, command] of commands.entries()) {
+    bridge.emit({
+      type: "permission.v2.asked",
+      properties: {
+        id: `permission-${index + 1}`,
+        sessionID: "session-1",
+        action: "bash",
+        resources: [command],
+        metadata: { command },
+      },
+    })
+  }
+
+  await waitForCondition(() => bridge.answerPermission.mock.calls.length === 2)
+  assert.deepEqual(bridge.answerPermission.mock.calls, [
+    ["session-1", "permission-1", "once"],
+    ["session-1", "permission-2", "once"],
+  ])
+  assert.equal(events.filter((event) => event.event === "permissionAsked").length, 0)
+})
+
+test("package runner probes and document commands are approved from structure rather than argument text", async () => {
+  const bridge = createBridgeAgent()
+  const service = new ChatServiceImpl(bridge.agent)
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+  await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "Convert Markdown to PDF" })
+
+  const commands = [
+    'which pandoc 2>/dev/null; which wkhtmltopdf 2>/dev/null; which weasyprint 2>/dev/null; which pdfkit 2>/dev/null; npx --yes markdown-pdf --version 2>/dev/null; echo "---"; brew list pandoc 2>/dev/null; pip3 list 2>/dev/null | grep -i -E "weasy|pdf|markdown"',
+    'cd "/Users/test/Library/Application Support/dweis/agent/process/task" && npx md-to-pdf ' +
+      '"/Users/test/Library/Application Support/dweis/agent/artifacts/npm publish report.md" ' +
+      '--stylesheet "/Users/test/Library/Application Support/dweis/agent/process/task/sudo.css" ' +
+      '--output "/Users/test/Library/Application Support/dweis/agent/artifacts/git push summary.pdf" 2>&1',
+  ]
+  for (const [index, command] of commands.entries()) {
+    bridge.emit({
+      type: "permission.v2.asked",
+      properties: {
+        id: `permission-${index + 1}`,
+        sessionID: "session-1",
+        action: "bash",
+        resources: [command],
+        metadata: { command },
+      },
+    })
+  }
+
+  await waitForCondition(() => bridge.answerPermission.mock.calls.length === 2)
+  assert.deepEqual(bridge.answerPermission.mock.calls, [
+    ["session-1", "permission-1", "once"],
+    ["session-1", "permission-2", "once"],
+  ])
+  assert.equal(events.filter((event) => event.event === "permissionAsked").length, 0)
+})
+
+test("project dependency task approval avoids repeated prompts during the active generation", async () => {
+  const bridge = createBridgeAgent()
+  const projectPath = "/Users/example/code/dweis"
+  const service = new ChatServiceImpl(bridge.agent, {
+    projectStore: projectStore([
+      {
+        id: "project-1",
+        name: "dweis",
+        path: projectPath,
+        createdAt: 1_000,
+        updatedAt: 1_000,
+      },
+    ]),
+  })
+  const events = captureServiceEvents(service)
+  service.startEventBridge()
+
+  await service.sendMessage({
+    scope: testTeamScope,
+    projectContext: { id: "project-1", name: "dweis", path: projectPath },
+    sessionId: "session-1",
+    text: "Install and use the dependency",
+  })
+  const install = `cd ${projectPath} && pnpm install`
+  bridge.emit({
+    type: "permission.v2.asked",
+    properties: {
+      id: "permission-1",
+      sessionID: "session-1",
+      action: "bash",
+      resources: [install],
+      metadata: { command: install },
+    },
+  })
+  await waitForCondition(() => events.some((event) => event.event === "permissionAsked"))
+
+  await service.answerPermission({ sessionId: "session-1", requestId: "permission-1", reply: "always" })
+  const addDependency = `cd ${projectPath} && pnpm install`
+  bridge.emit({
+    type: "permission.v2.asked",
+    properties: {
+      id: "permission-2",
+      sessionID: "session-1",
+      action: "bash",
+      resources: [addDependency],
+      metadata: { command: addDependency },
+    },
+  })
+
+  await waitForCondition(() => bridge.answerPermission.mock.calls.length === 2)
+  assert.deepEqual(bridge.answerPermission.mock.calls, [
+    ["session-1", "permission-1", "once"],
+    ["session-1", "permission-2", "once"],
+  ])
+  assert.equal(events.filter((event) => event.event === "permissionAsked").length, 1)
+
+  bridge.emit({
+    type: "message.updated",
+    properties: { info: { id: "assistant-1", sessionID: "session-1", role: "assistant" } },
+  })
+  bridge.emit({ type: "session.idle", properties: { sessionID: "session-1" } })
+  await waitForInactiveGeneration(service)
+  await service.sendMessage({
+    scope: testTeamScope,
+    projectContext: { id: "project-1", name: "dweis", path: projectPath },
+    sessionId: "session-1",
+    text: "Start a new task",
+  })
+  bridge.emit({
+    type: "permission.v2.asked",
+    properties: {
+      id: "permission-3",
+      sessionID: "session-1",
+      action: "bash",
+      resources: [addDependency],
+      metadata: { command: addDependency },
+    },
+  })
+  await waitForCondition(() => events.filter((event) => event.event === "permissionAsked").length === 2)
+  assert.equal(bridge.answerPermission.mock.calls.length, 2)
+})
+
+test("buildContextMentionsSystem returns undefined without selected context", () => {
+  assert.equal(buildContextMentionsSystem(undefined), undefined)
+  assert.equal(buildContextMentionsSystem([]), undefined)
+})
+
+test("resolveLocalArtifacts resolves a registered artifact directory", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "dweis-artifacts-"))
+  const artifactRoot = path.join(root, "turn")
+  await mkdir(artifactRoot, { recursive: true })
+  await writeFile(path.join(artifactRoot, "fresh.png"), "fresh")
+
+  const artifactBundleStore = new ArtifactBundleStore(root)
+  const bundle = await buildArtifactBundle({
+    artifactRoot,
+    completedAt: 2,
+    createdAt: 1,
+    generatedPreviewCount: 0,
+    messageId: "assistant-1",
+    sessionId: "session-1",
+  })
+  assert.ok(bundle)
+  const records = new Map()
+  recordArtifactBundle(records, bundle)
+  await artifactBundleStore.write(records)
+  const service = new ChatServiceImpl(null, { artifactBundleStore })
+  const result = await service.resolveLocalArtifacts({ artifactRoot })
+
+  assert.equal(result.groups.length, 1)
+  assert.equal(result.groups[0]?.root?.path, artifactRoot)
+  assert.deepEqual(
+    result.groups[0]?.items.map((item) => item.name),
+    ["fresh.png"],
+  )
+})
+
+test("resolveLocalArtifacts reads artifact pack manifests", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "dweis-artifacts-manifest-"))
+  const artifactRoot = path.join(root, "turn")
+  const filesDir = path.join(artifactRoot, "files")
+  const supportDir = path.join(artifactRoot, "support")
+  await mkdir(filesDir, { recursive: true })
+  await mkdir(supportDir, { recursive: true })
+  await writeFile(path.join(filesDir, "001.jpg"), "one")
+  await writeFile(path.join(filesDir, "002.jpg"), "two")
+  await writeFile(path.join(supportDir, "download-summary.md"), "# Summary")
+  await writeFile(path.join(root, "outside.jpg"), "outside")
+  await writeFile(
+    path.join(artifactRoot, ".dweis-artifact.json"),
+    JSON.stringify({
+      version: 1,
+      title: "1688 images",
+      kind: "image_set",
+      display: "gallery",
+      summary: "Downloaded two images.",
+      items: [
+        { path: "files/002.jpg", role: "primary", order: 2 },
+        { path: "files/001.jpg", role: "primary", order: 1 },
+        { path: "../outside.jpg", role: "primary", order: 3 },
+      ],
+      supporting: [{ path: "support/download-summary.md", role: "summary", title: "Download summary" }],
+    }),
+  )
+
+  const artifactBundleStore = new ArtifactBundleStore(root)
+  const bundle = await buildArtifactBundle({
+    artifactRoot,
+    completedAt: 2,
+    createdAt: 1,
+    generatedPreviewCount: 0,
+    messageId: "assistant-1",
+    sessionId: "session-1",
+  })
+  assert.ok(bundle)
+  const records = new Map()
+  recordArtifactBundle(records, bundle)
+  await artifactBundleStore.write(records)
+  const service = new ChatServiceImpl(null, { artifactBundleStore })
+  const result = await service.resolveLocalArtifacts({ artifactRoot })
+
+  assert.equal(result.groups.length, 1)
+  assert.equal(result.pack?.title, "1688 images")
+  assert.equal(result.pack?.kind, "image_set")
+  assert.equal(result.pack?.display, "gallery")
+  assert.deepEqual(
+    result.pack?.items.map((item) => item.name),
+    ["001.jpg", "002.jpg"],
+  )
+  assert.deepEqual(
+    result.pack?.supporting.map((item) => [item.name, item.role, item.title]),
+    [["download-summary.md", "summary", "Download summary"]],
+  )
+})
+
+test("resolveLocalArtifacts rejects an unregistered directory", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "dweis-artifacts-untrusted-"))
+  try {
+    const artifactRoot = path.join(root, "turn")
+    await mkdir(artifactRoot, { recursive: true })
+    await writeFile(path.join(artifactRoot, "secret.txt"), "secret")
+
+    const service = new ChatServiceImpl(null)
+    await assert.rejects(() => service.resolveLocalArtifacts({ artifactRoot }))
+  } finally {
+    await rm(root, { force: true, recursive: true })
+  }
+})
+
+test("getLocalArtifactPreview rejects untrusted files", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "dweis-artifact-preview-untrusted-"))
+  try {
+    const filePath = path.join(root, "script.py")
+    await writeFile(filePath, "print('hello')\n")
+    const service = new ChatServiceImpl(null)
+
+    await assert.rejects(() => service.getLocalArtifactPreview({ path: filePath }))
+  } finally {
+    await rm(root, { force: true, recursive: true })
+  }
+})
+
+test("getAttachmentPreview rejects untrusted files", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "dweis-attachment-preview-untrusted-"))
+  try {
+    const filePath = path.join(root, "image.png")
+    await writeFile(filePath, Buffer.from([1, 2, 3]))
+    const service = new ChatServiceImpl(null)
+
+    await assert.rejects(() => service.getAttachmentPreview({ path: filePath, mime: "image/png" }))
+  } finally {
+    await rm(root, { force: true, recursive: true })
+  }
+})
+
+test("getAttachmentPreview allows user-selected attachment paths", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "dweis-attachment-preview-trusted-"))
+  try {
+    const filePath = path.join(root, "image.png")
+    await writeFile(filePath, Buffer.from([1, 2, 3]))
+    const trustedAttachmentPaths = new ExpiringTrustedPathRegistry()
+    const service = new ChatServiceImpl(null, { trustedAttachmentPaths })
+
+    await assert.rejects(() => service.getAttachmentPreview({ path: filePath, mime: "image/png" }))
+    trustedAttachmentPaths.add(filePath)
+
+    const result = await service.getAttachmentPreview({ path: filePath, mime: "image/png" })
+
+    assert.equal(result.dataUrl, "data:image/png;base64,AQID")
+  } finally {
+    await rm(root, { force: true, recursive: true })
+  }
+})
+
+test("sendMessage converts picker trust into session-scoped attachment trust", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "dweis-attachment-session-trust-"))
+  try {
+    const filePath = path.join(root, "image.png")
+    await writeFile(filePath, Buffer.from([1, 2, 3]))
+    const pickerTrust = new Set([filePath])
+    const bridge = createBridgeAgent()
+    const service = new ChatServiceImpl(bridge.agent, { trustedAttachmentPaths: pickerTrust })
+
+    await service.sendMessage({
+      attachments: [
+        { id: "attachment-1", kind: "file", mime: "image/png", name: "image.png", path: filePath, size: 3 },
+      ],
+      scope: testTeamScope,
+      sessionId: "session-1",
+      text: "inspect",
+    })
+
+    assert.equal(pickerTrust.has(filePath), false)
+    assert.equal(
+      (await service.getAttachmentPreview({ path: filePath, mime: "image/png" })).dataUrl,
+      "data:image/png;base64,AQID",
+    )
+    service.forgetSession("session-1")
+    await assert.rejects(() => service.getAttachmentPreview({ path: filePath, mime: "image/png" }))
+  } finally {
+    await rm(root, { force: true, recursive: true })
+  }
+})
+
+test("sendMessage rejects attachment paths that bypassed the native picker", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "dweis-attachment-send-untrusted-"))
+  try {
+    const filePath = path.join(root, "private.txt")
+    await writeFile(filePath, "private")
+    const bridge = createBridgeAgent()
+    const service = new ChatServiceImpl(bridge.agent)
+
+    await assert.rejects(
+      service.sendMessage({
+        attachments: [
+          { id: "attachment-1", kind: "file", mime: "text/plain", name: "private.txt", path: filePath, size: 7 },
+        ],
+        scope: testTeamScope,
+        sessionId: "session-1",
+        text: "inspect",
+      }),
+      /not selected or previously authorized/,
+    )
+    assert.equal(bridge.setSessionTeamName.mock.calls.length, 0)
+    assert.equal(bridge.promptStreaming.mock.calls.length, 0)
+  } finally {
+    await rm(root, { force: true, recursive: true })
+  }
+})
+
+test("sendMessage accepts a historical attachment when retrying in a new session", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "dweis-attachment-send-history-"))
+  try {
+    const filePath = path.join(root, "report.txt")
+    await writeFile(filePath, "report")
+    const attachment = {
+      id: "attachment-1",
+      kind: "file" as const,
+      mime: "text/plain",
+      name: "report.txt",
+      path: filePath,
+      size: 6,
+    }
+    const bridge = createBridgeAgent()
+    bridge.getMessages.mockResolvedValue([
+      {
+        createdAt: 1,
+        id: "user-1",
+        parts: [{ attachment, kind: "attachment", partId: "attachment-1" }],
+        role: "user",
+      },
+    ])
+    const service = new ChatServiceImpl(bridge.agent)
+
+    await service.getMessages("source-session")
+    await service.sendMessage({
+      attachments: [attachment],
+      scope: testTeamScope,
+      sessionId: "retry-session",
+      text: "retry",
+    })
+
+    assert.equal(bridge.promptStreaming.mock.calls.length, 1)
+  } finally {
+    await rm(root, { force: true, recursive: true })
+  }
+})
+
+test("getAttachmentPreview allows attachment paths restored from message history", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "dweis-attachment-preview-history-"))
+  try {
+    const filePath = path.join(root, "image.png")
+    await writeFile(filePath, Buffer.from([1, 2, 3]))
+    const bridge = createBridgeAgent()
+    bridge.getMessages.mockResolvedValue([
+      {
+        id: "user-1",
+        role: "user",
+        createdAt: 1,
+        parts: [
+          {
+            kind: "attachment",
+            partId: "attachment-1",
+            attachment: {
+              id: "attachment-1",
+              name: "image.png",
+              mime: "image/png",
+              size: 3,
+              path: filePath,
+              kind: "file",
+            },
+          },
+        ],
+      },
+    ])
+    const service = new ChatServiceImpl(bridge.agent)
+
+    await service.getMessages("session-1")
+    const result = await service.getAttachmentPreview({ path: filePath, mime: "image/png" })
+
+    assert.equal(result.dataUrl, "data:image/png;base64,AQID")
+  } finally {
+    await rm(root, { force: true, recursive: true })
+  }
+})
+
+test("getAttachmentPreview allows paths approved by local permission asks", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "dweis-attachment-preview-permission-"))
+  try {
+    const sensitiveRoot = path.join(root, ".ssh")
+    await mkdir(sensitiveRoot, { recursive: true })
+    const filePath = path.join(sensitiveRoot, "image.png")
+    await writeFile(filePath, Buffer.from([1, 2, 3]))
+    const bridge = createBridgeAgent()
+    const service = new ChatServiceImpl(bridge.agent)
+    const events = captureServiceEvents(service)
+    service.startEventBridge()
+
+    bridge.emit({
+      type: "permission.v2.asked",
+      properties: {
+        id: "permission-1",
+        sessionID: "session-1",
+        action: "external_directory",
+        resources: [sensitiveRoot],
+      },
+    })
+    await waitForCondition(() => events.some((event) => event.event === "permissionAsked"))
+    await service.answerPermission({ sessionId: "session-1", requestId: "permission-1", reply: "once" })
+
+    const result = await service.getAttachmentPreview({ path: filePath, mime: "image/png" })
+
+    assert.equal(result.dataUrl, "data:image/png;base64,AQID")
+  } finally {
+    await rm(root, { force: true, recursive: true })
+  }
+})
+
+test("getLocalArtifactPreview returns text for code artifacts", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "dweis-artifact-preview-"))
+  const filePath = path.join(root, "script.py")
+  await writeFile(filePath, "print('hello')\n")
+
+  const service = new ChatServiceImpl(null, { trustedAttachmentPaths: new Set([root]) })
+  const result = await service.getLocalArtifactPreview({ path: filePath })
+
+  assert.equal(result.kind, "text")
+  assert.equal(result.mime, "text/plain")
+  assert.equal(result.text, "print('hello')\n")
+  assert.equal(result.truncated, false)
+})
+
+test("getLocalArtifactPreview rejects binary-looking text files", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "dweis-artifact-preview-"))
+  const filePath = path.join(root, "output.txt")
+  await writeFile(filePath, Buffer.from([0, 1, 2, 3]))
+
+  const service = new ChatServiceImpl(null, { trustedAttachmentPaths: new Set([root]) })
+  const result = await service.getLocalArtifactPreview({ path: filePath })
+
+  assert.equal(result.kind, "unsupported")
+  assert.equal(result.mime, "text/plain")
+})

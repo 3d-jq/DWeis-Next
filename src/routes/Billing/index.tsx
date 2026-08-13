@@ -1,0 +1,335 @@
+import type { BillingPeriodDays } from "../../../electron/chat/common.ts"
+import type { WorkspaceSelection } from "@/hooks/useTeamWorkspace"
+
+import * as React from "react"
+import {
+  AdditionalSeatsPanel,
+  BillingManagePermissionNotice,
+  PlanComparison,
+  PlanSeatOverviewPanel,
+  TeamSubscriptionPreviewDialog,
+} from "./BillingSubscriptionPanels.tsx"
+import { BalanceOverview, UsageDetailsDisclosure } from "./BillingUsagePanels.tsx"
+import { CreditPurchaseModal } from "./CreditPurchaseModal.tsx"
+import {
+  buildTeamSubscriptionOverview,
+  isTeamSubscriptionActionDisabled,
+  resolveTeamPendingPaymentTargets,
+} from "./team-subscription-model.ts"
+import {
+  buildCategorySummaries,
+  buildDailySpendBuckets,
+  buildSubjectSummaries,
+  getSummary,
+  statsTotalCredit,
+  statsTotalEvents,
+  toNumber,
+} from "./usage.ts"
+import { useTeamCheckout } from "./use-team-checkout.ts"
+import { useChatService } from "@/components/AppContext"
+import { ErrorNotice } from "@/components/ErrorNotice"
+import { PageRouteShell } from "@/components/PageRouteShell"
+import { useBillableSeats } from "@/hooks/useBillableSeats"
+import { useBillingOverview } from "@/hooks/useBillingOverview"
+import { useT } from "@/i18n/i18n"
+import {
+  billingRequestScopeForWorkspace,
+  canManageTeamSubscriptionForWorkspace,
+  canReadTeamSubscriptionForWorkspace,
+} from "@/lib/billing-scope"
+
+interface BillingRouteProps {
+  cacheScope: string
+  initialTarget?: "credits" | "plans" | null
+  onBack: () => void
+  titlebarActions: React.ReactNode
+  workspace: WorkspaceSelection
+}
+
+export function BillingRoute({
+  cacheScope,
+  initialTarget,
+  onBack,
+  titlebarActions,
+  workspace,
+}: BillingRouteProps) {
+  const t = useT()
+  const chatService = useChatService()
+  const [period, setPeriod] = React.useState<BillingPeriodDays>(30)
+  const [usageDetailsOpen, setUsageDetailsOpen] = React.useState(false)
+  const [purchaseOpen, setPurchaseOpen] = React.useState(false)
+  const billingRequestScope = React.useMemo(() => billingRequestScopeForWorkspace(workspace), [workspace])
+  const canManageFunding = billingRequestScope?.canManageFunding === true
+  const canManageTeamSubscription = billingRequestScope?.canManageTeamSubscription === true
+  const { data, error, loading, refresh } = useBillingOverview(period, {
+    cacheScope,
+    requestScope: billingRequestScope,
+  })
+  const seatState = useBillableSeats(workspace)
+  const planComparisonRef = React.useRef<HTMLElement | null>(null)
+  const isSessionExpired = error?.kind === "auth_required"
+
+  const summaries = React.useMemo(
+    () => buildCategorySummaries(data?.spend, data?.metering),
+    [data?.spend, data?.metering],
+  )
+  const subjectSummaries = React.useMemo(
+    () => (usageDetailsOpen ? buildSubjectSummaries(data?.spend, data?.metering) : []),
+    [data?.metering, data?.spend, usageDetailsOpen],
+  )
+  const categorySpendTotal = summaries.reduce((sum, item) => sum + item.credit, 0)
+  const totalSpend = categorySpendTotal > 0 ? categorySpendTotal : statsTotalCredit(data?.spend)
+  const categoryEventTotal = summaries.reduce((sum, item) => sum + item.eventCount, 0)
+  const totalEvents = categoryEventTotal > 0 ? categoryEventTotal : statsTotalEvents(data?.metering)
+  const currentCredit = toNumber(data?.balance?.total.currentCredit)
+  const originalCredit = toNumber(data?.balance?.total.originalCredit)
+  const balanceAvailable = data?.balanceAvailable === true
+  const spendAvailable = data?.spendAvailable === true
+  const meteringAvailable = data?.meteringAvailable === true
+  const dataAsOf = React.useMemo(() => {
+    const timestamps = [data?.spend?.dataAsOf, data?.metering?.dataAsOf].filter(
+      (timestamp): timestamp is number => typeof timestamp === "number" && timestamp > 0,
+    )
+    return timestamps.length > 0 ? Math.max(...timestamps) : undefined
+  }, [data?.metering?.dataAsOf, data?.spend?.dataAsOf])
+  const hasNoUsage = spendAvailable && totalSpend === 0
+  const modelSpend = getSummary(summaries, "model").credit
+  const billingContext = React.useMemo(
+    () =>
+      buildBillingWorkspaceContext(workspace, canManageTeamSubscription, seatState.count, t("billing.teamWorkspace")),
+    [canManageTeamSubscription, seatState.count, t, workspace],
+  )
+  const teamOverview = React.useMemo(
+    () =>
+      buildTeamSubscriptionOverview({
+        canManage: billingContext.canManage,
+        memberCount: billingContext.memberCount,
+        pendingPayment: data?.teamPendingPayment ?? null,
+        subscription: data?.subscription ?? null,
+      }),
+    [
+      billingContext.canManage,
+      billingContext.memberCount,
+      data?.subscription,
+      data?.teamPendingPayment,
+    ],
+  )
+  const pendingTeamPaymentTargets = React.useMemo(
+    () =>
+      resolveTeamPendingPaymentTargets({
+        currentAdditionalSeats: teamOverview.additionalSeats,
+        currentPlan: teamOverview.currentPlan,
+        pendingPayment: data?.teamPendingPayment ?? null,
+      }),
+    [data?.teamPendingPayment, teamOverview.additionalSeats, teamOverview.currentPlan],
+  )
+  const pendingTeamPaymentUrl = pendingTeamPaymentTargets.paymentUrl
+  const teamId = canManageTeamSubscriptionForWorkspace(workspace) ? workspace.teamId : null
+  const showTeamPlans = canReadTeamSubscriptionForWorkspace(workspace)
+  const teamDetailsAvailable = data?.subscriptionAvailable === true && data.teamPendingPaymentAvailable === true
+  const averageDailySpend = period > 0 ? totalSpend / period : 0
+  const coverageDays = averageDailySpend > 0 ? Math.floor(currentCredit / averageDailySpend) : 0
+  const showCoverageDays = totalSpend >= 0.01 && coverageDays > 0 && coverageDays <= 999
+  const availableShare =
+    originalCredit > 0
+      ? Math.max(0, Math.min(100, (currentCredit / originalCredit) * 100))
+      : currentCredit > 0
+        ? 100
+        : 0
+  const dailyBuckets = React.useMemo(
+    () => buildDailySpendBuckets(data?.spend?.items ?? [], period, totalSpend),
+    [data?.spend, period, totalSpend],
+  )
+  const hasEstimatedTrend = dailyBuckets.some((bucket) => bucket.estimated)
+  const maxDailySpend = Math.max(
+    ...dailyBuckets.map((bucket) => bucket.credit),
+    hasEstimatedTrend ? averageDailySpend * 2 : 0,
+  )
+  const openUsagePurchase = React.useCallback(() => {
+    if (canManageFunding) {
+      setPurchaseOpen(true)
+    }
+  }, [canManageFunding])
+  const openExternalCheckout = React.useCallback(
+    async (url: string) => {
+      await chatService.invoke("openExternalUrl", { url })
+    },
+    [chatService],
+  )
+  const teamCheckout = useTeamCheckout({
+    currentAdditionalSeats: teamOverview.additionalSeats,
+    openExternalCheckout,
+    teamId,
+    pendingAdditionalSeats: pendingTeamPaymentTargets.additionalSeats,
+    pendingPaymentUrl: pendingTeamPaymentUrl || null,
+    pendingPlan: pendingTeamPaymentTargets.plan,
+    refresh: () => void refresh({ force: true }),
+  })
+  const teamLoading = teamCheckout.loading
+  const teamCheckoutPreview = teamCheckout.preview
+  const teamActionDisabled =
+    isTeamSubscriptionActionDisabled({
+      canManage: billingContext.canManage,
+      isSessionExpired,
+      isSubmitting: teamLoading !== null,
+    }) ||
+    !teamDetailsAvailable ||
+    seatState.count === null ||
+    Boolean(seatState.error)
+  React.useEffect(() => {
+    if (initialTarget !== "plans" || !showTeamPlans) {
+      return
+    }
+    const frame = window.requestAnimationFrame(() => {
+      planComparisonRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [initialTarget, showTeamPlans])
+
+  React.useEffect(() => {
+    if (initialTarget === "credits" && canManageFunding) {
+      setPurchaseOpen(true)
+    }
+  }, [canManageFunding, initialTarget])
+
+  const balanceOverview = (
+    <BalanceOverview
+      averageDailySpend={averageDailySpend}
+      balanceAvailable={balanceAvailable}
+      modelSpend={modelSpend}
+      coverageDays={coverageDays}
+      showCoverageDays={showCoverageDays}
+      currentCredit={currentCredit}
+      canManageFunding={canManageFunding}
+      hasNoUsage={hasNoUsage}
+      loading={(loading && !data) || isSessionExpired}
+      meteringAvailable={meteringAvailable}
+      spendAvailable={spendAvailable}
+      totalEvents={totalEvents}
+      totalSpend={totalSpend}
+      availableShare={availableShare}
+      period={period}
+      topUpDisabled={isSessionExpired}
+      onPeriodChange={setPeriod}
+      onRefresh={() => void refresh({ force: true })}
+      onTopUp={openUsagePurchase}
+    />
+  )
+
+  return (
+    <>
+      <PageRouteShell
+        backLabel={t("billing.backToChat")}
+        contentClassName="max-w-[84rem] gap-5"
+        onBack={onBack}
+        titlebarActions={titlebarActions}
+      >
+        <h1 className="oo-text-page-title">{t("billing.title")}</h1>
+
+        <section className="border-b border-[var(--oo-divider)] pb-5">
+          <div className="min-w-0">
+            <p className="oo-text-body text-muted-foreground">{t("billing.subtitle")}</p>
+          </div>
+        </section>
+
+        {error ? <ErrorNotice error={error} /> : null}
+
+        {!billingContext.canManage ? <BillingManagePermissionNotice /> : null}
+
+        {showTeamPlans && (!data || teamDetailsAvailable) ? (
+          <>
+            <PlanSeatOverviewPanel
+              loading={(loading && !data) || isSessionExpired}
+              overview={teamOverview}
+              seatLoading={seatState.loading}
+              seatUnavailable={seatState.count === null || Boolean(seatState.error)}
+              workspaceLabel={billingContext.workspaceLabel}
+            />
+
+            <PlanComparison
+              ref={planComparisonRef}
+              currentPlan={teamOverview.currentPlan}
+              disabled={teamActionDisabled}
+              loadingPlan={teamLoading}
+              pendingPaymentPlan={pendingTeamPaymentTargets.plan}
+              onChoosePlan={teamCheckout.choosePlan}
+            />
+
+            <section className="grid gap-4 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)]">
+              <AdditionalSeatsPanel
+                currentAdditionalSeats={teamOverview.additionalSeats}
+                disabled={teamActionDisabled}
+                loading={teamLoading !== null}
+                pendingAdditionalSeats={pendingTeamPaymentTargets.additionalSeats}
+                workspaceLabel={billingContext.workspaceLabel}
+                onUpdateSeats={teamCheckout.updateSeats}
+              />
+
+              {balanceOverview}
+            </section>
+          </>
+        ) : (
+          balanceOverview
+        )}
+
+        <UsageDetailsDisclosure
+          balanceLots={data?.balance?.items ?? []}
+          dataAsOf={dataAsOf}
+          dailyBuckets={dailyBuckets}
+          hasEstimatedTrend={hasEstimatedTrend}
+          loading={loading && !data}
+          maxDailySpend={maxDailySpend}
+          period={period}
+          summaries={summaries}
+          subjectSummaries={subjectSummaries}
+          showBalanceLots={canManageFunding}
+          spendAvailable={spendAvailable}
+          meteringAvailable={meteringAvailable}
+          open={usageDetailsOpen}
+          totalSpend={totalSpend}
+          onOpenChange={setUsageDetailsOpen}
+        />
+      </PageRouteShell>
+      <TeamSubscriptionPreviewDialog
+        loading={teamLoading === "checkout"}
+        preview={teamCheckoutPreview}
+        onClose={teamCheckout.closePreview}
+        onConfirm={() => void teamCheckout.confirm()}
+      />
+      <CreditPurchaseModal
+        cacheScope={cacheScope}
+        open={purchaseOpen}
+        requestScope={billingRequestScope}
+        showViewDetails={false}
+        onClose={() => {
+          setPurchaseOpen(false)
+          void refresh({ force: true })
+        }}
+      />
+    </>
+  )
+}
+
+interface BillingWorkspaceContext {
+  canManage: boolean
+  memberCount: number | null
+  teamId?: string
+  teamName?: string
+  workspaceLabel: string
+}
+
+function buildBillingWorkspaceContext(
+  workspace: WorkspaceSelection,
+  canManageTeamSubscription: boolean,
+  memberCount: number | null,
+  teamWorkspaceLabel = "Team",
+): BillingWorkspaceContext {
+  const teamName = workspace.team?.name ?? ""
+  return {
+    canManage: canManageTeamSubscription,
+    memberCount: memberCount === null ? null : Math.max(1, memberCount),
+    teamId: workspace.teamId,
+    teamName,
+    workspaceLabel: teamName || teamWorkspaceLabel,
+  }
+}

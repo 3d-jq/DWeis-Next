@@ -1,0 +1,407 @@
+import type {
+  AssistantActivityEvent,
+  ChatAttachment,
+  ChatMessage,
+  ChatMessagePart,
+} from "../../../electron/chat/common.ts"
+
+import { hasBlockingToolError, hasStoppedTool, isActiveToolPart } from "./tool-state.ts"
+
+export interface ChatTurn {
+  id: string
+  user: ChatMessage | null
+  assistants: ChatMessage[]
+  /** 压缩 summary 等内部消息：不渲染内容，对话流中以分隔线元素呈现（永久保留压缩标记）。 */
+  internal?: ChatMessage
+}
+
+export interface ChatTurnGrouping {
+  /** 仅供按消息 ID 关联附属记录；流式正文变化时保持引用稳定。 */
+  associationTurns: ChatTurn[]
+  assistantMessageIdsKey: string
+  messages: ChatMessage[]
+  turns: ChatTurn[]
+}
+
+export interface ChatTurnRetrySource {
+  text: string
+  attachments: ChatAttachment[]
+  userMessageId: string
+  userClientId?: string
+}
+
+export interface ChatTurnProcess {
+  tools: ChatMessagePart[]
+  errors: ChatMessagePart[]
+  /** 用户在折叠区外已经能看到答复、成果或结构化回执。 */
+  hasVisibleOutcome: boolean
+  hasActiveTool: boolean
+  hasToolError: boolean
+  hasBlockingError: boolean
+  hasStoppedTool: boolean
+  activity: AssistantActivityEvent | null
+  startedAt?: number
+  endedAt?: number
+}
+
+export type ChatTurnProcessStatus =
+  | "running"
+  | "completed"
+  | "completedWithIssues"
+  | "retrying"
+  | "needsAction"
+  | "error"
+  | "stopped"
+
+/** user 消息是否有可见内容（文本或附件）。空 user 消息（如自动压缩触发消息）不建回合。 */
+export function hasVisibleUserMessage(message: ChatMessage): boolean {
+  return message.parts.some(
+    (part) => part.kind === "attachment" || (part.kind === "text" && Boolean(part.text?.trim())),
+  )
+}
+
+export function groupChatTurns(messages: ChatMessage[]): ChatTurn[] {
+  const turns: ChatTurn[] = []
+  let current: ChatTurn | null = null
+
+  const pushCurrent = (): void => {
+    if (current) {
+      turns.push(current)
+      current = null
+    }
+  }
+
+  for (const message of messages) {
+    // 内部消息（压缩 summary）：不渲染成对话内容，独立成 turn 供分隔线元素展示。
+    if (message.internal) {
+      pushCurrent()
+      current = { id: message.clientId ?? message.id, user: null, assistants: [], internal: message }
+      continue
+    }
+    if (message.role === "user") {
+      if (!hasVisibleUserMessage(message)) {
+        // 幽灵 user 消息（自动压缩触发消息等，无内容）：不建回合，后续 assistant 归入当前回合。
+        continue
+      }
+      pushCurrent()
+      current = { id: message.clientId ?? message.id, user: message, assistants: [] }
+      continue
+    }
+
+    if (!current) {
+      current = { id: message.clientId ?? message.id, user: null, assistants: [] }
+    }
+    current.assistants.push(message)
+  }
+
+  pushCurrent()
+  return turns
+}
+
+function sameChatTurn(left: ChatTurn, right: ChatTurn): boolean {
+  return (
+    left.id === right.id &&
+    left.user === right.user &&
+    left.internal === right.internal &&
+    left.assistants.length === right.assistants.length &&
+    left.assistants.every((message, index) => message === right.assistants[index])
+  )
+}
+
+export function reuseStableChatTurns(previous: ChatTurn[], next: ChatTurn[]): ChatTurn[] {
+  let changed = previous.length !== next.length
+  const turns = next.map((turn, index) => {
+    const current = previous[index]
+    if (current && sameChatTurn(current, turn)) {
+      return current
+    }
+    changed = true
+    return turn
+  })
+  return changed ? turns : previous
+}
+
+function sameMessageGroupingIdentity(left: ChatMessage, right: ChatMessage): boolean {
+  return left.id === right.id && left.clientId === right.clientId && left.role === right.role
+}
+
+function replaceChangedMessageInTurns(
+  turns: ChatTurn[],
+  previousMessage: ChatMessage,
+  nextMessage: ChatMessage,
+): ChatTurn[] | null {
+  for (let turnIndex = 0; turnIndex < turns.length; turnIndex += 1) {
+    const turn = turns[turnIndex]
+    if (!turn) continue
+    if (turn.user === previousMessage) {
+      const nextTurns = [...turns]
+      nextTurns[turnIndex] = { ...turn, user: nextMessage }
+      return nextTurns
+    }
+    const assistantIndex = turn.assistants.indexOf(previousMessage)
+    if (assistantIndex < 0) continue
+    const assistants = [...turn.assistants]
+    assistants[assistantIndex] = nextMessage
+    const nextTurns = [...turns]
+    nextTurns[turnIndex] = { ...turn, assistants }
+    return nextTurns
+  }
+  return null
+}
+
+export function updateChatTurnGrouping(previous: ChatTurnGrouping, messages: ChatMessage[]): ChatTurnGrouping {
+  if (previous.messages.length === messages.length) {
+    let previousChangedMessage: ChatMessage | undefined
+    let nextChangedMessage: ChatMessage | undefined
+    for (let index = 0; index < messages.length; index += 1) {
+      if (previous.messages[index] === messages[index]) continue
+      if (previousChangedMessage) {
+        previousChangedMessage = undefined
+        break
+      }
+      previousChangedMessage = previous.messages[index]
+      nextChangedMessage = messages[index]
+    }
+    if (!previousChangedMessage) {
+      if (previous.messages.every((message, index) => message === messages[index])) {
+        return previous.messages === messages ? previous : { ...previous, messages }
+      }
+    } else if (nextChangedMessage && sameMessageGroupingIdentity(previousChangedMessage, nextChangedMessage)) {
+      const turns = replaceChangedMessageInTurns(previous.turns, previousChangedMessage, nextChangedMessage)
+      if (turns) {
+        return {
+          associationTurns: previous.associationTurns,
+          assistantMessageIdsKey: previous.assistantMessageIdsKey,
+          messages,
+          turns,
+        }
+      }
+    }
+  }
+
+  const turns = reuseStableChatTurns(previous.turns, groupChatTurns(messages))
+  return {
+    associationTurns: turns,
+    assistantMessageIdsKey: assistantMessageIdsKey(messages),
+    messages,
+    turns,
+  }
+}
+
+export function latestAssistantMessage(messages: ChatMessage[]): ChatMessage | undefined {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (message?.role === "assistant" && !message.internal) {
+      return message
+    }
+  }
+  return undefined
+}
+
+export function assistantMessageIdsKey(messages: ChatMessage[]): string {
+  const messageIds: string[] = []
+  for (const message of messages) {
+    if (message.role === "assistant" && !message.internal) {
+      messageIds.push(message.id)
+    }
+  }
+  return messageIds.join("\n")
+}
+
+export function userMessageText(message: Pick<ChatMessage, "parts">): string {
+  return message.parts
+    .filter((part) => part.kind === "text")
+    .map((part) => part.text ?? "")
+    .join("")
+}
+
+export function userMessageAttachments(message: Pick<ChatMessage, "parts">): ChatAttachment[] {
+  return message.parts
+    .filter((part) => part.kind === "attachment" && part.attachment)
+    .map((part) => part.attachment as ChatAttachment)
+}
+
+export function chatTurnInputKey(input: Pick<ChatTurnRetrySource, "attachments" | "text">): string {
+  const attachmentsKey = input.attachments
+    .map((attachment) =>
+      [
+        attachment.path,
+        attachment.id,
+        attachment.name,
+        attachment.mime,
+        String(attachment.size),
+        attachment.kind ?? "",
+      ].join("\0"),
+    )
+    .sort()
+    .join("\0\0")
+  return `${input.text}\0---\0${attachmentsKey}`
+}
+
+export function retrySourceFromTurn(turn: ChatTurn): ChatTurnRetrySource | null {
+  if (!turn.user) {
+    return null
+  }
+  const text = userMessageText(turn.user)
+  const attachments = userMessageAttachments(turn.user)
+  if (!text && attachments.length === 0) {
+    return null
+  }
+  return {
+    text,
+    attachments,
+    userMessageId: turn.user.id,
+    ...(turn.user.clientId ? { userClientId: turn.user.clientId } : {}),
+  }
+}
+
+/** 上下文压缩活动（compacting/resuming）独立于回合展示：不挂到任何回合的 process 面板。 */
+export function isCompactionActivity(
+  activity: AssistantActivityEvent | null,
+): activity is AssistantActivityEvent & { phase: "compacting" | "resuming" } {
+  return activity?.phase === "compacting" || activity?.phase === "resuming"
+}
+
+export function activityForChatTurn(
+  turn: ChatTurn,
+  activity: AssistantActivityEvent | null,
+  activeAssistantMessageId: string | undefined,
+  isLatestTurn: boolean,
+): AssistantActivityEvent | null {
+  if (!activity) {
+    return null
+  }
+  if (isCompactionActivity(activity)) {
+    return null
+  }
+  const targetMessageId = activity.messageId ?? activeAssistantMessageId
+  if (!targetMessageId) {
+    return isLatestTurn ? activity : null
+  }
+  return turn.assistants.some((message) => message.id === targetMessageId) ? activity : null
+}
+
+export function assistantTextParts(message: ChatMessage): ChatMessagePart[] {
+  return message.parts.filter((part) => part.kind === "text" && Boolean(part.text?.trim()))
+}
+
+export function assistantErrorParts(message: ChatMessage): ChatMessagePart[] {
+  return message.parts.filter((part) => part.kind === "error")
+}
+
+export function isLiveTurnProcess(
+  _process: Pick<ChatTurnProcess, "activity" | "hasActiveTool" | "tools">,
+  live = false,
+): boolean {
+  // live 即当前回合正在生成（activeAssistantMessageId 匹配该回合）。
+  // 纯文本回合在文本输出期间 activity 会被清空、tools 也为空，但仍是运行中——
+  // 必须以 live 为准显示"处理中"，否则会误判成 completed。
+  return live
+}
+
+export function chatTurnProcessStatus(
+  process: Pick<
+    ChatTurnProcess,
+    "activity" | "hasActiveTool" | "hasBlockingError" | "hasStoppedTool" | "hasToolError" | "tools"
+  >,
+  live = false,
+): ChatTurnProcessStatus {
+  if (process.activity?.phase === "retrying") {
+    return "retrying"
+  }
+  if (isLiveTurnProcess(process, live)) {
+    return "running"
+  }
+  if (process.hasBlockingError) {
+    return "error"
+  }
+  if (process.hasToolError) {
+    return "completedWithIssues"
+  }
+  if (process.hasStoppedTool) {
+    return "stopped"
+  }
+  if (process.hasActiveTool) {
+    return "stopped"
+  }
+  return "completed"
+}
+
+export function settlingToolPartId(
+  process: Pick<ChatTurnProcess, "hasActiveTool" | "tools">,
+  status: ChatTurnProcessStatus,
+): string | undefined {
+  if (status !== "running" || process.hasActiveTool) {
+    return undefined
+  }
+  const latestTool = process.tools.at(-1)
+  return latestTool?.status === "completed" ? latestTool.partId : undefined
+}
+
+export function summarizeTurnProcess(
+  turn: ChatTurn,
+  activity: AssistantActivityEvent | null,
+  activeAssistantMessageId?: string,
+  options?: { hasVisibleOutcome?: boolean },
+): ChatTurnProcess {
+  const tools = turn.assistants.flatMap((message) => message.parts.filter((part) => part.kind === "tool"))
+  const errors = turn.assistants.flatMap(assistantErrorParts)
+  const hasVisibleOutcome =
+    options?.hasVisibleOutcome ?? turn.assistants.some((message) => assistantTextParts(message).length > 0)
+  const activeTurnActivity =
+    activity &&
+    (!activity.messageId && !activeAssistantMessageId
+      ? true
+      : turn.assistants.some((message) => message.id === activeAssistantMessageId || message.id === activity.messageId))
+      ? activity
+      : null
+  const timings = tools
+    .map((part) => part.timing)
+    .filter((timing): timing is NonNullable<ChatMessagePart["timing"]> => Boolean(timing))
+  const timingStarts = timings
+    .map((timing) => timing.start)
+    .filter((value): value is number => typeof value === "number")
+  const timingEnds = timings.map((timing) => timing.end).filter((value): value is number => typeof value === "number")
+  const messageCompletionTimes = turn.assistants
+    .map((message) => message.completedAt)
+    .filter((value): value is number => typeof value === "number" && Number.isFinite(value))
+  const messageTimes = [turn.user?.createdAt, ...turn.assistants.map((message) => message.createdAt)].filter(
+    (value): value is number => typeof value === "number" && Number.isFinite(value),
+  )
+  const startedAt =
+    timingStarts.length > 0
+      ? Math.min(...timingStarts)
+      : messageTimes.length > 0
+        ? Math.min(...messageTimes)
+        : undefined
+  const endedAt =
+    messageCompletionTimes.length > 0
+      ? Math.max(...messageCompletionTimes)
+      : timingEnds.length > 0
+        ? Math.max(...timingEnds)
+        : undefined
+
+  const hasToolError = hasBlockingToolError(tools)
+
+  return {
+    tools,
+    errors,
+    hasVisibleOutcome,
+    hasActiveTool: tools.some(isActiveToolPart),
+    hasToolError,
+    hasBlockingError: errors.length > 0 || (hasToolError && !hasVisibleOutcome),
+    hasStoppedTool: hasStoppedTool(tools),
+    activity: activeTurnActivity,
+    startedAt,
+    endedAt,
+  }
+}
+
+export function shouldShowTurnProcess(process: Pick<ChatTurnProcess, "activity" | "tools">): boolean {
+  // 运行中（思考/收尾等任何 activity 阶段）或已有工具调用，都以"处理中+耗时"回合卡占位。
+  return Boolean(process.activity) || process.tools.length > 0
+}
+
+export function shouldAppendTurnProcessActivity(showTurnProcess: boolean, hasProcessSegment: boolean): boolean {
+  return showTurnProcess && !hasProcessSegment
+}

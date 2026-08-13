@@ -1,0 +1,64 @@
+name: Check Pull Request
+
+on:
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: corepack pnpm install --frozen-lockfile
+        env:
+          # 跳过 Electron 二进制下载（download-electron postinstall 也据此短路）。
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+          # 本 job 只做 lint/test/build:app，不打包，故无需下载 oo 二进制。
+          OO_SKIP_BINARY_DOWNLOAD: "1"
+
+      - name: Run lint
+        run: corepack pnpm run lint
+
+      - name: Run format
+        run: corepack pnpm run format
+
+      - name: Run ts-check
+        run: corepack pnpm run ts-check
+
+      - name: Run tests
+        run: corepack pnpm test
+        env:
+          # 安装步骤用 ELECTRON_SKIP_BINARY_DOWNLOAD=1 跳过下载 Electron 二进制，
+          # 因此 node_modules/electron/path.txt 不存在。现状 DWeis Next 的测试全是纯函数
+          # 单测（断言只碰 domain/config/store 等模块，无任何 electron 导入），不触发
+          # 该路径解析。但只要将来有人新增一个传递性 import 了 electron 的被测模块，
+          # 在纯 Node 下 `import "electron"` 会触发 stub 解析二进制路径，path.txt
+          # 缺失时它会现场下载 ~144MB（CI 冷缓存常失败 → ENOENT path.txt）。
+          # 预先设置 ELECTRON_OVERRIDE_DIST_PATH 让 electron stub 直接返回路径字符串、
+          # 不触发下载；Node 上下文中 electron 模块本就只是路径字符串，测试不依赖
+          # 真实 app，故该值指向何处不影响断言。零副作用的防御性兜底。
+          ELECTRON_OVERRIDE_DIST_PATH: ${{ github.workspace }}/.electron-dist
+
+      - name: Run build
+        run: corepack pnpm run build

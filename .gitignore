@@ -1,0 +1,95 @@
+# Logs
+logs
+*.log
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage
+coverage
+*.lcov
+.nyc_output
+
+# Dependency directories
+node_modules/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# dotenv（.env.example 为提交的模板，不忽略）
+.env
+.env.test
+.env.local
+.env.*.local
+
+.DS_Store
+.idea
+
+# Build output
+dist
+dist-electron
+release
+
+# Locally downloaded Electron (dev) — produced by scripts/download-electron.ts
+.electron-dist
+
+# Local dev bootstrap state (machine-specific env) — produced by scripts/bootstrap
+.dweis-dev/
+
+# Locally downloaded oo binary (dev/build) — produced by scripts/download-oo.ts
+.oo-bin/
+
+# Bundled oo/opencode binaries staged by scripts/prepare-binaries.ts (not committed)
+resources/bin
+
+# Bundled oo skills exported by scripts/skills.ts (not committed)
+resources/skills
+
+# Bundled self-contained OpenCode custom-tool runtime (not committed)
+resources/agent-tool-runtime
+
+# Local dev scratch
+.wanta-dev/
+.playwright-mcp/
+
+# Local dev Electron userData (legacy + current; storeDirName is "dweisnext")
+wanta/
+dweisnext/
+
+# Build leftovers renamed during sandbox builds (not committed)
+dist_trash_*/
+
+# Scratch image exports from local branding/icon tooling (not committed)
+resources/branding/preview_*.png
+resources/branding/robot_*.png
+
+# Trash dirs from skills export / local tooling (not committed)
+resources/skills_trash_*/
+
+# Local memory / tooling dirs
+.workbuddy/
+.eb-tools/
+
+# 构建调试监控/临时产物（本地脚本生成，不提交）
+dist-electron-tmp/
+build*_status.txt
+monitor_build*.py
+monitor_build*.out
+spawn_probe.mjs
+spawn_test_*.txt
+vite_version_check.txt
+def_excl_result.txt
+screen.png
+
+# ZCode 会话工作目录
+.zcode/
+
+# Qoder tool working state
+.qoder/
+
+# AI harness tool reports
+.better-harness/
+resources/libreoffice/

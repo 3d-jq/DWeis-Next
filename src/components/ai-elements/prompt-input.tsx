@@ -1,0 +1,157 @@
+import type { ChatStatus } from "ai"
+import type { ComponentProps, FormEvent, FormEventHandler, HTMLAttributes, KeyboardEventHandler } from "react"
+
+import { ArrowUpIcon, Loader2Icon, SquareIcon, XIcon } from "lucide-react"
+import { useState } from "react"
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from "@/components/ui/input-group"
+import { cn } from "@/lib/utils"
+
+export type PromptInputMessage = {
+  text: string
+}
+
+export type PromptInputProps = Omit<HTMLAttributes<HTMLFormElement>, "onSubmit"> & {
+  onSubmit: (message: PromptInputMessage, event: FormEvent<HTMLFormElement>) => void
+}
+
+export const PromptInput = ({ className, onSubmit, children, ...props }: PromptInputProps) => {
+  const handleSubmit: FormEventHandler<HTMLFormElement> = (event) => {
+    event.preventDefault()
+    const formData = new FormData(event.currentTarget)
+    const text = ((formData.get("message") as string) || "").trim()
+    onSubmit({ text }, event)
+  }
+
+  return (
+    <form className={cn("w-full max-w-full min-w-0", className)} onSubmit={handleSubmit} {...props}>
+      <InputGroup className="oo-prompt-input-surface overflow-hidden rounded-[1.375rem]">{children}</InputGroup>
+    </form>
+  )
+}
+
+export type PromptInputBodyProps = HTMLAttributes<HTMLDivElement>
+
+export const PromptInputBody = ({ className, ...props }: PromptInputBodyProps) => (
+  <div className={cn("contents", className)} {...props} />
+)
+
+export type PromptInputAttachmentsProps = Omit<ComponentProps<typeof InputGroupAddon>, "align">
+
+export const PromptInputAttachments = ({ className, ...props }: PromptInputAttachmentsProps) => (
+  <InputGroupAddon
+    align="block-start"
+    className={cn("cursor-default justify-start px-4 pt-3 pb-1.5 select-text", className)}
+    {...props}
+  />
+)
+
+export type PromptInputTextareaProps = ComponentProps<typeof InputGroupTextarea>
+
+export const PromptInputTextarea = ({
+  className,
+  onCompositionEnd,
+  onCompositionStart,
+  onKeyDown,
+  placeholder = "What would you like to know?",
+  ...props
+}: PromptInputTextareaProps) => {
+  const [isComposing, setIsComposing] = useState(false)
+
+  const handleKeyDown: KeyboardEventHandler<HTMLTextAreaElement> = (e) => {
+    onKeyDown?.(e)
+    if (e.defaultPrevented) {
+      return
+    }
+    if (e.key === "Enter") {
+      if (isComposing || e.nativeEvent.isComposing) {
+        return
+      }
+      if (e.shiftKey) {
+        return
+      }
+      e.preventDefault()
+
+      // 提交按钮禁用时（如空输入 / agent 未就绪）不提交。
+      const form = e.currentTarget.form
+      const submitButton = form?.querySelector('button[type="submit"]') as HTMLButtonElement | null
+      if (submitButton?.disabled) {
+        return
+      }
+      form?.requestSubmit()
+    }
+  }
+
+  return (
+    <InputGroupTextarea
+      className={cn(
+        "field-sizing-content max-h-52 min-h-14 min-w-0 px-4 pt-3 pb-1.5 [overflow-wrap:anywhere] [word-break:break-word] placeholder:text-[var(--oo-prompt-input-placeholder)]",
+        className,
+      )}
+      name="message"
+      onCompositionEnd={(event) => {
+        setIsComposing(false)
+        onCompositionEnd?.(event)
+      }}
+      onCompositionStart={(event) => {
+        setIsComposing(true)
+        onCompositionStart?.(event)
+      }}
+      onKeyDown={handleKeyDown}
+      placeholder={placeholder}
+      {...props}
+    />
+  )
+}
+
+export type PromptInputToolbarProps = Omit<ComponentProps<typeof InputGroupAddon>, "align">
+
+export const PromptInputToolbar = ({ className, ...props }: PromptInputToolbarProps) => (
+  <InputGroupAddon align="block-end" className={cn("justify-between gap-1 px-4 pt-0 pb-2.5", className)} {...props} />
+)
+
+
+export type PromptInputToolsProps = HTMLAttributes<HTMLDivElement>
+
+export const PromptInputTools = ({ className, ...props }: PromptInputToolsProps) => (
+  <div className={cn("flex items-center gap-1", className)} {...props} />
+)
+
+
+export type PromptInputSubmitProps = ComponentProps<typeof InputGroupButton> & {
+  status?: ChatStatus
+  visualStatus?: ChatStatus
+}
+
+export const PromptInputSubmit = ({
+  className,
+  variant = "default",
+  size = "icon-sm",
+  status,
+  visualStatus,
+  children,
+  ...props
+}: PromptInputSubmitProps) => {
+  const iconStatus = visualStatus ?? status
+  let Icon = <ArrowUpIcon className="size-4" />
+
+  if (iconStatus === "submitted") {
+    Icon = <Loader2Icon className="size-4 animate-spin" />
+  } else if (iconStatus === "streaming") {
+    Icon = <SquareIcon className="size-3.5" fill="currentColor" strokeWidth={0} />
+  } else if (iconStatus === "error") {
+    Icon = <XIcon className="size-4" />
+  }
+
+  return (
+    <InputGroupButton
+      aria-label="Submit"
+      className={cn("rounded-full", className)}
+      size={size}
+      type="submit"
+      variant={variant}
+      {...props}
+    >
+      {children ?? Icon}
+    </InputGroupButton>
+  )
+}

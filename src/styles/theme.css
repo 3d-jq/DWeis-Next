@@ -1,0 +1,1051 @@
+/* Streamdown（ai-elements MessageResponse 的 Markdown 渲染器）的样式类位于 node_modules
+   里，Tailwind v4 默认不扫描 node_modules，需显式声明 @source 才能生成这些类。 */
+@source "../../node_modules/streamdown/dist";
+@source "../../node_modules/@streamdown/mermaid/dist";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  /* Apple 静默阴影标尺（Pinguo DS）：tailwind shadow-* 工具类统一走这套，dark 有独立档位 */
+  --shadow-2xs: var(--oo-shadow-2xs);
+  --shadow-xs: var(--oo-shadow-xs);
+  --shadow-sm: var(--oo-shadow-sm);
+  --shadow-md: var(--oo-shadow-md);
+  --shadow-lg: var(--oo-shadow-lg);
+  --shadow-xl: var(--oo-shadow-xl);
+  --shadow-2xl: var(--oo-shadow-2xl);
+}
+
+:root {
+  color-scheme: light;
+  --font-sans:
+    -apple-system, "BlinkMacSystemFont", "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Segoe UI", ui-sans-serif,
+    system-ui, sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  --app-titlebar-height: 48px;
+  --traffic-light-space: 78px;
+  --traffic-light-left: 15px;
+  --traffic-light-top: calc((var(--app-titlebar-height) - 12px) / 2);
+  --titlebar-control-offset: 5px;
+  --window-control-right-space: 12px;
+  --sidebar-titlebar-left-space: var(--traffic-light-space);
+  --sidebar-width: 264px;
+  --sidebar-collapsed-width: 79px;
+  --sidebar-item-height: 32px;
+  --sidebar-item-icon-size: 16px;
+  /* Apple 设计风格（默认色板）：主色 Apple Blue #007aff，文字/背景/边框按 HIG 系统色 */
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.278 0.008 262); /* #1d1d1f Apple label */
+  --card: oklch(1 0 0);
+  --card-foreground: var(--foreground);
+  --popover: oklch(1 0 0);
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.555 0.21 258); /* #007aff */
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.955 0.004 262); /* #f2f2f7 grouped */
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.955 0.004 262);
+  --muted-foreground: oklch(0.51 0.01 262); /* #6e6e73 */
+  --accent: oklch(0.93 0.006 262); /* #e5e5ea hover */
+  --accent-foreground: var(--foreground);
+  --destructive: oklch(0.63 0.21 26); /* #ff3b30 */
+  --success: oklch(0.72 0.19 150); /* #34c759 */
+  --warning: oklch(0.73 0.17 63); /* #ff9500 */
+  --info: oklch(0.555 0.21 258); /* #007aff */
+  --border: oklch(0.93 0.006 262); /* #e5e5ea separator */
+  --input: oklch(0.87 0.008 262); /* #d1d1d6 */
+  --ring: oklch(0.6 0.19 258);
+  --accent-soft: color-mix(in oklab, var(--info) 12%, var(--background));
+  --accent-ring: color-mix(in oklab, var(--info) 42%, var(--border));
+  --accent-strong: var(--info);
+  --selection-soft: color-mix(in oklab, var(--info) 12%, var(--background));
+  --selection-ring: color-mix(in oklab, var(--foreground) 14%, var(--border));
+  --text-selection-background: color-mix(in oklab, var(--info) 26%, var(--background));
+  --text-selection-foreground: var(--foreground);
+  --input-focus-ring: color-mix(in oklab, var(--info) 46%, var(--border));
+  --control-focus-ring: color-mix(in oklab, var(--foreground) 16%, var(--border));
+  --scrollbar-thumb: oklch(0.76 0.006 286);
+  --scrollbar-thumb-active: oklch(0.66 0.007 286);
+  --scrollbar-size: 9px;
+  --scrollbar-inset: 2px;
+  --oo-input-surface: oklch(0.991 0.002 289);
+  --oo-prompt-input-surface: var(--background);
+  --oo-prompt-input-border: color-mix(in oklab, var(--foreground) 12%, transparent);
+  --oo-prompt-input-placeholder: color-mix(in oklab, var(--foreground) 42%, transparent);
+  --oo-prompt-input-shadow:
+    0 1px 2px color-mix(in oklab, var(--foreground) 5%, transparent),
+    0 8px 18px color-mix(in oklab, var(--foreground) 4%, transparent);
+  --oo-queue-dock-surface: color-mix(in oklab, var(--muted) 72%, var(--background));
+  --oo-queue-dock-hover: color-mix(in oklab, var(--foreground) 4%, var(--oo-queue-dock-surface));
+  --oo-queue-dock-border: color-mix(in oklab, var(--foreground) 11%, transparent);
+  --oo-queue-dock-shadow: inset 0 0 0 1px color-mix(in oklab, var(--background) 45%, transparent);
+  --oo-search-surface: oklch(0.983 0.003 288);
+  --oo-search-surface-emphasis: color-mix(in oklab, var(--foreground) 6%, var(--oo-search-surface));
+  --oo-font-caption: 0.75rem;
+  --oo-line-caption: 1.25rem;
+  --oo-line-caption-compact: 1rem;
+  --oo-font-micro: 0.6875rem;
+  --oo-line-micro: 1rem;
+  --oo-font-body: 0.875rem;
+  --oo-line-body: 1.25rem;
+  --oo-font-chat: 0.875rem;
+  --oo-line-chat: 1.375rem;
+  --oo-font-markdown: var(--oo-font-chat);
+  --oo-line-markdown: var(--oo-line-chat);
+  --oo-font-control: 0.8125rem;
+  --oo-line-control: 1.25rem;
+  --oo-font-value: 0.9375rem;
+  --oo-line-value: 1.25rem;
+  --oo-font-metric: 1.125rem;
+  --oo-line-metric: 1.5rem;
+  --oo-font-metric-large: 1.75rem;
+  --oo-line-metric-large: 2.25rem;
+  --oo-font-dialog-title: 1.125rem;
+  --oo-line-dialog-title: 1.5rem;
+  --oo-font-page-title: 1.5rem;
+  --oo-line-page-title: 2rem;
+  --oo-font-empty-title: 1.625rem;
+  --oo-line-empty-title: 2.25rem;
+  --oo-control-height: 2rem;
+  --oo-control-height-compact: 1.75rem;
+  --oo-control-height-comfortable: 2.25rem;
+  --oo-icon-button-size: 2rem;
+  --oo-radius-panel: var(--radius-xl);
+  --oo-radius-control: var(--radius-lg);
+  --oo-radius-shell: 0.875rem;
+  --oo-content-surface: var(--background);
+  --oo-chrome: transparent;
+  /* 侧边栏与内容面明度差加大（0.983 → 0.972）：默认色板三栏分层更清晰，暗色板差异本就更大无需动。 */
+  --oo-sidebar: oklch(0.955 0.004 262); /* #f2f2f7 Apple grouped sidebar */
+  --oo-sidebar-material: color-mix(in oklab, var(--oo-sidebar) 72%, transparent);
+  --oo-sidebar-material-border: color-mix(in oklab, var(--foreground) 8%, transparent);
+  --oo-toolbar: var(--oo-content-surface);
+  --sidebar: var(--oo-sidebar);
+  --sidebar-foreground: oklch(0.278 0.008 262);
+  --sidebar-muted-foreground: oklch(0.51 0.01 262);
+  --oo-section-heading-foreground: color-mix(in oklab, var(--sidebar-muted-foreground) 68%, var(--sidebar));
+  --sidebar-accent: oklch(0.936 0.004 287);
+  --sidebar-accent-foreground: var(--sidebar-foreground);
+  --sidebar-border: var(--oo-border-subtle);
+  --sidebar-ring: var(--control-focus-ring);
+  --oo-surface: oklch(0.991 0.002 289);
+  --oo-surface-raised: oklch(0.956 0.004 287);
+  --oo-inspector-surface: oklch(0.983 0.003 288);
+  --oo-artifact-preview-canvas: oklch(0.972 0.004 288);
+  --oo-artifact-item-surface: var(--oo-artifact-preview-canvas);
+  --oo-artifact-item-border: var(--border);
+  --oo-artifact-item-hover: color-mix(in oklab, var(--foreground) 4%, var(--oo-artifact-preview-canvas));
+  --oo-artifact-selected-surface: color-mix(in oklab, var(--info) 11%, var(--background));
+  --oo-artifact-selected-border: color-mix(in oklab, var(--info) 34%, var(--border));
+  --oo-artifact-selected-shadow:
+    inset 0 0 0 1px color-mix(in oklab, var(--info) 18%, transparent),
+    0 1px 2px color-mix(in oklab, var(--foreground) 6%, transparent);
+  --oo-attention-summary-surface: oklch(0.956 0.004 287);
+  --oo-row-hover: oklch(0.956 0.004 287);
+  --oo-row-selected: var(--selection-soft);
+  --oo-border-subtle: color-mix(in oklab, var(--border) 55%, transparent);
+  --oo-divider: var(--oo-border-subtle);
+  --oo-frame-border: var(--border);
+  --oo-control-border: var(--input);
+  --oo-overlay-border: var(--oo-border-subtle);
+  --oo-overlay-shadow: var(--oo-shadow-xl);
+  --oo-overlay-inner-ring: inset 0 0 0 1px color-mix(in oklab, var(--foreground) 4%, transparent);
+  --oo-modal-backdrop: rgb(0 0 0 / 50%);
+  --oo-tooltip-shadow: var(--oo-shadow-lg);
+  --oo-path-tooltip-surface: oklch(1 0 0);
+  --oo-path-tooltip-foreground: var(--foreground);
+  --oo-feedback-active-foreground: oklch(0.43 0.008 265);
+  --oo-danger-surface: color-mix(in oklab, var(--destructive) 12%, var(--background));
+  --oo-danger-border: color-mix(in oklab, var(--destructive) 30%, transparent);
+  --oo-warning-surface: color-mix(in oklab, var(--warning) 12%, var(--background));
+  --oo-warning-border: color-mix(in oklab, var(--warning) 32%, transparent);
+  --oo-warning-foreground: var(--warning);
+  --oo-pending-skill-foreground: color-mix(in oklab, var(--info) 44%, var(--muted-foreground));
+  --oo-pending-skill-dot: color-mix(in oklab, var(--info) 62%, var(--muted-foreground));
+  --oo-pending-skill-action: color-mix(in oklab, var(--foreground) 62%, var(--muted-foreground));
+  --oo-info-surface: color-mix(in oklab, var(--info) 12%, var(--background));
+  --oo-info-border: color-mix(in oklab, var(--info) 28%, var(--border));
+  --oo-info-foreground: oklch(0.42 0.14 255);
+  --oo-unread-foreground: var(--info);
+  --oo-success-surface: color-mix(in oklab, var(--success) 14%, var(--background));
+  --oo-success-border: color-mix(in oklab, var(--success) 40%, var(--border));
+  --oo-success-foreground: var(--success);
+  --oo-attachment-directory-surface: color-mix(in oklab, oklch(0.58 0.13 205) 14%, var(--background));
+  --oo-attachment-directory-foreground: oklch(0.42 0.12 205);
+  --oo-attachment-pdf-surface: color-mix(in oklab, var(--destructive) 12%, var(--background));
+  --oo-attachment-pdf-foreground: oklch(0.5 0.19 24);
+  --oo-attachment-image-surface: color-mix(in oklab, var(--info) 12%, var(--background));
+  --oo-attachment-image-foreground: oklch(0.42 0.14 255);
+  --oo-attachment-video-surface: color-mix(in oklab, oklch(0.55 0.17 305) 12%, var(--background));
+  --oo-attachment-video-foreground: oklch(0.42 0.14 305);
+  --oo-attachment-audio-surface: color-mix(in oklab, oklch(0.6 0.15 330) 12%, var(--background));
+  --oo-attachment-audio-foreground: oklch(0.44 0.13 330);
+  --oo-attachment-archive-surface: color-mix(in oklab, var(--warning) 14%, var(--background));
+  --oo-attachment-archive-foreground: oklch(0.43 0.12 70);
+  --oo-attachment-sheet-surface: color-mix(in oklab, var(--success) 12%, var(--background));
+  --oo-attachment-sheet-foreground: oklch(0.38 0.12 148);
+  --oo-attachment-document-surface: color-mix(in oklab, oklch(0.56 0.14 225) 12%, var(--background));
+  --oo-attachment-document-foreground: oklch(0.4 0.12 225);
+  --oo-attachment-presentation-surface: color-mix(in oklab, oklch(0.62 0.17 38) 12%, var(--background));
+  --oo-attachment-presentation-foreground: oklch(0.43 0.14 38);
+  --oo-attachment-code-surface: color-mix(in oklab, oklch(0.48 0.16 270) 12%, var(--background));
+  --oo-attachment-code-foreground: oklch(0.39 0.13 270);
+  --oo-attachment-file-surface: var(--muted);
+  --oo-attachment-file-foreground: var(--muted-foreground);
+  --radius: 0.75rem; /* Apple 控件圆角 */
+  /* Apple 静默阴影标尺（Pinguo DS）：亮色档位，卡片/浮层/弹窗分级；dark 有独立档位 */
+  --oo-shadow-2xs: 0 1px 2px -1px color-mix(in oklab, var(--foreground) 5%, transparent);
+  --oo-shadow-xs: 0 1px 2px 0 color-mix(in oklab, var(--foreground) 5%, transparent);
+  --oo-shadow-sm:
+    0 1px 2px 0 color-mix(in oklab, var(--foreground) 6%, transparent),
+    0 1px 3px -1px color-mix(in oklab, var(--foreground) 6%, transparent);
+  --oo-shadow-md:
+    0 4px 8px -2px color-mix(in oklab, var(--foreground) 7%, transparent),
+    0 2px 4px -2px color-mix(in oklab, var(--foreground) 6%, transparent);
+  --oo-shadow-lg:
+    0 8px 24px -8px color-mix(in oklab, var(--foreground) 10%, transparent),
+    0 4px 8px -4px color-mix(in oklab, var(--foreground) 6%, transparent);
+  --oo-shadow-xl:
+    0 16px 40px -10px color-mix(in oklab, var(--foreground) 12%, transparent),
+    0 8px 16px -8px color-mix(in oklab, var(--foreground) 8%, transparent);
+  --oo-shadow-2xl: 0 24px 64px -12px color-mix(in oklab, var(--foreground) 15%, transparent);
+}
+
+.dark {
+  color-scheme: dark;
+  /* Apple 设计风格（暗色）：#1c1c1e 背景 / #f5f5f7 文字 / #0a84ff 主色 */
+  --background: oklch(0.2 0.006 262); /* #1c1c1e */
+  --foreground: oklch(0.965 0.003 262); /* #f5f5f7 */
+  --card: oklch(0.24 0.006 262); /* #242426 */
+  --card-foreground: var(--foreground);
+  --popover: oklch(0.24 0.006 262);
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.66 0.17 255); /* #0a84ff */
+  --primary-foreground: oklch(0.1 0.01 262);
+  --secondary: oklch(0.28 0.006 262); /* #2c2c2e */
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.28 0.006 262);
+  --muted-foreground: oklch(0.6 0.008 262); /* #8e8e93 */
+  --accent: oklch(0.33 0.008 262); /* #3a3a3c */
+  --accent-foreground: var(--foreground);
+  --destructive: oklch(0.68 0.2 26); /* #ff453a */
+  --success: oklch(0.7 0.19 150); /* #30d158 */
+  --warning: oklch(0.75 0.16 63); /* #ff9f0a */
+  --info: oklch(0.66 0.17 255); /* #0a84ff */
+  --border: oklch(0.33 0.008 262); /* #3a3a3c */
+  --input: oklch(0.37 0.01 262); /* #48484a */
+  --ring: oklch(0.6 0.17 255);
+  --accent-soft: color-mix(in oklab, var(--info) 18%, var(--background));
+  --accent-ring: color-mix(in oklab, var(--info) 45%, var(--border));
+  --accent-strong: var(--info);
+  --selection-soft: oklch(0.312 0.008 256);
+  --selection-ring: color-mix(in oklab, var(--foreground) 17%, var(--border));
+  --text-selection-background: color-mix(in oklab, var(--info) 36%, var(--background));
+  --text-selection-foreground: var(--foreground);
+  --input-focus-ring: color-mix(in oklab, var(--info) 52%, var(--border));
+  --control-focus-ring: color-mix(in oklab, var(--foreground) 18%, var(--border));
+  --scrollbar-thumb: oklch(0.48 0.006 272);
+  --scrollbar-thumb-active: oklch(0.58 0.007 272);
+  --oo-input-surface: oklch(0.252 0.006 272);
+  --oo-prompt-input-surface: var(--oo-input-surface);
+  --oo-prompt-input-border: color-mix(in oklab, var(--foreground) 16%, transparent);
+  --oo-prompt-input-placeholder: color-mix(in oklab, var(--foreground) 48%, transparent);
+  --oo-prompt-input-shadow: none;
+  --oo-queue-dock-surface: color-mix(in oklab, var(--foreground) 5%, var(--oo-prompt-input-surface));
+  --oo-queue-dock-hover: color-mix(in oklab, var(--foreground) 7%, var(--oo-queue-dock-surface));
+  --oo-queue-dock-border: color-mix(in oklab, var(--foreground) 13%, transparent);
+  --oo-queue-dock-shadow: none;
+  --oo-search-surface: oklch(0.213 0.004 265);
+  --oo-content-surface: var(--background);
+  --oo-chrome: transparent;
+  --oo-sidebar: oklch(0.2 0.006 262); /* #1c1c1e Apple sidebar */
+  --oo-sidebar-material: color-mix(in oklab, var(--oo-sidebar) 78%, transparent);
+  --oo-sidebar-material-border: color-mix(in oklab, var(--foreground) 10%, transparent);
+  --oo-toolbar: var(--oo-content-surface);
+  --sidebar: var(--oo-sidebar);
+  --sidebar-foreground: oklch(0.965 0.003 262);
+  --sidebar-muted-foreground: oklch(0.6 0.008 262);
+  --oo-section-heading-foreground: color-mix(in oklab, var(--sidebar-muted-foreground) 74%, var(--sidebar));
+  --sidebar-accent: oklch(0.285 0.006 265);
+  --sidebar-accent-foreground: var(--sidebar-foreground);
+  --sidebar-border: var(--oo-border-subtle);
+  --sidebar-ring: var(--control-focus-ring);
+  --oo-surface: oklch(0.213 0.004 265);
+  --oo-surface-raised: oklch(0.252 0.006 272);
+  --oo-inspector-surface: oklch(0.252 0.006 272);
+  --oo-artifact-preview-canvas: oklch(0.16 0.004 286);
+  --oo-artifact-item-surface: var(--oo-artifact-preview-canvas);
+  --oo-artifact-item-border: var(--border);
+  --oo-artifact-item-hover: color-mix(in oklab, var(--foreground) 7%, var(--oo-artifact-preview-canvas));
+  --oo-artifact-selected-surface: color-mix(in oklab, var(--info) 18%, var(--background));
+  --oo-artifact-selected-border: color-mix(in oklab, var(--info) 38%, var(--border));
+  --oo-artifact-selected-shadow:
+    inset 0 0 0 1px color-mix(in oklab, var(--info) 22%, transparent),
+    0 1px 2px color-mix(in oklab, var(--background) 60%, transparent);
+  --oo-attention-summary-surface: oklch(0.252 0.006 272);
+  --oo-row-hover: oklch(0.283 0.007 249);
+  --oo-row-selected: var(--selection-soft);
+  --oo-border-subtle: color-mix(in oklab, var(--border) 55%, transparent);
+  --oo-divider: var(--oo-border-subtle);
+  --oo-frame-border: var(--border);
+  --oo-control-border: var(--input);
+  --oo-overlay-border: color-mix(in oklab, var(--foreground) 12%, var(--border));
+  --oo-overlay-shadow: var(--oo-shadow-xl);
+  --oo-overlay-inner-ring: inset 0 0 0 1px color-mix(in oklab, var(--foreground) 4%, transparent);
+  --oo-modal-backdrop: rgb(0 0 0 / 62%);
+  --oo-tooltip-shadow: var(--oo-shadow-lg);
+  --oo-path-tooltip-surface: oklch(0.145 0.004 286);
+  --oo-path-tooltip-foreground: var(--foreground);
+  --oo-feedback-active-foreground: oklch(0.64 0.006 286);
+  --oo-danger-surface: color-mix(in oklab, var(--destructive) 12%, var(--background));
+  --oo-danger-border: color-mix(in oklab, var(--destructive) 30%, transparent);
+  --oo-warning-surface: color-mix(in oklab, var(--warning) 14%, var(--background));
+  --oo-warning-border: color-mix(in oklab, var(--warning) 34%, transparent);
+  --oo-warning-foreground: var(--warning);
+  --oo-pending-skill-foreground: color-mix(in oklab, var(--info) 52%, var(--muted-foreground));
+  --oo-pending-skill-dot: color-mix(in oklab, var(--info) 68%, var(--muted-foreground));
+  --oo-pending-skill-action: color-mix(in oklab, var(--foreground) 66%, var(--muted-foreground));
+  --oo-info-surface: color-mix(in oklab, var(--info) 18%, var(--background));
+  --oo-info-border: color-mix(in oklab, var(--info) 38%, var(--border));
+  --oo-info-foreground: var(--info);
+  --oo-unread-foreground: var(--info);
+  --oo-success-surface: color-mix(in oklab, var(--success) 18%, var(--background));
+  --oo-success-border: color-mix(in oklab, var(--success) 40%, var(--border));
+  --oo-success-foreground: var(--success);
+  --oo-attachment-directory-surface: color-mix(in oklab, oklch(0.72 0.13 205) 18%, var(--background));
+  --oo-attachment-directory-foreground: oklch(0.78 0.11 205);
+  --oo-attachment-pdf-surface: color-mix(in oklab, var(--destructive) 24%, var(--background));
+  --oo-attachment-pdf-foreground: oklch(0.86 0.11 24);
+  --oo-attachment-image-surface: color-mix(in oklab, var(--info) 18%, var(--background));
+  --oo-attachment-image-foreground: var(--info);
+  --oo-attachment-video-surface: color-mix(in oklab, oklch(0.72 0.15 305) 18%, var(--background));
+  --oo-attachment-video-foreground: oklch(0.8 0.12 305);
+  --oo-attachment-audio-surface: color-mix(in oklab, oklch(0.72 0.13 330) 18%, var(--background));
+  --oo-attachment-audio-foreground: oklch(0.8 0.11 330);
+  --oo-attachment-archive-surface: color-mix(in oklab, var(--warning) 18%, var(--background));
+  --oo-attachment-archive-foreground: var(--warning);
+  --oo-attachment-sheet-surface: color-mix(in oklab, var(--success) 18%, var(--background));
+  --oo-attachment-sheet-foreground: var(--success);
+  --oo-attachment-document-surface: color-mix(in oklab, oklch(0.7 0.13 225) 18%, var(--background));
+  --oo-attachment-document-foreground: oklch(0.78 0.11 225);
+  --oo-attachment-presentation-surface: color-mix(in oklab, oklch(0.78 0.14 38) 18%, var(--background));
+  --oo-attachment-presentation-foreground: oklch(0.82 0.12 38);
+  --oo-attachment-code-surface: color-mix(in oklab, oklch(0.72 0.13 270) 18%, var(--background));
+  --oo-attachment-code-foreground: oklch(0.78 0.11 270);
+  --oo-attachment-file-surface: var(--muted);
+  --oo-attachment-file-foreground: var(--muted-foreground);
+  /* Apple 静默阴影标尺（Pinguo DS）：暗色档位透明度更高，卡片/浮层/弹窗分级 */
+  --oo-shadow-2xs: 0 1px 2px -1px color-mix(in oklab, var(--background) 34%, transparent);
+  --oo-shadow-xs: 0 1px 2px 0 color-mix(in oklab, var(--background) 34%, transparent);
+  --oo-shadow-sm:
+    0 1px 2px 0 color-mix(in oklab, var(--background) 40%, transparent),
+    0 1px 3px -1px color-mix(in oklab, var(--background) 40%, transparent);
+  --oo-shadow-md:
+    0 4px 8px -2px color-mix(in oklab, var(--background) 48%, transparent),
+    0 2px 4px -2px color-mix(in oklab, var(--background) 40%, transparent);
+  --oo-shadow-lg:
+    0 8px 24px -8px color-mix(in oklab, var(--background) 54%, transparent),
+    0 4px 8px -4px color-mix(in oklab, var(--background) 44%, transparent);
+  --oo-shadow-xl:
+    0 16px 40px -10px color-mix(in oklab, var(--background) 60%, transparent),
+    0 8px 16px -8px color-mix(in oklab, var(--background) 48%, transparent);
+  --oo-shadow-2xl: 0 24px 64px -12px color-mix(in oklab, var(--background) 64%, transparent);
+}
+
+/* ===== 主题色板（明暗独立，覆盖全套基色；color-mix 派生变量自动跟随） ===== */
+
+/* 暖阳 Sunset：琥珀/橙，温暖明快——中性色带暖调，辅助色偏暖 */
+:root[data-palette="sunset"] {
+  --background: oklch(0.995 0.006 80);
+  --foreground: oklch(0.26 0.02 60);
+  --card: oklch(1 0.004 80);
+  --card-foreground: var(--foreground);
+  --popover: oklch(1 0.004 80);
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.52 0.14 50);
+  --primary-foreground: oklch(0.99 0.005 70);
+  --secondary: oklch(0.955 0.01 78);
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.955 0.01 78);
+  --muted-foreground: oklch(0.5 0.02 65);
+  --accent: oklch(0.94 0.05 70);
+  --accent-foreground: oklch(0.35 0.1 50);
+  --destructive: oklch(0.58 0.22 25);
+  --success: oklch(0.47 0.13 130);
+  --warning: oklch(0.55 0.15 70);
+  --info: oklch(0.6 0.15 55);
+  --border: oklch(0.91 0.014 75);
+  --input: oklch(0.89 0.015 75);
+  --ring: oklch(0.6 0.15 55);
+  --oo-sidebar: oklch(0.985 0.01 75);
+  --selection-soft: color-mix(in oklab, var(--info) 12%, var(--background));
+  --scrollbar-thumb: oklch(0.76 0.012 75);
+  --scrollbar-thumb-active: oklch(0.66 0.014 75);
+  --oo-input-surface: oklch(0.99 0.006 80);
+  --oo-search-surface: oklch(0.98 0.008 78);
+  --oo-surface: oklch(0.99 0.006 80);
+  --oo-surface-raised: oklch(0.955 0.01 78);
+  --oo-inspector-surface: oklch(0.98 0.008 78);
+  --oo-artifact-preview-canvas: oklch(0.97 0.01 80);
+  --oo-attention-summary-surface: oklch(0.955 0.01 78);
+  --oo-row-hover: oklch(0.955 0.01 78);
+  --oo-path-tooltip-surface: oklch(1 0.004 80);
+  --oo-info-foreground: oklch(0.42 0.14 55);
+  --sidebar-foreground: oklch(0.31 0.015 65);
+  --sidebar-muted-foreground: oklch(0.6 0.02 65);
+  --sidebar-accent: oklch(0.93 0.01 75);
+  --sidebar-accent-foreground: var(--sidebar-foreground);
+}
+:root[data-palette="sunset"].dark {
+  --background: oklch(0.18 0.008 65);
+  --foreground: oklch(0.95 0.008 75);
+  --card: oklch(0.21 0.008 65);
+  --card-foreground: var(--foreground);
+  --popover: oklch(0.21 0.008 65);
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.78 0.13 70);
+  --primary-foreground: oklch(0.2 0.04 60);
+  --secondary: oklch(0.25 0.008 68);
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.25 0.008 68);
+  --muted-foreground: oklch(0.77 0.01 70);
+  --accent: oklch(0.3 0.05 60);
+  --accent-foreground: oklch(0.9 0.05 75);
+  --destructive: oklch(0.72 0.18 22);
+  --success: oklch(0.74 0.13 130);
+  --warning: oklch(0.76 0.15 72);
+  --info: oklch(0.75 0.15 65);
+  --border: oklch(0.32 0.01 70);
+  --input: oklch(0.35 0.01 68);
+  --ring: oklch(0.75 0.15 65);
+  --oo-sidebar: oklch(0.235 0.02 60);
+  --selection-soft: color-mix(in oklab, var(--info) 18%, var(--background));
+  --scrollbar-thumb: oklch(0.48 0.01 70);
+  --scrollbar-thumb-active: oklch(0.58 0.012 70);
+  --oo-input-surface: oklch(0.25 0.008 68);
+  --oo-search-surface: oklch(0.21 0.008 65);
+  --oo-surface: oklch(0.21 0.008 65);
+  --oo-surface-raised: oklch(0.25 0.008 68);
+  --oo-inspector-surface: oklch(0.25 0.008 68);
+  --oo-artifact-preview-canvas: oklch(0.16 0.008 65);
+  --oo-attention-summary-surface: oklch(0.25 0.008 68);
+  --oo-row-hover: oklch(0.28 0.012 65);
+  --oo-path-tooltip-surface: oklch(0.145 0.008 65);
+  --oo-info-foreground: var(--info);
+  --sidebar-foreground: oklch(0.84 0.008 70);
+  --sidebar-muted-foreground: oklch(0.6 0.012 70);
+  --sidebar-accent: oklch(0.285 0.01 65);
+  --sidebar-accent-foreground: var(--sidebar-foreground);
+}
+
+/* 森林 Forest：绿，自然安静——中性色带冷绿调，辅助色偏绿协调 */
+:root[data-palette="forest"] {
+  --background: oklch(0.992 0.008 150);
+  --foreground: oklch(0.25 0.02 150);
+  --card: oklch(1 0.006 150);
+  --card-foreground: var(--foreground);
+  --popover: oklch(1 0.006 150);
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.45 0.11 155);
+  --primary-foreground: oklch(0.99 0.005 150);
+  --secondary: oklch(0.955 0.012 150);
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.955 0.012 150);
+  --muted-foreground: oklch(0.5 0.025 150);
+  --accent: oklch(0.93 0.05 150);
+  --accent-foreground: oklch(0.32 0.08 155);
+  --destructive: oklch(0.55 0.2 20);
+  --success: oklch(0.45 0.12 150);
+  --warning: oklch(0.55 0.13 100);
+  --info: oklch(0.55 0.12 150);
+  --border: oklch(0.91 0.018 150);
+  --input: oklch(0.89 0.018 150);
+  --ring: oklch(0.55 0.12 150);
+  --oo-sidebar: oklch(0.985 0.012 140);
+  --selection-soft: color-mix(in oklab, var(--info) 12%, var(--background));
+  --scrollbar-thumb: oklch(0.76 0.016 150);
+  --scrollbar-thumb-active: oklch(0.66 0.018 150);
+  --oo-input-surface: oklch(0.99 0.008 150);
+  --oo-search-surface: oklch(0.98 0.01 150);
+  --oo-surface: oklch(0.99 0.008 150);
+  --oo-surface-raised: oklch(0.955 0.012 150);
+  --oo-inspector-surface: oklch(0.98 0.01 150);
+  --oo-artifact-preview-canvas: oklch(0.97 0.012 150);
+  --oo-attention-summary-surface: oklch(0.955 0.012 150);
+  --oo-row-hover: oklch(0.955 0.012 150);
+  --oo-path-tooltip-surface: oklch(1 0.006 150);
+  --oo-info-foreground: oklch(0.38 0.11 150);
+  --sidebar-foreground: oklch(0.31 0.02 150);
+  --sidebar-muted-foreground: oklch(0.6 0.025 150);
+  --sidebar-accent: oklch(0.93 0.015 145);
+  --sidebar-accent-foreground: var(--sidebar-foreground);
+}
+:root[data-palette="forest"].dark {
+  --background: oklch(0.18 0.012 150);
+  --foreground: oklch(0.95 0.008 150);
+  --card: oklch(0.21 0.012 150);
+  --card-foreground: var(--foreground);
+  --popover: oklch(0.21 0.012 150);
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.75 0.13 160);
+  --primary-foreground: oklch(0.18 0.04 155);
+  --secondary: oklch(0.25 0.012 150);
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.25 0.012 150);
+  --muted-foreground: oklch(0.77 0.012 150);
+  --accent: oklch(0.28 0.05 155);
+  --accent-foreground: oklch(0.9 0.05 160);
+  --destructive: oklch(0.7 0.17 20);
+  --success: oklch(0.72 0.14 150);
+  --warning: oklch(0.76 0.14 100);
+  --info: oklch(0.72 0.14 155);
+  --border: oklch(0.32 0.015 150);
+  --input: oklch(0.35 0.015 150);
+  --ring: oklch(0.72 0.14 155);
+  --oo-sidebar: oklch(0.235 0.02 150);
+  --selection-soft: color-mix(in oklab, var(--info) 18%, var(--background));
+  --scrollbar-thumb: oklch(0.48 0.014 150);
+  --scrollbar-thumb-active: oklch(0.58 0.016 150);
+  --oo-input-surface: oklch(0.25 0.012 150);
+  --oo-search-surface: oklch(0.21 0.012 150);
+  --oo-surface: oklch(0.21 0.012 150);
+  --oo-surface-raised: oklch(0.25 0.012 150);
+  --oo-inspector-surface: oklch(0.25 0.012 150);
+  --oo-artifact-preview-canvas: oklch(0.16 0.012 150);
+  --oo-attention-summary-surface: oklch(0.25 0.012 150);
+  --oo-row-hover: oklch(0.28 0.016 150);
+  --oo-path-tooltip-surface: oklch(0.145 0.012 150);
+  --oo-info-foreground: var(--info);
+  --sidebar-foreground: oklch(0.84 0.01 150);
+  --sidebar-muted-foreground: oklch(0.6 0.014 150);
+  --sidebar-accent: oklch(0.285 0.015 150);
+  --sidebar-accent-foreground: var(--sidebar-foreground);
+}
+
+/* 暖色护眼 Eyecare：暖黄纸感，低对比——长时间阅读舒适 */
+:root[data-palette="eyecare"] {
+  --background: oklch(0.972 0.028 85);
+  --foreground: oklch(0.31 0.04 55);
+  --card: oklch(0.985 0.02 85);
+  --card-foreground: var(--foreground);
+  --popover: oklch(0.985 0.02 85);
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.48 0.1 60);
+  --primary-foreground: oklch(0.985 0.015 85);
+  --secondary: oklch(0.945 0.03 80);
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.945 0.03 80);
+  --muted-foreground: oklch(0.52 0.035 60);
+  --accent: oklch(0.9 0.045 75);
+  --accent-foreground: oklch(0.35 0.07 55);
+  --destructive: oklch(0.55 0.17 30);
+  --success: oklch(0.46 0.1 130);
+  --warning: oklch(0.53 0.12 70);
+  --info: oklch(0.55 0.1 60);
+  --border: oklch(0.895 0.02 80);
+  --input: oklch(0.875 0.022 80);
+  --ring: oklch(0.55 0.1 60);
+  --oo-sidebar: oklch(0.962 0.026 85);
+  --selection-soft: color-mix(in oklab, var(--info) 12%, var(--background));
+  --scrollbar-thumb: oklch(0.75 0.02 80);
+  --scrollbar-thumb-active: oklch(0.65 0.022 80);
+  --oo-input-surface: oklch(0.98 0.02 85);
+  --oo-search-surface: oklch(0.96 0.026 85);
+  --oo-surface: oklch(0.98 0.02 85);
+  --oo-surface-raised: oklch(0.945 0.03 80);
+  --oo-inspector-surface: oklch(0.96 0.026 85);
+  --oo-artifact-preview-canvas: oklch(0.95 0.03 85);
+  --oo-attention-summary-surface: oklch(0.945 0.03 80);
+  --oo-row-hover: oklch(0.945 0.03 80);
+  --oo-path-tooltip-surface: oklch(0.985 0.02 85);
+  --oo-info-foreground: oklch(0.4 0.09 60);
+  --sidebar-foreground: oklch(0.36 0.04 55);
+  --sidebar-muted-foreground: oklch(0.6 0.035 60);
+  --sidebar-accent: oklch(0.92 0.035 80);
+  --sidebar-accent-foreground: var(--sidebar-foreground);
+}
+:root[data-palette="eyecare"].dark {
+  --background: oklch(0.22 0.02 80);
+  --foreground: oklch(0.93 0.025 85);
+  --card: oklch(0.25 0.022 80);
+  --card-foreground: var(--foreground);
+  --popover: oklch(0.25 0.022 80);
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.72 0.1 70);
+  --primary-foreground: oklch(0.2 0.02 80);
+  --secondary: oklch(0.3 0.022 80);
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.3 0.022 80);
+  --muted-foreground: oklch(0.78 0.022 85);
+  --accent: oklch(0.32 0.04 75);
+  --accent-foreground: oklch(0.9 0.03 85);
+  --destructive: oklch(0.7 0.15 25);
+  --success: oklch(0.72 0.1 130);
+  --warning: oklch(0.75 0.12 75);
+  --info: oklch(0.72 0.1 65);
+  --border: oklch(0.36 0.018 80);
+  --input: oklch(0.39 0.018 80);
+  --ring: oklch(0.72 0.1 65);
+  --oo-sidebar: oklch(0.27 0.02 80);
+  --selection-soft: color-mix(in oklab, var(--info) 18%, var(--background));
+  --scrollbar-thumb: oklch(0.52 0.02 80);
+  --scrollbar-thumb-active: oklch(0.62 0.022 80);
+  --oo-input-surface: oklch(0.3 0.022 80);
+  --oo-search-surface: oklch(0.25 0.022 80);
+  --oo-surface: oklch(0.25 0.022 80);
+  --oo-surface-raised: oklch(0.3 0.022 80);
+  --oo-inspector-surface: oklch(0.3 0.022 80);
+  --oo-artifact-preview-canvas: oklch(0.2 0.02 80);
+  --oo-attention-summary-surface: oklch(0.3 0.022 80);
+  --oo-row-hover: oklch(0.33 0.024 80);
+  --oo-path-tooltip-surface: oklch(0.18 0.02 80);
+  --oo-info-foreground: var(--info);
+  --sidebar-foreground: oklch(0.85 0.02 85);
+  --sidebar-muted-foreground: oklch(0.62 0.022 85);
+  --sidebar-accent: oklch(0.32 0.024 80);
+  --sidebar-accent-foreground: var(--sidebar-foreground);
+}
+
+/* 海洋 Ocean：青蓝冷调——清爽安静 */
+:root[data-palette="ocean"] {
+  --background: oklch(0.992 0.01 230);
+  --foreground: oklch(0.25 0.025 245);
+  --card: oklch(1 0.008 230);
+  --card-foreground: var(--foreground);
+  --popover: oklch(1 0.008 230);
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.45 0.13 235);
+  --primary-foreground: oklch(0.99 0.005 230);
+  --secondary: oklch(0.952 0.015 230);
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.952 0.015 230);
+  --muted-foreground: oklch(0.49 0.03 240);
+  --accent: oklch(0.92 0.05 225);
+  --accent-foreground: oklch(0.32 0.1 235);
+  --destructive: oklch(0.56 0.2 22);
+  --success: oklch(0.44 0.1 165);
+  --warning: oklch(0.54 0.13 85);
+  --info: oklch(0.52 0.13 235);
+  --border: oklch(0.91 0.015 230);
+  --input: oklch(0.89 0.018 230);
+  --ring: oklch(0.52 0.13 235);
+  --oo-sidebar: oklch(0.984 0.012 225);
+  --selection-soft: color-mix(in oklab, var(--info) 12%, var(--background));
+  --scrollbar-thumb: oklch(0.76 0.016 230);
+  --scrollbar-thumb-active: oklch(0.66 0.018 230);
+  --oo-input-surface: oklch(0.99 0.01 230);
+  --oo-search-surface: oklch(0.98 0.012 230);
+  --oo-surface: oklch(0.99 0.01 230);
+  --oo-surface-raised: oklch(0.952 0.015 230);
+  --oo-inspector-surface: oklch(0.98 0.012 230);
+  --oo-artifact-preview-canvas: oklch(0.97 0.014 230);
+  --oo-attention-summary-surface: oklch(0.952 0.015 230);
+  --oo-row-hover: oklch(0.952 0.015 230);
+  --oo-path-tooltip-surface: oklch(1 0.008 230);
+  --oo-info-foreground: oklch(0.38 0.12 235);
+  --sidebar-foreground: oklch(0.31 0.025 245);
+  --sidebar-muted-foreground: oklch(0.6 0.03 240);
+  --sidebar-accent: oklch(0.93 0.02 225);
+  --sidebar-accent-foreground: var(--sidebar-foreground);
+}
+:root[data-palette="ocean"].dark {
+  --background: oklch(0.18 0.02 245);
+  --foreground: oklch(0.95 0.01 230);
+  --card: oklch(0.21 0.02 245);
+  --card-foreground: var(--foreground);
+  --popover: oklch(0.21 0.02 245);
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.72 0.12 235);
+  --primary-foreground: oklch(0.18 0.04 240);
+  --secondary: oklch(0.25 0.02 245);
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.25 0.02 245);
+  --muted-foreground: oklch(0.77 0.015 230);
+  --accent: oklch(0.28 0.06 235);
+  --accent-foreground: oklch(0.9 0.04 230);
+  --destructive: oklch(0.7 0.17 22);
+  --success: oklch(0.72 0.11 165);
+  --warning: oklch(0.76 0.13 85);
+  --info: oklch(0.72 0.13 235);
+  --border: oklch(0.32 0.02 245);
+  --input: oklch(0.35 0.02 245);
+  --ring: oklch(0.72 0.13 235);
+  --oo-sidebar: oklch(0.235 0.02 245);
+  --selection-soft: color-mix(in oklab, var(--info) 18%, var(--background));
+  --scrollbar-thumb: oklch(0.48 0.018 245);
+  --scrollbar-thumb-active: oklch(0.58 0.02 245);
+  --oo-input-surface: oklch(0.25 0.02 245);
+  --oo-search-surface: oklch(0.21 0.02 245);
+  --oo-surface: oklch(0.21 0.02 245);
+  --oo-surface-raised: oklch(0.25 0.02 245);
+  --oo-inspector-surface: oklch(0.25 0.02 245);
+  --oo-artifact-preview-canvas: oklch(0.16 0.02 245);
+  --oo-attention-summary-surface: oklch(0.25 0.02 245);
+  --oo-row-hover: oklch(0.28 0.024 245);
+  --oo-path-tooltip-surface: oklch(0.145 0.02 245);
+  --oo-info-foreground: var(--info);
+  --sidebar-foreground: oklch(0.84 0.012 230);
+  --sidebar-muted-foreground: oklch(0.6 0.016 230);
+  --sidebar-accent: oklch(0.285 0.02 245);
+  --sidebar-accent-foreground: var(--sidebar-foreground);
+}
+
+/* 推理强度最高档（拉到最顶）：紫色流动填充（流光动画） */
+@keyframes oo-reasoning-max-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 300% 50%;
+  }
+}
+.oo-reasoning-max-fill {
+  background: linear-gradient(
+    90deg,
+    oklch(0.58 0.22 295),
+    oklch(0.74 0.3 305),
+    oklch(0.5 0.26 315),
+    oklch(0.74 0.3 305),
+    oklch(0.58 0.22 295)
+  );
+  background-size: 300% 100%;
+  animation: oo-reasoning-max-flow 1.6s linear infinite;
+}
+
+/* 统一折叠面板展开/收起动效：高度 + 淡入淡出（卡片、工具明细、Billing 共用） */
+@keyframes oo-collapsible-down {
+  from {
+    height: 0;
+    opacity: 0;
+  }
+  to {
+    height: var(--radix-collapsible-content-height);
+    opacity: 1;
+  }
+}
+@keyframes oo-collapsible-up {
+  from {
+    height: var(--radix-collapsible-content-height);
+    opacity: 1;
+  }
+  to {
+    height: 0;
+    opacity: 0;
+  }
+}
+
+/* 流式文本末尾光标（借鉴 AICSS StreamingText caret）：smooth 流式中闪烁，完成后移除类消失。 */
+@keyframes oo-caret-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+.oo-streaming-caret::after {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: currentColor;
+  animation: oo-caret-blink 1.1s steps(2, start) infinite;
+}
+
+/* 计划面板完成数滚动（借鉴 AICSS TodoList RollDigit）：数字变化时旧值上滚、新值滑入。 */
+.oo-roll-digit {
+  display: inline-block;
+  height: 1em;
+  line-height: 1;
+  overflow: hidden;
+  vertical-align: text-bottom;
+}
+.oo-roll-inner {
+  display: flex;
+  flex-direction: column;
+  transform: translateY(0);
+  transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+}
+.oo-roll-inner > span {
+  display: block;
+  height: 1em;
+  line-height: 1em;
+}
+.oo-roll-inner.oo-roll-up {
+  transform: translateY(-50%);
+}
+
+/* ── 计划面板（AICSS TodoList 一比一）────────────────────────────── */
+@property --oo-todo-pie {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 0%;
+}
+.oo-todo {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--foreground);
+  /* 计划面板容器：随聊天背景白色（用户要求），不再用灰色 raised 面。 */
+  background: var(--background);
+  border-radius: 8px;
+  padding: 6px 12px 12px;
+  box-shadow: 0 0 0 1px var(--oo-divider);
+}
+.oo-todo-head {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: var(--foreground);
+  font-size: 13px;
+  min-height: 22px;
+}
+.oo-todo-head-icon {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--muted-foreground);
+}
+.oo-todo-list-icon,
+.oo-todo-chevron,
+.oo-todo-head-check {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  transition: opacity 140ms ease;
+}
+.oo-todo-list-icon,
+.oo-todo-chevron {
+  width: 13px;
+  height: 13px;
+}
+/* the solid check reads smaller than an outlined glyph, so render it full-size */
+.oo-todo-head-check {
+  width: 16px;
+  height: 16px;
+  color: var(--success);
+}
+.oo-todo-chevron {
+  opacity: 0;
+  transition:
+    opacity 140ms ease,
+    transform 220ms ease;
+}
+.oo-todo-head[aria-expanded="false"] .oo-todo-chevron {
+  transform: rotate(-90deg);
+}
+.oo-todo-head:hover .oo-todo-list-icon,
+.oo-todo-head:hover .oo-todo-head-pie,
+.oo-todo-head:hover .oo-todo-head-check {
+  opacity: 0;
+}
+.oo-todo-head:hover .oo-todo-chevron {
+  opacity: 1;
+}
+.oo-todo-title {
+  font-weight: 500;
+}
+.oo-todo-count {
+  margin-left: auto;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.oo-roll-count {
+  display: inline-flex;
+  align-items: baseline;
+  line-height: 1;
+}
+.oo-todo-collapsible {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition:
+    grid-template-rows 280ms ease,
+    opacity 200ms ease;
+}
+.oo-todo-collapsible.is-collapsed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  pointer-events: none;
+}
+.oo-todo-inner {
+  min-height: 0;
+  /* 计划很长时面板内容限高滚动（头部固定），避免整个面板被撑大 */
+  max-height: min(60vh, 32rem);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.oo-todo-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 0 0;
+}
+.oo-todo-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  line-height: 18px;
+  color: var(--muted-foreground);
+  /* 计划面板内不做入场动画（用户要求无动效）：去掉 oo-todo-item-in 交错滑入。 */
+}
+.oo-todo-icon-wrap {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  margin-top: 1px;
+}
+.oo-todo-icon {
+  position: absolute;
+  inset: 0;
+  width: 16px;
+  height: 16px;
+  color: var(--muted-foreground);
+  opacity: 0;
+  transition: opacity 320ms ease;
+}
+.oo-todo-icon.on {
+  opacity: 1;
+}
+.oo-todo-icon.strong {
+  color: var(--foreground);
+}
+.oo-todo-label {
+  position: relative;
+  font-weight: 400;
+  color: var(--muted-foreground);
+  transition: color 360ms ease;
+}
+/* crossfade the gray label into the dark shimmering active state */
+.oo-todo-label::before {
+  content: attr(data-label);
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    var(--foreground) 0%,
+    var(--foreground) 30%,
+    color-mix(in oklab, var(--foreground) 45%, transparent) 45%,
+    color-mix(in oklab, var(--foreground) 45%, transparent) 55%,
+    var(--foreground) 70%,
+    var(--foreground) 100%
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  opacity: 0;
+  transition: opacity 360ms ease;
+  pointer-events: none;
+}
+.oo-todo-item.active .oo-todo-label {
+  color: transparent;
+}
+.oo-todo-item.active .oo-todo-label::before {
+  opacity: 1;
+  animation: oo-todo-shine 2.25s cubic-bezier(0.25, 0.1, 0.25, 1) infinite;
+}
+.oo-todo-item.done .oo-todo-label {
+  color: var(--muted-foreground);
+  text-decoration: line-through;
+}
+@keyframes oo-todo-shine {
+  0%,
+  18% {
+    background-position: 100% 0;
+  }
+  82%,
+  100% {
+    background-position: 0% 0;
+  }
+}
+/* running progress pie in the header — determinate fill = completed / total */
+.oo-todo-head-pie {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  color: var(--foreground);
+  transition:
+    opacity 140ms ease,
+    --oo-todo-pie 400ms ease;
+}
+/* dotted outline matching the pending item circles */
+.oo-todo-head-pie-ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  color: var(--muted-foreground);
+}
+.oo-todo-head-pie::after {
+  content: "";
+  position: absolute;
+  inset: 2.6px;
+  border-radius: 50%;
+  background: conic-gradient(currentColor var(--oo-todo-pie, 0%), transparent 0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .oo-todo-item {
+    animation: none;
+  }
+  .oo-todo-icon,
+  .oo-todo-label,
+  .oo-todo-label::before {
+    transition: none;
+  }
+  .oo-todo-item.active .oo-todo-label::before {
+    animation: none;
+  }
+}

@@ -1,0 +1,812 @@
+import type {
+  TurnFileDiffResult,
+  TurnOutputFile,
+  TurnOutputRecord,
+  TurnOutputFileRole,
+} from "../../../electron/chat/common.ts"
+import type { ChangeData, FileData, ViewType } from "react-diff-view"
+
+import {
+  CheckIcon,
+  ChevronDown,
+  ChevronRight,
+  CopyIcon,
+  ExternalLink,
+  FileCode2,
+  FileDiff,
+  FolderOpen,
+} from "lucide-react"
+import * as React from "react"
+import { Diff as ReactDiff, Hunk, parseDiff } from "react-diff-view"
+import "react-diff-view/style/index.css"
+
+import { toast } from "sonner"
+import { turnOutputInitialCollapsedPaths } from "./turn-output-collapse.ts"
+import { availableTurnOutputRole } from "./turn-output-role.ts"
+import { useChatService } from "@/components/AppContext"
+import { useT } from "@/i18n/i18n"
+import { writeClipboardText } from "@/lib/clipboard"
+import { reportRendererHandledError } from "@/lib/renderer-diagnostics"
+import { resolveUserFacingError, userFacingErrorDescription } from "@/lib/user-facing-error"
+import { cn } from "@/lib/utils"
+import { FileKindTile } from "@/routes/Chat/file-type-icons"
+import { PanelHeader } from "@/components/app-shell/PanelHeader.tsx"
+
+export interface TurnOutputSelection {
+  initialRole?: TurnOutputFileRole
+  record: TurnOutputRecord
+  selectedPath?: string
+}
+
+interface TurnOutputsPanelProps {
+  maximized: boolean
+  onToggleMaximized: () => void
+  selection: TurnOutputSelection | null
+  onSetTitle: (title: string) => void
+}
+
+function roleFiles(record: TurnOutputRecord, role: TurnOutputFileRole): TurnOutputFile[] {
+  return record.files.filter((file) => file.role === role)
+}
+
+function ChangeCountLabel({
+  additions,
+  className,
+  deletions,
+}: {
+  additions: number
+  className?: string
+  deletions: number
+}) {
+  if (additions === 0 && deletions === 0) {
+    return null
+  }
+  return (
+    <span className={cn("oo-text-caption-compact inline-flex min-w-0 items-center gap-1", className)}>
+      <span className="font-medium text-success">+{additions}</span>
+      <span className="font-medium text-[color:var(--destructive)]">-{deletions}</span>
+    </span>
+  )
+}
+
+function useTurnFileDiff(
+  selection: TurnOutputSelection | null,
+  selectedPath: string | null,
+): TurnFileDiffResult | null {
+  const chatService = useChatService()
+  const [diff, setDiff] = React.useState<TurnFileDiffResult | null>(null)
+
+  React.useEffect(() => {
+    let cancelled = false
+    setDiff(null)
+    if (!selection || !selectedPath) {
+      return
+    }
+    void chatService
+      .invoke("getTurnFileDiff", {
+        sessionId: selection.record.sessionId,
+        messageId: selection.record.messageId,
+        path: selectedPath,
+      })
+      .then((result) => {
+        if (!cancelled) {
+          setDiff(result)
+        }
+      })
+      .catch((error: unknown) => {
+        reportRendererHandledError("turnOutputs.loadDiff", "Failed to load turn file diff", error)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [chatService, selectedPath, selection])
+
+  return diff
+}
+
+function useTurnFileActions(): {
+  openPath: (filePath: string | undefined) => void
+  showInFolder: (filePath: string | undefined) => void
+} {
+  const t = useT()
+  const chatService = useChatService()
+  return React.useMemo(
+    () => ({
+      openPath(filePath) {
+        if (!filePath) {
+          return
+        }
+        void chatService.invoke("openLocalPath", { path: filePath }).catch((cause: unknown) => {
+          reportRendererHandledError("turnOutputs.openPath", "Failed to open turn output file", cause)
+          const error = resolveUserFacingError(cause, { area: "artifact" })
+          toast.error(userFacingErrorDescription(error, t))
+        })
+      },
+      showInFolder(filePath) {
+        if (!filePath) {
+          return
+        }
+        void chatService.invoke("showLocalPathInFolder", { path: filePath }).catch((cause: unknown) => {
+          reportRendererHandledError("turnOutputs.showInFolder", "Failed to reveal turn output file", cause)
+          const error = resolveUserFacingError(cause, { area: "artifact" })
+          toast.error(userFacingErrorDescription(error, t))
+        })
+      },
+    }),
+    [chatService, t],
+  )
+}
+
+export function TurnOutputsPanel({ maximized, onToggleMaximized, selection, onSetTitle }: TurnOutputsPanelProps) {
+  const t = useT()
+  const initialRole = selection?.initialRole ?? "project_change"
+  const [viewType, setViewType] = React.useState<ViewType>("split")
+  const processFiles = React.useMemo(() => (selection ? roleFiles(selection.record, "process") : []), [selection])
+  const changeFiles = React.useMemo(() => (selection ? roleFiles(selection.record, "project_change") : []), [selection])
+  const projectChangesTruncated = Boolean(selection?.record.projectChangesTruncated)
+  const requestedRole = availableTurnOutputRole(
+    initialRole,
+    processFiles.length,
+    changeFiles.length,
+    projectChangesTruncated,
+  )
+  const roleSelectionKey = `${selection?.record.messageId ?? "none"}\0${selection?.selectedPath ?? ""}\0${requestedRole}`
+  const [roleSelection, setRoleSelection] = React.useState<{ key: string; role: TurnOutputFileRole }>(() => ({
+    key: roleSelectionKey,
+    role: requestedRole,
+  }))
+  const activeRole =
+    roleSelection.key === roleSelectionKey
+      ? availableTurnOutputRole(roleSelection.role, processFiles.length, changeFiles.length, projectChangesTruncated)
+      : requestedRole
+  const activeFiles = activeRole === "project_change" ? changeFiles : processFiles
+  const activeViewType: ViewType = activeRole === "process" ? "unified" : viewType
+  const [collapsedPaths, setCollapsedPaths] = React.useState<Set<string>>(() =>
+    turnOutputInitialCollapsedPaths(activeRole, activeFiles, selection?.selectedPath),
+  )
+  const fileSectionRefs = React.useRef(new Map<string, HTMLElement>())
+  const hasRoleSwitch = (changeFiles.length > 0 || projectChangesTruncated) && processFiles.length > 0
+  const { openPath, showInFolder } = useTurnFileActions()
+  const allExpanded = activeFiles.length > 0 && activeFiles.every((file) => !collapsedPaths.has(file.path))
+  const activeAdditions = activeFiles.reduce((sum, file) => sum + file.additions, 0)
+  const activeDeletions = activeFiles.reduce((sum, file) => sum + file.deletions, 0)
+
+  // Compute and sync title to parent tab.
+  const displayTitle = activeRole === "process"
+    ? t("turnOutputs.processDetails")
+    : t("turnOutputs.panelTitle")
+
+  React.useEffect(() => {
+    onSetTitle(displayTitle)
+  }, [displayTitle, onSetTitle])
+
+  const selectActiveRole = React.useCallback(
+    (role: TurnOutputFileRole): void => {
+      setRoleSelection({ key: roleSelectionKey, role })
+    },
+    [roleSelectionKey],
+  )
+
+  React.useEffect(() => {
+    setCollapsedPaths(turnOutputInitialCollapsedPaths(activeRole, activeFiles, selection?.selectedPath))
+  }, [activeFiles, activeRole, selection?.record.messageId, selection?.selectedPath])
+
+  React.useEffect(() => {
+    const selectedPath = selection?.selectedPath
+    if (!selectedPath || !activeFiles.some((file) => file.path === selectedPath)) {
+      return
+    }
+    const frame = window.requestAnimationFrame(() => {
+      fileSectionRefs.current.get(selectedPath)?.scrollIntoView({ behavior: "smooth", block: "start" })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [activeFiles, activeRole, roleSelectionKey, selection?.selectedPath])
+
+  const togglePath = React.useCallback((path: string) => {
+    setCollapsedPaths((current) => {
+      const next = new Set(current)
+      if (next.has(path)) {
+        next.delete(path)
+      } else {
+        next.add(path)
+      }
+      return next
+    })
+  }, [])
+
+  const setAllCollapsed = React.useCallback(
+    (collapsed: boolean) => {
+      setCollapsedPaths(collapsed ? new Set(activeFiles.map((file) => file.path)) : new Set())
+    },
+    [activeFiles],
+  )
+
+  return (
+    <aside
+      className={cn(
+        "flex h-full min-h-0 w-full flex-col bg-background",
+        maximized && "border-l-0",
+      )}
+    >
+    <PanelHeader
+        title={displayTitle}
+        maximized={maximized}
+        onToggleMaximized={onToggleMaximized}
+      />
+
+      {hasRoleSwitch ? (
+        <div className="oo-border-divider border-b px-3 py-2">
+          <div
+            role="tablist"
+            aria-label={t("turnOutputs.sections")}
+            className="inline-flex max-w-full items-center gap-1 rounded-lg bg-muted p-1"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeRole === "project_change"}
+              className={cn(
+                "oo-text-control flex h-7 min-w-0 items-center gap-1.5 rounded-md px-2.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                activeRole === "project_change" && "bg-background font-medium text-foreground shadow-xs",
+              )}
+              onClick={() => selectActiveRole("project_change")}
+            >
+              <FileDiff className="size-3.5 shrink-0" />
+              <span className="truncate">{t("turnOutputs.changes")}</span>
+              <span className="shrink-0 text-muted-foreground tabular-nums">{changeFiles.length}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeRole === "process"}
+              className={cn(
+                "oo-text-control flex h-7 min-w-0 items-center gap-1.5 rounded-md px-2.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                activeRole === "process" && "bg-background font-medium text-foreground shadow-xs",
+              )}
+              onClick={() => selectActiveRole("process")}
+            >
+              <FileCode2 className="size-3.5 shrink-0" />
+              <span className="truncate">{t("turnOutputs.processFiles")}</span>
+              <span className="shrink-0 text-muted-foreground tabular-nums">{processFiles.length}</span>
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="oo-turn-review-scroll min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
+        <section className="min-w-0 pb-3">
+          {activeFiles.length > 0 ? (
+            <div className="oo-border-divider sticky top-0 z-20 flex h-12 items-center justify-between gap-3 border-b bg-background/95 px-4 backdrop-blur">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="oo-text-label min-w-0 truncate">
+                  {activeRole === "project_change"
+                    ? t("turnOutputs.changesSummary", { count: activeFiles.length })
+                    : t("turnOutputs.processSummary", { count: activeFiles.length })}
+                </div>
+                <ChangeCountLabel additions={activeAdditions} className="shrink-0" deletions={activeDeletions} />
+              </div>
+              <div className="flex shrink-0 items-center gap-1.5">
+                {activeRole === "project_change" ? (
+                  <DiffViewModeToggle value={viewType} onChange={setViewType} />
+                ) : null}
+                <CopyAllPatchesButton files={activeFiles} selection={selection} />
+                <button
+                  type="button"
+                  title={allExpanded ? t("turnOutputs.collapseAll") : t("turnOutputs.expandAll")}
+                  aria-label={allExpanded ? t("turnOutputs.collapseAll") : t("turnOutputs.expandAll")}
+                  className="oo-toolbar-button flex h-7 shrink-0 items-center rounded-md px-2 hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground"
+                  onClick={() => setAllCollapsed(allExpanded)}
+                >
+                  <span className="oo-text-caption-compact">
+                    {allExpanded ? t("turnOutputs.collapseAll") : t("turnOutputs.expandAll")}
+                  </span>
+                </button>
+              </div>
+            </div>
+          ) : null}
+          {activeRole === "process" && processFiles.length > 0 ? (
+            <div className="oo-text-caption border-b bg-muted/45 px-4 py-1.5 text-muted-foreground">
+              {t("turnOutputs.processCaution")}
+            </div>
+          ) : null}
+          {activeRole === "project_change" && projectChangesTruncated ? (
+            <div className="oo-text-caption border-b bg-muted/45 px-4 py-1.5 text-muted-foreground">
+              {t("turnOutputs.changesIncomplete")}
+            </div>
+          ) : null}
+          {activeFiles.length > 0 ? (
+            <div className="oo-turn-diff-stream min-w-0">
+              {activeFiles.map((file) => (
+                <TurnDiffFileSection
+                  key={file.path}
+                  collapsed={collapsedPaths.has(file.path)}
+                  file={file}
+                  selected={file.path === selection?.selectedPath}
+                  sectionRef={(element) => {
+                    if (element) fileSectionRefs.current.set(file.path, element)
+                    else fileSectionRefs.current.delete(file.path)
+                  }}
+                  onToggle={() => togglePath(file.path)}
+                  openPath={openPath}
+                  selection={selection}
+                  showInFolder={showInFolder}
+                  viewType={activeViewType}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="oo-text-body px-2 py-8 text-center text-muted-foreground">{t("turnOutputs.empty")}</div>
+          )}
+        </section>
+      </div>
+    </aside>
+  )
+}
+
+function changeKindLabel(t: ReturnType<typeof useT>, file: TurnOutputFile): string {
+  switch (file.changeKind) {
+    case "added":
+      return t("turnOutputs.added")
+    case "deleted":
+      return t("turnOutputs.deleted")
+    default:
+      return t("turnOutputs.modified")
+  }
+}
+
+function reviewFileDisplayPath(filePath: string): string {
+  const normalized = filePath.replaceAll("\\", "/")
+  const codeIndex = normalized.indexOf("/code/")
+  if (codeIndex >= 0) {
+    const fromProject = normalized.slice(codeIndex + "/code/".length)
+    if (fromProject) {
+      return fromProject
+    }
+  }
+  const parts = normalized.split("/").filter(Boolean)
+  return parts.slice(-2).join("/") || filePath
+}
+
+function TurnDiffFileSection({
+  collapsed,
+  file,
+  onToggle,
+  openPath,
+  selection,
+  selected,
+  sectionRef,
+  showInFolder,
+  viewType,
+}: {
+  collapsed: boolean
+  file: TurnOutputFile
+  onToggle: () => void
+  openPath: (filePath: string | undefined) => void
+  selection: TurnOutputSelection | null
+  selected: boolean
+  sectionRef: (element: HTMLElement | null) => void
+  showInFolder: (filePath: string | undefined) => void
+  viewType: ViewType
+}) {
+  const t = useT()
+  const diff = useTurnFileDiff(selection, collapsed ? null : file.path)
+  const hasDiffCounts = file.additions > 0 || file.deletions > 0
+  const ToggleIcon = collapsed ? ChevronRight : ChevronDown
+  const displayPath = reviewFileDisplayPath(file.path)
+
+  return (
+    <section
+      ref={sectionRef}
+      className={cn("oo-turn-diff-file min-w-0 scroll-mt-24 bg-background", selected && "bg-accent/20")}
+    >
+      <div className="oo-turn-diff-file-header sticky top-12 z-10 flex min-h-10 min-w-0 items-center justify-between gap-2 bg-background/95 px-4 backdrop-blur">
+        <button
+          type="button"
+          title={file.path}
+          className="flex min-w-0 flex-1 items-center gap-2 rounded-md py-1.5 text-left hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          onClick={onToggle}
+        >
+          <ToggleIcon className="size-4 shrink-0 text-muted-foreground" />
+          <FileKindTile source={{ ...file, kind: "file" }} className="size-7" iconClassName="size-3.5" />
+          <span className="oo-text-label min-w-0 flex-1 truncate font-mono text-foreground">{displayPath}</span>
+          {hasDiffCounts ? (
+            <ChangeCountLabel additions={file.additions} className="shrink-0" deletions={file.deletions} />
+          ) : (
+            <span className="oo-text-caption-compact shrink-0 text-muted-foreground">{changeKindLabel(t, file)}</span>
+          )}
+        </button>
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            title={t("artifacts.showInFolder")}
+            aria-label={t("artifacts.showInFolder")}
+            className="oo-toolbar-button flex size-7 shrink-0 items-center justify-center rounded-md hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground"
+            onClick={() => showInFolder(file.path)}
+          >
+            <FolderOpen className="size-3.5" />
+          </button>
+          <button
+            type="button"
+            title={t("artifacts.openFile")}
+            aria-label={t("artifacts.openFile")}
+            className="oo-toolbar-button flex size-7 shrink-0 items-center justify-center rounded-md hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground"
+            onClick={() => openPath(file.path)}
+          >
+            <ExternalLink className="size-3.5" />
+          </button>
+          {diff?.kind === "text" && diff.patch ? <CopyPatchButton patch={diff.patch} /> : null}
+        </div>
+      </div>
+      {collapsed ? null : <TurnDiffBody diff={diff} viewType={viewType} />}
+    </section>
+  )
+}
+
+function useParsedDiff(patch: string | undefined): FileData[] {
+  return React.useMemo(() => {
+    if (!patch) {
+      return []
+    }
+    try {
+      return parseDiff(patch, { nearbySequences: "zip" })
+    } catch {
+      return []
+    }
+  }, [patch])
+}
+
+function CopyPatchButton({ patch }: { patch: string }) {
+  const t = useT()
+  const [copied, setCopied] = React.useState(false)
+  const copiedTimerRef = React.useRef<number | null>(null)
+
+  React.useEffect(() => {
+    return () => {
+      if (copiedTimerRef.current !== null) {
+        window.clearTimeout(copiedTimerRef.current)
+      }
+    }
+  }, [])
+
+  const copy = async (): Promise<void> => {
+    if (!(await writeClipboardText(patch))) {
+      toast.error(t("error.copyFailed"))
+      return
+    }
+    setCopied(true)
+    if (copiedTimerRef.current !== null) {
+      window.clearTimeout(copiedTimerRef.current)
+    }
+    copiedTimerRef.current = window.setTimeout(() => {
+      setCopied(false)
+      copiedTimerRef.current = null
+    }, 1200)
+  }
+
+  const Icon = copied ? CheckIcon : CopyIcon
+  return (
+    <button
+      type="button"
+      title={copied ? t("chat.copiedMessage") : t("turnOutputs.copyPatch")}
+      aria-label={copied ? t("chat.copiedMessage") : t("turnOutputs.copyPatch")}
+      className="oo-toolbar-button flex size-7 shrink-0 items-center justify-center rounded-md hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground"
+      onClick={() => void copy()}
+    >
+      <Icon className="size-3.5" />
+    </button>
+  )
+}
+
+function CopyAllPatchesButton({
+  files,
+  selection,
+}: {
+  files: TurnOutputFile[]
+  selection: TurnOutputSelection | null
+}) {
+  const t = useT()
+  const chatService = useChatService()
+  const [copying, setCopying] = React.useState(false)
+
+  const copy = async (): Promise<void> => {
+    if (!selection || files.length === 0 || copying) {
+      return
+    }
+    setCopying(true)
+    try {
+      const diffs: Array<TurnFileDiffResult | undefined> = Array.from({ length: files.length })
+      let nextIndex = 0
+      const copyNext = async (): Promise<void> => {
+        while (nextIndex < files.length) {
+          const index = nextIndex
+          nextIndex += 1
+          const file = files[index]
+          if (!file) continue
+          diffs[index] = await chatService.invoke("getTurnFileDiff", {
+            sessionId: selection.record.sessionId,
+            messageId: selection.record.messageId,
+            path: file.path,
+          })
+        }
+      }
+      await Promise.all(Array.from({ length: Math.min(4, files.length) }, () => copyNext()))
+      const patch = diffs
+        .filter((diff): diff is TurnFileDiffResult & { patch: string } => diff?.kind === "text" && Boolean(diff.patch))
+        .map((diff) => diff.patch)
+        .join("\n")
+      if (!patch || !(await writeClipboardText(patch))) {
+        toast.error(t("error.copyFailed"))
+        return
+      }
+      toast.success(t("turnOutputs.copyAllDone"))
+    } catch {
+      toast.error(t("error.copyFailed"))
+    } finally {
+      setCopying(false)
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      title={t("turnOutputs.copyAllPatches")}
+      aria-label={t("turnOutputs.copyAllPatches")}
+      disabled={copying || files.length === 0}
+      className="oo-toolbar-button flex size-7 shrink-0 items-center justify-center rounded-md hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground disabled:cursor-default disabled:opacity-45"
+      onClick={() => void copy()}
+    >
+      <CopyIcon className="size-3.5" />
+    </button>
+  )
+}
+
+function DiffViewModeToggle({ onChange, value }: { onChange: (value: ViewType) => void; value: ViewType }) {
+  const t = useT()
+  return (
+    <div className="oo-border-divider flex h-7 shrink-0 items-center overflow-hidden rounded-md border bg-muted/45 p-0.5">
+      {(["split", "unified"] as const).map((mode) => (
+        <button
+          key={mode}
+          type="button"
+          className={cn(
+            "oo-text-caption-compact inline-flex h-full items-center justify-center rounded px-2 transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+            value === mode ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+          )}
+          onClick={() => onChange(mode)}
+        >
+          {mode === "unified" ? t("turnOutputs.unifiedDiff") : t("turnOutputs.splitDiff")}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function RawPatchFallback({ patch }: { patch: string }) {
+  return (
+    <pre className="oo-text-caption min-h-full bg-muted/20 p-3 font-mono whitespace-pre text-foreground">{patch}</pre>
+  )
+}
+
+interface SplitDiffRow {
+  key: string
+  newChange: ChangeData | null
+  oldChange: ChangeData | null
+}
+
+function changeKey(change: ChangeData | null): string {
+  if (!change) {
+    return "empty"
+  }
+  if (change.type === "normal") {
+    return `normal:${change.oldLineNumber}:${change.newLineNumber}`
+  }
+  return `${change.type}:${change.lineNumber}:${change.content}`
+}
+
+function splitRows(changes: ChangeData[]): SplitDiffRow[] {
+  const rows: SplitDiffRow[] = []
+  for (let index = 0; index < changes.length; index++) {
+    const current = changes[index]
+    if (!current) {
+      continue
+    }
+    if (current.type === "normal") {
+      rows.push({
+        key: `${changeKey(current)}:${changeKey(current)}`,
+        oldChange: current,
+        newChange: current,
+      })
+      continue
+    }
+    if (current.type === "delete") {
+      const next = changes[index + 1]
+      if (next?.type === "insert") {
+        index += 1
+        rows.push({
+          key: `${changeKey(current)}:${changeKey(next)}`,
+          oldChange: current,
+          newChange: next,
+        })
+      } else {
+        rows.push({
+          key: `${changeKey(current)}:empty`,
+          oldChange: current,
+          newChange: null,
+        })
+      }
+      continue
+    }
+    rows.push({
+      key: `empty:${changeKey(current)}`,
+      oldChange: null,
+      newChange: current,
+    })
+  }
+  return rows
+}
+
+function splitLineNumber(change: ChangeData | null, side: "new" | "old"): number | null {
+  if (!change) {
+    return null
+  }
+  if (change.type === "normal") {
+    return side === "old" ? change.oldLineNumber : change.newLineNumber
+  }
+  if (side === "old" && change.type === "delete") {
+    return change.lineNumber
+  }
+  if (side === "new" && change.type === "insert") {
+    return change.lineNumber
+  }
+  return null
+}
+
+function splitLineClass(change: ChangeData | null): string {
+  if (!change) {
+    return "oo-turn-split-line-empty"
+  }
+  if (change.type === "delete") {
+    return "oo-turn-split-line-delete"
+  }
+  if (change.type === "insert") {
+    return "oo-turn-split-line-insert"
+  }
+  return "oo-turn-split-line-normal"
+}
+
+function SplitDiffLine({ change, side }: { change: ChangeData | null; side: "new" | "old" }) {
+  const lineNumber = splitLineNumber(change, side)
+  const content = change?.content ?? ""
+  return (
+    <div className={cn("oo-turn-split-line", splitLineClass(change))}>
+      <div className="oo-turn-split-gutter">{lineNumber ?? ""}</div>
+      <div className="oo-turn-split-code">{content.length > 0 ? content : " "}</div>
+    </div>
+  )
+}
+
+function SplitDiffSide({
+  onScroll,
+  rows,
+  scrollRef,
+  side,
+}: {
+  onScroll: (event: React.UIEvent<HTMLDivElement>) => void
+  rows: SplitDiffRow[]
+  scrollRef: React.RefObject<HTMLDivElement | null>
+  side: "new" | "old"
+}) {
+  return (
+    <div className="oo-turn-split-side">
+      <div ref={scrollRef} className="oo-turn-split-side-scroll" onScroll={onScroll}>
+        {rows.map((row) => (
+          <SplitDiffLine
+            key={`${side}:${row.key}`}
+            change={side === "old" ? row.oldChange : row.newChange}
+            side={side}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function SplitDiffFile({ file }: { file: FileData }) {
+  const leftRef = React.useRef<HTMLDivElement | null>(null)
+  const rightRef = React.useRef<HTMLDivElement | null>(null)
+  const syncingRef = React.useRef(false)
+  const rows = React.useMemo(() => file.hunks.flatMap((hunk) => splitRows(hunk.changes)), [file.hunks])
+
+  const syncScroll = React.useCallback((source: "left" | "right", scrollLeft: number) => {
+    if (syncingRef.current) {
+      return
+    }
+    const target = source === "left" ? rightRef.current : leftRef.current
+    if (!target || target.scrollLeft === scrollLeft) {
+      return
+    }
+    syncingRef.current = true
+    target.scrollLeft = scrollLeft
+    window.requestAnimationFrame(() => {
+      syncingRef.current = false
+    })
+  }, [])
+
+  return (
+    <div className="oo-turn-split-diff">
+      <SplitDiffSide
+        rows={rows}
+        scrollRef={leftRef}
+        side="old"
+        onScroll={(event) => syncScroll("left", event.currentTarget.scrollLeft)}
+      />
+      <SplitDiffSide
+        rows={rows}
+        scrollRef={rightRef}
+        side="new"
+        onScroll={(event) => syncScroll("right", event.currentTarget.scrollLeft)}
+      />
+    </div>
+  )
+}
+
+function SplitDiffView({ files }: { files: FileData[] }) {
+  return (
+    <div className="oo-turn-split-view">
+      {files.map((file, index) => (
+        <SplitDiffFile key={`${file.oldRevision}:${file.newRevision}:${index}`} file={file} />
+      ))}
+    </div>
+  )
+}
+
+function ParsedDiffView({ files, viewType }: { files: FileData[]; viewType: ViewType }) {
+  if (viewType === "split") {
+    return <SplitDiffView files={files} />
+  }
+
+  return (
+    <div className="oo-turn-diff-view oo-turn-diff-view-unified">
+      {files.map((item, index) => (
+        <ReactDiff
+          key={`${item.oldRevision}:${item.newRevision}:${index}`}
+          diffType={item.type}
+          hunks={item.hunks}
+          optimizeSelection
+          viewType={viewType}
+        >
+          {(hunks) => hunks.map((hunk) => <Hunk key={hunk.content} hunk={hunk} />)}
+        </ReactDiff>
+      ))}
+    </div>
+  )
+}
+
+function TurnDiffBody({ diff, viewType }: { diff: TurnFileDiffResult | null; viewType: ViewType }) {
+  const t = useT()
+  const parsedFiles = useParsedDiff(diff?.kind === "text" ? diff.patch : undefined)
+  if (!diff) {
+    return (
+      <div className="oo-text-body flex min-h-28 items-center justify-center p-4 text-muted-foreground">
+        {t("artifacts.previewLoading")}
+      </div>
+    )
+  }
+  if (diff.kind !== "text" || !diff.patch) {
+    const label = diff.kind === "too_large" ? t("turnOutputs.diffTooLarge") : t("turnOutputs.diffBinary")
+    return (
+      <div className="oo-text-body flex min-h-28 items-center justify-center p-4 text-muted-foreground">{label}</div>
+    )
+  }
+  return (
+    <div className="min-w-0 bg-background">
+      <div className="oo-turn-diff-x-scroll min-w-0">
+        {parsedFiles.length > 0 ? (
+          <ParsedDiffView files={parsedFiles} viewType={viewType} />
+        ) : (
+          <RawPatchFallback patch={diff.patch} />
+        )}
+      </div>
+    </div>
+  )
+}

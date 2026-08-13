@@ -1,0 +1,219 @@
+import type { DWeisReasoningVariant } from "../agent/reasoning.ts"
+
+import { DWEIS_REASONING_VARIANT_LEVELS } from "../agent/reasoning.ts"
+import { branding } from "../branding.ts"
+
+export type BuiltinProviderKind = "openai-compatible" | "openai-responses"
+
+export interface BuiltinProviderDefinition {
+  id: string
+  displayName: string
+  kind: BuiltinProviderKind
+  npm?: string
+}
+
+export interface BuiltinModelRuntime {
+  providerID: string
+  modelID: string
+}
+
+export interface BuiltinModelCapabilities {
+  supportsImages: boolean
+  supportsPdf: boolean
+  toolCall: boolean
+  reasoningVariants?: readonly DWeisReasoningVariant[]
+}
+
+export interface BuiltinModelDefinition {
+  id: BuiltinModelId
+  displayName: string
+  providerName: string
+  runtime: BuiltinModelRuntime
+  capabilities: BuiltinModelCapabilities
+  contextWindow?: number
+  inputTokenLimit?: number
+  maxOutputTokens?: number
+}
+
+// UI 展示用的内置模型上下文窗口；网关别名实际窗口调整时只改这里。
+const gptContextWindow = 400_000
+const millionTokenContextWindow = 1_000_000
+const qwen37ReasoningVariants = ["low", "high"] as const satisfies readonly DWeisReasoningVariant[]
+
+export const BUILTIN_MODEL_IDS = [
+  "oopilot",
+  "gpt-5.6-sol",
+  "gpt-5.6-terra",
+  "gpt-5.6-luna",
+  "qwen3.7-plus",
+  "qwen3.7-max",
+] as const
+
+export type BuiltinModelId = (typeof BUILTIN_MODEL_IDS)[number]
+
+export const DEFAULT_BUILTIN_MODEL_ID: BuiltinModelId = "oopilot"
+
+export const BUILTIN_PROVIDER_DEFINITIONS: BuiltinProviderDefinition[] = [
+  {
+    id: "oomol",
+    displayName: branding.companyName,
+    kind: "openai-compatible",
+    npm: "@ai-sdk/openai-compatible",
+  },
+  {
+    id: "openai",
+    displayName: "OpenAI",
+    kind: "openai-responses",
+  },
+]
+
+export const BUILTIN_MODEL_DEFINITIONS: BuiltinModelDefinition[] = [
+  {
+    id: "oopilot",
+    displayName: "Auto",
+    providerName: branding.companyName,
+    runtime: {
+      providerID: "oomol",
+      modelID: "oopilot",
+    },
+    capabilities: {
+      reasoningVariants: DWEIS_REASONING_VARIANT_LEVELS,
+      supportsImages: true,
+      supportsPdf: false,
+      toolCall: true,
+    },
+    contextWindow: gptContextWindow,
+  },
+  {
+    id: "gpt-5.6-sol",
+    displayName: "GPT 5.6 Sol",
+    providerName: "OpenAI",
+    runtime: {
+      providerID: "openai",
+      modelID: "gpt-5.6-sol",
+    },
+    capabilities: {
+      reasoningVariants: DWEIS_REASONING_VARIANT_LEVELS,
+      supportsImages: true,
+      supportsPdf: true,
+      toolCall: true,
+    },
+    contextWindow: gptContextWindow,
+  },
+  {
+    id: "gpt-5.6-terra",
+    displayName: "GPT 5.6 Terra",
+    providerName: "OpenAI",
+    runtime: {
+      providerID: "openai",
+      modelID: "gpt-5.6-terra",
+    },
+    capabilities: {
+      reasoningVariants: DWEIS_REASONING_VARIANT_LEVELS,
+      supportsImages: true,
+      supportsPdf: true,
+      toolCall: true,
+    },
+    contextWindow: gptContextWindow,
+  },
+  {
+    id: "gpt-5.6-luna",
+    displayName: "GPT 5.6 Luna",
+    providerName: "OpenAI",
+    runtime: {
+      providerID: "openai",
+      modelID: "gpt-5.6-luna",
+    },
+    capabilities: {
+      reasoningVariants: DWEIS_REASONING_VARIANT_LEVELS,
+      supportsImages: true,
+      supportsPdf: true,
+      toolCall: true,
+    },
+    contextWindow: gptContextWindow,
+  },
+  {
+    id: "qwen3.7-plus",
+    displayName: "Qwen 3.7 Plus",
+    providerName: "Qwen",
+    runtime: {
+      providerID: "oomol",
+      modelID: "qwen3.7-plus",
+    },
+    capabilities: {
+      reasoningVariants: qwen37ReasoningVariants,
+      supportsImages: true,
+      supportsPdf: false,
+      toolCall: true,
+    },
+    contextWindow: millionTokenContextWindow,
+  },
+  {
+    id: "qwen3.7-max",
+    displayName: "Qwen 3.7 Max",
+    providerName: "Qwen",
+    runtime: {
+      providerID: "oomol",
+      modelID: "qwen3.7-max",
+    },
+    capabilities: {
+      reasoningVariants: qwen37ReasoningVariants,
+      supportsImages: true,
+      supportsPdf: false,
+      toolCall: true,
+    },
+    contextWindow: millionTokenContextWindow,
+  },
+]
+
+const builtinModelById = new Map(BUILTIN_MODEL_DEFINITIONS.map((model) => [model.id, model]))
+
+export function builtinModelSummaries(): Array<{
+  id: BuiltinModelId
+  displayName: string
+  providerName: string
+  supportsImages: boolean
+  toolCall: boolean
+  runtimeKind: BuiltinProviderKind
+  contextWindow?: number
+  inputTokenLimit?: number
+  maxOutputTokens?: number
+  reasoningVariants?: readonly DWeisReasoningVariant[]
+}> {
+  return BUILTIN_MODEL_DEFINITIONS.map((model) => ({
+    id: model.id,
+    displayName: model.displayName,
+    providerName: model.providerName,
+    supportsImages: model.capabilities.supportsImages,
+    toolCall: model.capabilities.toolCall,
+    runtimeKind: resolveBuiltinProvider(model.runtime.providerID).kind,
+    ...(model.contextWindow ? { contextWindow: model.contextWindow } : {}),
+    ...(model.inputTokenLimit ? { inputTokenLimit: model.inputTokenLimit } : {}),
+    ...(model.maxOutputTokens ? { maxOutputTokens: model.maxOutputTokens } : {}),
+    ...(model.capabilities.reasoningVariants ? { reasoningVariants: model.capabilities.reasoningVariants } : {}),
+  }))
+}
+
+export function builtinProviderDefinition(id: string): BuiltinProviderDefinition | undefined {
+  return BUILTIN_PROVIDER_DEFINITIONS.find((provider) => provider.id === id)
+}
+
+function resolveBuiltinProvider(id: string): BuiltinProviderDefinition {
+  const provider = builtinProviderDefinition(id)
+  if (!provider) {
+    throw new Error(`Unknown built-in provider: ${id}`)
+  }
+  return provider
+}
+
+export function isBuiltinModelId(value: string): value is BuiltinModelId {
+  return (BUILTIN_MODEL_IDS as readonly string[]).includes(value)
+}
+
+export function resolveBuiltinModel(id: BuiltinModelId): BuiltinModelDefinition {
+  const model = builtinModelById.get(id)
+  if (!model) {
+    throw new Error(`Unknown built-in model: ${id}`)
+  }
+  return model
+}

@@ -1,0 +1,398 @@
+import type { MessageKey, TranslateFn } from "../i18n/i18n.ts"
+
+export type UserFacingErrorSeverity = "info" | "warning" | "destructive"
+
+export type UserFacingErrorArea =
+  | "agent"
+  | "artifact"
+  | "auth"
+  | "billing"
+  | "chat"
+  | "model"
+  | "session"
+  | "settings"
+  | "skills"
+  | "update"
+  | "voice"
+  | "generic"
+
+export type UserFacingErrorKind =
+  | "agent_unavailable"
+  | "auth_required"
+  | "cancelled"
+  | "local_file_unavailable"
+  | "network_unavailable"
+  | "no_input"
+  | "operation_failed"
+  | "permission_denied"
+  | "rate_limited"
+  | "server_unavailable"
+  | "secure_storage_unavailable"
+  | "timeout"
+  | "validation_error"
+
+export interface UserFacingError {
+  area: UserFacingErrorArea
+  kind: UserFacingErrorKind
+  severity: UserFacingErrorSeverity
+  titleKey: MessageKey
+  descriptionKey: MessageKey
+  descriptionText?: string
+  diagnostics?: string
+}
+
+export interface ResolveUserFacingErrorOptions {
+  area?: UserFacingErrorArea
+  fallbackTitleKey?: MessageKey
+  fallbackDescriptionKey?: MessageKey
+  preserveMessage?: boolean
+}
+
+const statusPattern = /(?:status|code|http)\s*:?\s*(\d{3})/i
+
+const areaTitleKeys: Record<UserFacingErrorArea, MessageKey> = {
+  agent: "error.agent.title",
+  artifact: "error.artifact.title",
+  auth: "error.auth.title",
+  billing: "error.billing.title",
+  chat: "error.chat.title",
+  generic: "error.generic.title",
+  model: "error.model.title",
+  session: "error.session.title",
+  settings: "error.settings.title",
+  skills: "error.skills.title",
+  update: "error.update.title",
+  voice: "error.voice.title",
+}
+
+const areaDescriptionKeys: Record<UserFacingErrorArea, MessageKey> = {
+  agent: "error.agent.description",
+  artifact: "error.artifact.description",
+  auth: "error.auth.description",
+  billing: "error.billing.description",
+  chat: "error.chat.description",
+  generic: "error.generic.description",
+  model: "error.model.description",
+  session: "error.session.description",
+  settings: "error.settings.description",
+  skills: "error.skills.description",
+  update: "error.update.description",
+  voice: "error.voice.description",
+}
+
+export function errorMessage(cause: unknown): string {
+  if (cause instanceof Error) {
+    return cause.message
+  }
+  if (cause && typeof cause === "object" && typeof (cause as { message?: unknown }).message === "string") {
+    return (cause as { message: string }).message
+  }
+  return String(cause)
+}
+
+export function resolveUserFacingError(
+  cause: unknown,
+  {
+    area = "generic",
+    fallbackDescriptionKey,
+    fallbackTitleKey,
+    preserveMessage = false,
+  }: ResolveUserFacingErrorOptions = {},
+): UserFacingError {
+  if (isUserFacingError(cause)) {
+    return cause
+  }
+  const message = errorMessage(cause).trim()
+  const diagnostics = errorDiagnostics(cause, message).trim()
+  const normalizedMessage = message.toLowerCase()
+  const normalized = `${normalizedMessage}\n${diagnostics.toLowerCase()}`
+  const status = readStatusCode(`${message}\n${diagnostics}`)
+
+  if (isCancelled(normalized)) {
+    return buildError(
+      area,
+      "cancelled",
+      "info",
+      "error.cancelled.title",
+      "error.cancelled.description",
+      diagnostics,
+      preserveMessage,
+      message,
+    )
+  }
+
+  if (
+    includesAny(normalized, [
+      "secure model credential storage",
+      "operating system keychain",
+      "gnome keyring",
+      "kwallet",
+      "plaintext fallback is disabled",
+    ])
+  ) {
+    return buildError(
+      area,
+      "secure_storage_unavailable",
+      "warning",
+      "error.secureStorageUnavailable.title",
+      "error.secureStorageUnavailable.description",
+      diagnostics,
+      false,
+      message,
+    )
+  }
+
+  if (status === 401 || includesAny(normalized, ["unauthorized", "sign in", "login required", "fresh sign-in"])) {
+    // 账单请求也使用全应用唯一的会话 token。401 会触发全局会话过期；billing 作用域只保留更具体的恢复文案。
+    const isBilling = area === "billing"
+    return buildError(
+      area,
+      "auth_required",
+      "info",
+      isBilling ? "error.billingSessionExpired.title" : "error.authRequired.title",
+      isBilling ? "error.billingSessionExpired.description" : "error.authRequired.description",
+      diagnostics,
+      preserveMessage,
+      message,
+    )
+  }
+
+  if (status === 403 || includesAny(normalized, ["forbidden", "permission denied", "access denied"])) {
+    return buildError(
+      area,
+      "permission_denied",
+      "destructive",
+      "error.permissionDenied.title",
+      "error.permissionDenied.description",
+      diagnostics,
+      preserveMessage,
+      message,
+    )
+  }
+
+  if (status === 429 || includesAny(normalized, ["rate limit", "too many requests"])) {
+    return buildError(
+      area,
+      "rate_limited",
+      "warning",
+      "error.rateLimited.title",
+      "error.rateLimited.description",
+      diagnostics,
+      preserveMessage,
+      message,
+    )
+  }
+
+  if (isTimeout(normalized)) {
+    return buildError(
+      area,
+      "timeout",
+      "warning",
+      "error.timeout.title",
+      "error.timeout.description",
+      diagnostics,
+      preserveMessage,
+      message,
+    )
+  }
+
+  if (includesAny(normalized, ["enoent", "no such file", "file unavailable"])) {
+    return buildError(
+      area,
+      "local_file_unavailable",
+      "warning",
+      "error.localFile.title",
+      "error.localFile.description",
+      diagnostics,
+      preserveMessage,
+      message,
+    )
+  }
+
+  if (isValidation(normalized)) {
+    return buildError(
+      area,
+      "validation_error",
+      "warning",
+      "error.validation.title",
+      area === "model" ? "error.model.validationDescription" : "error.validation.description",
+      diagnostics,
+      preserveMessage,
+      message,
+    )
+  }
+
+  if (normalizedMessage.startsWith("dweis_knowledge_import_unreadable")) {
+    return buildError(
+      area,
+      "validation_error",
+      "warning",
+      "error.knowledgeImportUnreadable.title",
+      "error.knowledgeImportUnreadable.description",
+      diagnostics,
+      false,
+      message,
+    )
+  }
+
+  if (status && status >= 500) {
+    return buildError(
+      area,
+      "server_unavailable",
+      "warning",
+      "error.serverUnavailable.title",
+      "error.serverUnavailable.description",
+      diagnostics,
+      preserveMessage,
+      message,
+    )
+  }
+
+  if (includesAny(normalized, ["bad gateway", "gateway timeout", "service unavailable"])) {
+    return buildError(
+      area,
+      "server_unavailable",
+      "warning",
+      "error.serverUnavailable.title",
+      "error.serverUnavailable.description",
+      diagnostics,
+      preserveMessage,
+      message,
+    )
+  }
+
+  if (isNetwork(normalized)) {
+    return buildError(
+      area,
+      "network_unavailable",
+      "warning",
+      "error.networkUnavailable.title",
+      "error.networkUnavailable.description",
+      diagnostics,
+      preserveMessage,
+      message,
+    )
+  }
+
+  if (area === "agent" || includesAny(normalized, ["agent not configured", "sidecar failed", "opencode"])) {
+    return buildError(
+      area,
+      "agent_unavailable",
+      "destructive",
+      "error.agent.title",
+      "error.agent.description",
+      diagnostics,
+      preserveMessage,
+      message,
+    )
+  }
+
+  return buildError(
+    area,
+    "operation_failed",
+    "destructive",
+    fallbackTitleKey ?? areaTitleKeys[area],
+    fallbackDescriptionKey ?? areaDescriptionKeys[area],
+    diagnostics,
+    preserveMessage,
+    message,
+  )
+}
+
+function errorDiagnostics(cause: unknown, fallback: string): string {
+  if (cause && typeof cause === "object" && typeof (cause as { diagnostics?: unknown }).diagnostics === "string") {
+    return (cause as { diagnostics: string }).diagnostics
+  }
+  return fallback
+}
+
+function isUserFacingError(value: unknown): value is UserFacingError {
+  return Boolean(
+    value &&
+    typeof value === "object" &&
+    "kind" in value &&
+    "severity" in value &&
+    "titleKey" in value &&
+    "descriptionKey" in value,
+  )
+}
+
+export function userFacingErrorDescription(error: UserFacingError, t: TranslateFn): string {
+  return error.descriptionText ?? t(error.descriptionKey)
+}
+
+function buildError(
+  area: UserFacingErrorArea,
+  kind: UserFacingErrorKind,
+  severity: UserFacingErrorSeverity,
+  titleKey: MessageKey,
+  descriptionKey: MessageKey,
+  diagnostics: string,
+  preserveMessage = false,
+  message = diagnostics,
+): UserFacingError {
+  return {
+    area,
+    kind,
+    severity,
+    titleKey,
+    descriptionKey,
+    descriptionText: preserveMessage && message ? message : undefined,
+    diagnostics: diagnostics || undefined,
+  }
+}
+
+function readStatusCode(message: string): number | undefined {
+  const jsonStatus = readJsonStatus(message)
+  if (jsonStatus) {
+    return jsonStatus
+  }
+  const match = statusPattern.exec(message)
+  if (!match) {
+    return undefined
+  }
+  const status = Number(match[1])
+  return Number.isFinite(status) ? status : undefined
+}
+
+function readJsonStatus(message: string): number | undefined {
+  try {
+    const parsed = JSON.parse(message) as Record<string, unknown>
+    const statusValue = parsed["status"] ?? parsed["statusCode"] ?? parsed["code"]
+    const status = typeof statusValue === "string" ? Number(statusValue) : statusValue
+    return typeof status === "number" && Number.isFinite(status) ? status : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function includesAny(message: string, patterns: string[]): boolean {
+  return patterns.some((pattern) => message.includes(pattern))
+}
+
+function isCancelled(message: string): boolean {
+  return includesAny(message, ["aborterror", "aborted", "cancelled", "canceled", "user cancelled"])
+}
+
+function isTimeout(message: string): boolean {
+  return includesAny(message, ["timeout", "timed out", "still pending"])
+}
+
+function isNetwork(message: string): boolean {
+  return includesAny(message, [
+    "bad gateway",
+    "connection interrupted",
+    "connection refused",
+    "econnrefused",
+    "enotfound",
+    "fetch failed",
+    "gateway timeout",
+    "network",
+    "socket",
+    "websocket",
+  ])
+}
+
+function isValidation(message: string): boolean {
+  return includesAny(message, ["base url is required", "invalid url", "model name is required", "api key is required"])
+}

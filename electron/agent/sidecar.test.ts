@@ -1,0 +1,410 @@
+import type { ProcessSnapshotEntry } from "./sidecar.ts"
+import type { OpencodeClient } from "@opencode-ai/sdk/v2/client"
+import type { ChildProcessWithoutNullStreams } from "node:child_process"
+
+import { describe, expect, it, vi } from "vitest"
+import {
+  collectDescendantTree,
+  boundRuntimeOutputLine,
+  distinctProcessGroups,
+  mergeSystemProxyEnvironment,
+  OpencodeSidecar,
+  parseMacSystemProxy,
+  parseWindowsSystemProxy,
+  parsePsSnapshot,
+  reapProcessTree,
+  reapWindowsProcessTree,
+} from "./sidecar.ts"
+
+describe("OpencodeSidecar", () => {
+  it("returns the same disposal promise to every caller", () => {
+    const sidecar = new OpencodeSidecar({
+      config: {},
+      env: {},
+      isolationDir: "/tmp/dweis-sidecar-test-isolation",
+      opencodeBinPath: "/tmp/dweis-sidecar-test-opencode",
+      workspaceDir: "/tmp/dweis-sidecar-test-workspace",
+    })
+
+    const first = sidecar.dispose()
+    const second = sidecar.dispose()
+
+    expect(second).toBe(first)
+  })
+
+  it("reaps an existing process once and shares the in-flight disposal", async () => {
+    let finishReap: (() => void) | undefined
+    const reapPromise = new Promise<void>((resolve) => {
+      finishReap = resolve
+    })
+    const reap = vi.fn(() => reapPromise)
+    const sidecar = new OpencodeSidecar({
+      config: {},
+      env: {},
+      isolationDir: "/tmp/dweis-sidecar-test-isolation",
+      opencodeBinPath: "/tmp/dweis-sidecar-test-opencode",
+      workspaceDir: "/tmp/dweis-sidecar-test-workspace",
+    })
+    const internals = sidecar as unknown as {
+      proc: ChildProcessWithoutNullStreams | null
+      reap: (proc: ChildProcessWithoutNullStreams, client: OpencodeClient | null) => Promise<void>
+    }
+    const proc = { pid: 1234 } as ChildProcessWithoutNullStreams
+    internals.proc = proc
+    internals.reap = reap
+
+    const first = sidecar.dispose()
+    const second = sidecar.dispose()
+
+    expect(second).toBe(first)
+    expect(reap).toHaveBeenCalledOnce()
+    expect(reap).toHaveBeenCalledWith(proc, null)
+    finishReap?.()
+    await first
+  })
+
+  it("waits for process cleanup already started by a startup failure", async () => {
+    let finishReap: (() => void) | undefined
+    const reapPromise = new Promise<void>((resolve) => {
+      finishReap = resolve
+    })
+    const sidecar = new OpencodeSidecar({
+      config: {},
+      env: {},
+      isolationDir: "/tmp/dweis-sidecar-test-isolation",
+      opencodeBinPath: "/tmp/dweis-sidecar-test-opencode",
+      workspaceDir: "/tmp/dweis-sidecar-test-workspace",
+    })
+    const internals = sidecar as unknown as { processReapPromise: Promise<void> | null }
+    internals.processReapPromise = reapPromise
+
+    const disposal = sidecar.dispose()
+
+    expect(disposal).toBe(reapPromise)
+    finishReap?.()
+    await disposal
+  })
+
+  it("cannot restart after disposal", async () => {
+    const sidecar = new OpencodeSidecar({
+      config: {},
+      env: {},
+      isolationDir: "/tmp/dweis-sidecar-test-isolation",
+      opencodeBinPath: "/tmp/dweis-sidecar-test-opencode",
+      workspaceDir: "/tmp/dweis-sidecar-test-workspace",
+    })
+
+    await sidecar.dispose()
+
+    await expect(sidecar.start()).rejects.toThrow("already disposed")
+  })
+
+  it("does not spawn when disposed during asynchronous startup preparation", async () => {
+    let finishPreparation: (() => void) | undefined
+    const preparation = new Promise<void>((resolve) => {
+      finishPreparation = resolve
+    })
+    const spawnProcess = vi.fn()
+    const sidecar = new OpencodeSidecar(
+      {
+        config: {},
+        env: {},
+        isolationDir: "/tmp/dweis-sidecar-test-isolation",
+        opencodeBinPath: "/tmp/dweis-sidecar-test-opencode",
+        workspaceDir: "/tmp/dweis-sidecar-test-workspace",
+      },
+      {
+        createDirectory: () => preparation,
+        spawnProcess,
+      },
+    )
+
+    const start = sidecar.start()
+    expect(sidecar.start()).toBe(start)
+    await sidecar.dispose()
+    finishPreparation?.()
+
+    await expect(start).rejects.toThrow("disposed during startup")
+    expect(spawnProcess).not.toHaveBeenCalled()
+  })
+})
+
+describe("boundRuntimeOutputLine", () => {
+  it("truncates complete oversized lines", () => {
+    const bounded = boundRuntimeOutputLine("x".repeat(9 * 1024))
+
+    expect(bounded.text).toHaveLength(8 * 1024)
+    expect(bounded.truncated).toBe(true)
+  })
+
+  it("preserves lines within the limit", () => {
+    expect(boundRuntimeOutputLine("ready")).toEqual({ text: "ready", truncated: false })
+  })
+})
+
+describe("macOS system proxy environment", () => {
+  const scutilOutput = `<dictionary> {
+  ExceptionsList : <array> {
+    0 : 127.0.0.1
+    1 : 192.168.0.0/16
+    2 : *.local
+    3 : <local>
+  }
+  HTTPEnable : 1
+  HTTPPort : 7897
+  HTTPProxy : 127.0.0.1
+  HTTPSEnable : 1
+  HTTPSPort : 7897
+  HTTPSProxy : 127.0.0.1
+  ProxyAutoConfigEnable : 0
+  SOCKSEnable : 1
+  SOCKSPort : 7897
+  SOCKSProxy : 127.0.0.1
+}`
+
+  it("turns enabled macOS proxies into standard child process proxy env", () => {
+    expect(parseMacSystemProxy(scutilOutput)).toEqual({
+      env: {
+        ALL_PROXY: "http://127.0.0.1:7897",
+        HTTPS_PROXY: "http://127.0.0.1:7897",
+        HTTP_PROXY: "http://127.0.0.1:7897",
+        NO_PROXY: "127.0.0.1,192.168.0.0/16,.local,localhost",
+      },
+      summary: {
+        ExceptionsList: "127.0.0.1,192.168.0.0/16,.local,localhost",
+        HTTPEnable: "1",
+        HTTPPort: "7897",
+        HTTPProxy: "127.0.0.1",
+        HTTPSEnable: "1",
+        HTTPSPort: "7897",
+        HTTPSProxy: "127.0.0.1",
+        ProxyAutoConfigEnable: "0",
+        SOCKSEnable: "1",
+        SOCKSPort: "7897",
+        SOCKSProxy: "127.0.0.1",
+      },
+    })
+  })
+
+  it("does not create proxy env when macOS proxies are disabled", () => {
+    expect(
+      parseMacSystemProxy(`<dictionary> {
+  HTTPEnable : 0
+  HTTPPort : 7897
+  HTTPProxy : 127.0.0.1
+  HTTPSEnable : 0
+}`),
+    ).toBeUndefined()
+  })
+
+  it("fills missing proxy env without overriding explicit environment", () => {
+    const merged = mergeSystemProxyEnvironment(
+      {
+        HTTPS_PROXY: "http://explicit.example:8080",
+        PATH: "/bin",
+      },
+      parseMacSystemProxy(scutilOutput),
+    )
+
+    expect(merged).toMatchObject({
+      ALL_PROXY: "http://127.0.0.1:7897",
+      HTTPS_PROXY: "http://explicit.example:8080",
+      HTTP_PROXY: "http://127.0.0.1:7897",
+      NO_PROXY: "127.0.0.1,192.168.0.0/16,.local,localhost",
+      PATH: "/bin",
+    })
+  })
+})
+
+describe("Windows system proxy environment", () => {
+  it("turns a single enabled Windows proxy into standard child process proxy env", () => {
+    expect(
+      parseWindowsSystemProxy(`
+HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings
+    ProxyEnable    REG_DWORD    0x1
+    ProxyServer    REG_SZ    127.0.0.1:7897
+    ProxyOverride    REG_SZ    127.0.0.1;localhost;*.local;<local>
+`),
+    ).toEqual({
+      env: {
+        ALL_PROXY: "http://127.0.0.1:7897",
+        HTTPS_PROXY: "http://127.0.0.1:7897",
+        HTTP_PROXY: "http://127.0.0.1:7897",
+        NO_PROXY: "127.0.0.1,localhost,.local",
+      },
+      summary: {
+        ProxyEnable: "0x1",
+        ProxyOverride: "127.0.0.1,localhost,.local",
+        ProxyServer: "127.0.0.1:7897",
+      },
+    })
+  })
+
+  it("turns per-protocol Windows proxies into matching env variables", () => {
+    expect(
+      parseWindowsSystemProxy(`
+HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings
+    ProxyEnable    REG_DWORD    0x1
+    ProxyServer    REG_SZ    http=127.0.0.1:7890;https=127.0.0.1:7891;socks=127.0.0.1:7892
+`),
+    ).toMatchObject({
+      env: {
+        ALL_PROXY: "socks5://127.0.0.1:7892",
+        HTTPS_PROXY: "http://127.0.0.1:7891",
+        HTTP_PROXY: "http://127.0.0.1:7890",
+      },
+    })
+  })
+
+  it("does not create proxy env when Windows proxy is disabled or PAC-only", () => {
+    expect(
+      parseWindowsSystemProxy(`
+HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings
+    ProxyEnable    REG_DWORD    0x0
+    ProxyServer    REG_SZ    127.0.0.1:7897
+`),
+    ).toBeUndefined()
+    expect(
+      parseWindowsSystemProxy(`
+HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings
+    ProxyEnable    REG_DWORD    0x0
+    AutoConfigURL    REG_SZ    http://proxy.example/proxy.pac
+`),
+    ).toBeUndefined()
+  })
+})
+
+// opencode(100) -> bash 工具子进程(200，自成 session/组) -> 其子(300，与 bash 同组)；
+// 另有无关进程 999。opencode 的工具子进程 setsid 逃逸出 opencode 的进程组，是"正在后台运行"孤儿的根源。
+const SNAPSHOT: ProcessSnapshotEntry[] = [
+  { pid: 50, ppid: 1, pgid: 50 },
+  { pid: 100, ppid: 50, pgid: 100 },
+  { pid: 200, ppid: 100, pgid: 200 },
+  { pid: 300, ppid: 200, pgid: 200 },
+  { pid: 999, ppid: 1, pgid: 999 },
+]
+
+describe("parsePsSnapshot", () => {
+  it("parses pid/ppid/pgid rows and skips junk lines", () => {
+    const stdout = ["  100   50  100", "200 100 200", "", "header garbage", "  x y z  ", "300 200 200"].join("\n")
+    expect(parsePsSnapshot(stdout)).toEqual([
+      { pid: 100, ppid: 50, pgid: 100 },
+      { pid: 200, ppid: 100, pgid: 200 },
+      { pid: 300, ppid: 200, pgid: 200 },
+    ])
+  })
+})
+
+describe("collectDescendantTree", () => {
+  it("collects the whole ppid subtree with root first", () => {
+    const tree = collectDescendantTree(100, SNAPSHOT)
+    expect(tree[0]).toBe(100)
+    expect([...tree].sort((a, b) => a - b)).toEqual([100, 200, 300])
+    expect(tree).not.toContain(999)
+    expect(tree).not.toContain(50)
+  })
+
+  it("returns just the root when it has no descendants", () => {
+    expect(collectDescendantTree(999, SNAPSHOT)).toEqual([999])
+  })
+
+  it("is resilient to a ppid cycle", () => {
+    const cyclic: ProcessSnapshotEntry[] = [
+      { pid: 1, ppid: 2, pgid: 1 },
+      { pid: 2, ppid: 1, pgid: 2 },
+    ]
+    expect(collectDescendantTree(1, cyclic).sort((a, b) => a - b)).toEqual([1, 2])
+  })
+})
+
+describe("distinctProcessGroups", () => {
+  it("includes only groups whose leader is inside the tree", () => {
+    const pids = collectDescendantTree(100, SNAPSHOT)
+    expect(distinctProcessGroups(pids, SNAPSHOT).sort((a, b) => a - b)).toEqual([100, 200])
+  })
+
+  it("excludes groups led by a process outside the tree and pgid<=1", () => {
+    const snapshot: ProcessSnapshotEntry[] = [
+      { pid: 100, ppid: 50, pgid: 100 },
+      { pid: 400, ppid: 100, pgid: 7 }, // 组长 7 不在树内 -> 排除
+      { pid: 500, ppid: 100, pgid: 1 }, // pgid<=1 -> 排除
+    ]
+    expect(distinctProcessGroups([100, 400, 500], snapshot)).toEqual([100])
+  })
+})
+
+interface KillCall {
+  target: number
+  signal: NodeJS.Signals
+}
+
+function makeReaper(overrides: {
+  snapshot?: ProcessSnapshotEntry[]
+  alivePids?: Set<number>
+  snapshotRejects?: boolean
+}) {
+  const calls: KillCall[] = []
+  const alive = overrides.alivePids
+  return {
+    calls,
+    deps: {
+      snapshot: overrides.snapshotRejects
+        ? () => Promise.reject(new Error("ps failed"))
+        : () => Promise.resolve(overrides.snapshot ?? SNAPSHOT),
+      kill: (target: number, signal: NodeJS.Signals) => {
+        calls.push({ target, signal })
+      },
+      isAlive: (pid: number) => (alive ? alive.has(pid) : false),
+      delay: () => Promise.resolve(),
+      graceMs: 300,
+      pollMs: 100,
+    },
+  }
+}
+
+describe("reapWindowsProcessTree", () => {
+  it("runs taskkill /PID <pid> /T /F to kill the whole subtree", async () => {
+    const runs: Array<{ command: string; args: string[] }> = []
+    await reapWindowsProcessTree(4321, (command, args) => {
+      runs.push({ command, args })
+      return Promise.resolve()
+    })
+    expect(runs).toEqual([{ command: "taskkill", args: ["/PID", "4321", "/T", "/F"] }])
+  })
+
+  it("swallows taskkill errors (process already gone)", async () => {
+    await expect(reapWindowsProcessTree(7, () => Promise.reject(new Error("not found")))).resolves.toBeUndefined()
+  })
+})
+
+describe("reapProcessTree", () => {
+  it("unix: SIGTERMs every group and pid, and skips SIGKILL once the tree is gone", async () => {
+    const { calls, deps } = makeReaper({ alivePids: new Set() }) // nothing alive after SIGTERM
+    await reapProcessTree(100, deps)
+    expect(calls.filter((c) => c.signal === "SIGKILL")).toHaveLength(0)
+    expect(calls).toContainEqual({ target: -100, signal: "SIGTERM" })
+    expect(calls).toContainEqual({ target: -200, signal: "SIGTERM" })
+    for (const pid of [100, 200, 300]) {
+      expect(calls).toContainEqual({ target: pid, signal: "SIGTERM" })
+    }
+  })
+
+  it("unix: escalates to SIGKILL on groups and pids when survivors persist", async () => {
+    const { calls, deps } = makeReaper({ alivePids: new Set([100, 200, 300]) }) // never die
+    await reapProcessTree(100, deps)
+    expect(calls).toContainEqual({ target: -100, signal: "SIGKILL" })
+    expect(calls).toContainEqual({ target: -200, signal: "SIGKILL" })
+    for (const pid of [100, 200, 300]) {
+      expect(calls).toContainEqual({ target: pid, signal: "SIGKILL" })
+    }
+  })
+
+  it("unix: falls back to the root pid and its own process group when the ps snapshot fails", async () => {
+    const { calls, deps } = makeReaper({ snapshotRejects: true, alivePids: new Set() })
+    await reapProcessTree(100, deps)
+    // 降级：至少回收 root 自身进程（正）与其进程组（负，detached 下 pgid===pid）。
+    expect(calls).toContainEqual({ target: 100, signal: "SIGTERM" })
+    expect(calls).toContainEqual({ target: -100, signal: "SIGTERM" })
+    expect(calls.every((c) => Math.abs(c.target) === 100)).toBe(true)
+  })
+})

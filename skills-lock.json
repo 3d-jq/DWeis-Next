@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "skills": {
+    "ai-elements": {
+      "source": "vercel/ai-elements",
+      "sourceType": "github",
+      "skillPath": "skills/ai-elements/SKILL.md",
+      "computedHash": "7e81acdd3028bb68aa4387b2bd083c5812a50e2be1bea08c76994dcfb8f6a3d3",
+      "installedHash": "1d31781135dec265a563e13566713cecdc96b864a3a46d057b56849c351e79b9"
+    }
+  }
+}

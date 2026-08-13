@@ -1,0 +1,1669 @@
+import type { AgentManager } from "../agent/manager.ts"
+import type { SessionActivityStore } from "./activity-store.ts"
+import type { SessionInfo, SessionProject, SessionScope } from "./common.ts"
+import type { SessionMetadata } from "./metadata-store.ts"
+import type { SessionMetadataStore } from "./metadata-store.ts"
+import type { SessionProjectStore } from "./project-store.ts"
+
+import assert from "node:assert/strict"
+import { test, vi } from "vitest"
+import { KNOWLEDGE_LIBRARY_CONTEXT_ID } from "../knowledge/common.ts"
+import { SessionServiceImpl } from "./node.ts"
+
+const testTeamScope = {
+  kind: "team" as const,
+  teamId: "team-id",
+  teamName: "team-name",
+}
+
+function agentWithSessions(sessions: SessionInfo[]): AgentManager {
+  return {
+    listSessions: async () => sessions,
+  } as AgentManager
+}
+
+function metadataStore(initial = new Map<string, SessionMetadata>()): SessionMetadataStore {
+  let metadata = initial
+  return {
+    read: async () => metadata,
+    write: async (next) => {
+      metadata = new Map(next)
+    },
+  } as SessionMetadataStore
+}
+
+function activityStore(initial = new Map<string, number>()): SessionActivityStore {
+  let activity = initial
+  return {
+    read: async () => activity,
+    write: async (next) => {
+      activity = new Map(next)
+    },
+  } as SessionActivityStore
+}
+
+function projectStore(initial = new Map<string, SessionProject>()): SessionProjectStore {
+  let projects = initial
+  return {
+    read: async () => projects,
+    write: async (next) => {
+      projects = new Map(next)
+    },
+  } as SessionProjectStore
+}
+
+function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((innerResolve) => {
+    resolve = innerResolve
+  })
+  return { promise, resolve }
+}
+
+test("list merges local activity times and sorts by most recent use", async () => {
+  const oldSession: SessionInfo = {
+    id: "old",
+    title: "Old",
+    createdAt: 1_000,
+    updatedAt: 1_000,
+  }
+  const recentSession: SessionInfo = {
+    id: "recent",
+    title: "Recent",
+    createdAt: 2_000,
+    updatedAt: 2_000,
+  }
+  const service = new SessionServiceImpl(agentWithSessions([recentSession, oldSession]), {
+    metadataStore: metadataStore(
+      new Map([
+        ["old", { scope: testTeamScope }],
+        ["recent", { scope: testTeamScope }],
+      ]),
+    ),
+  })
+
+  assert.equal(service.markUsed("old", 3_000), true)
+
+  const sessions = await service.list({ scope: testTeamScope })
+
+  assert.deepEqual(
+    sessions.map((session) => ({ id: session.id, updatedAt: session.updatedAt })),
+    [
+      { id: "old", updatedAt: 3_000 },
+      { id: "recent", updatedAt: 2_000 },
+    ],
+  )
+})
+
+test("local activity never moves a session timestamp backwards", async () => {
+  const service = new SessionServiceImpl(
+    agentWithSessions([
+      {
+        id: "session",
+        title: "Session",
+        createdAt: 1_000,
+        updatedAt: 5_000,
+      },
+    ]),
+    { metadataStore: metadataStore(new Map([["session", { scope: testTeamScope }]])) },
+  )
+
+  assert.equal(service.markUsed("session", 3_000), true)
+
+  const sessions = await service.list({ scope: testTeamScope })
+
+  assert.equal(sessions[0]?.updatedAt, 5_000)
+})
+
+test("generateTitle preserves whether the title came from the model", async () => {
+  const service = new SessionServiceImpl({
+    generateSessionTitle: async () => ({ generated: true, title: "Gmail 三日报告" }),
+  } as unknown as AgentManager)
+
+  const result = await service.generateTitle({ text: "分析最近三天 Gmail 信息" })
+
+  assert.deepEqual(result, { generated: true, title: "Gmail 三日报告" })
+})
+
+test("local session metadata remains writable while the agent is temporarily unavailable", async () => {
+  const persistedMetadata = metadataStore()
+  const service = new SessionServiceImpl(null, { metadataStore: persistedMetadata })
+
+  await Promise.all([
+    service.pin({ id: "session", pinned: true }),
+    service.setKnowledgeBases({ id: "session", knowledgeBaseIds: ["knowledge"] }),
+  ])
+
+  assert.equal(typeof (await persistedMetadata.read()).get("session")?.pinnedAt, "number")
+  assert.deepEqual((await persistedMetadata.read()).get("session")?.knowledgeBaseIds, ["knowledge"])
+  await assert.rejects(service.rename({ id: "session", title: "Title" }), /Agent not configured/)
+  await assert.rejects(service.remove("session"), /Agent not configured/)
+})
+
+test("list hides archived sessions and keeps pinned sessions active", async () => {
+  const service = new SessionServiceImpl(
+    agentWithSessions([
+      {
+        id: "pinned",
+        title: "Pinned",
+        createdAt: 1_000,
+        updatedAt: 1_000,
+      },
+      {
+        id: "archived",
+        title: "Archived",
+        createdAt: 2_000,
+        updatedAt: 2_000,
+      },
+    ]),
+    {
+      metadataStore: metadataStore(
+        new Map([
+          ["pinned", { pinnedAt: 4_000, scope: testTeamScope }],
+          ["archived", { archivedAt: 5_000, scope: testTeamScope }],
+        ]),
+      ),
+    },
+  )
+
+  const activeSessions = await service.list({ scope: testTeamScope })
+  const archivedSessions = await service.listArchived({ scope: testTeamScope })
+
+  assert.deepEqual(
+    activeSessions.map((session) => ({ id: session.id, pinnedAt: session.pinnedAt })),
+    [{ id: "pinned", pinnedAt: 4_000 }],
+  )
+  assert.deepEqual(
+    archivedSessions.map((session) => ({ archivedAt: session.archivedAt, id: session.id })),
+    [{ archivedAt: 5_000, id: "archived" }],
+  )
+})
+
+test("list merges persisted session permission mode", async () => {
+  const service = new SessionServiceImpl(
+    agentWithSessions([
+      {
+        id: "session",
+        title: "Session",
+        createdAt: 1_000,
+        updatedAt: 1_000,
+      },
+    ]),
+    {
+      metadataStore: metadataStore(new Map([["session", { permissionMode: "full_access", scope: testTeamScope }]])),
+    },
+  )
+
+  assert.equal((await service.list({ scope: testTeamScope }))[0]?.permissionMode, "full_access")
+})
+
+test("setPermissionMode persists full access and clears default", async () => {
+  const persistedMetadata = metadataStore()
+  const service = new SessionServiceImpl(agentWithSessions([]), {
+    metadataStore: persistedMetadata,
+  })
+
+  await service.setPermissionMode({ id: "session", permissionMode: "full_access" })
+
+  assert.deepEqual(await persistedMetadata.read(), new Map([["session", { permissionMode: "full_access" }]]))
+
+  await service.setPermissionMode({ id: "session", permissionMode: "default" })
+
+  assert.deepEqual(await persistedMetadata.read(), new Map())
+})
+
+test("setKnowledgeBases normalizes, persists, and clears session references", async () => {
+  const persistedMetadata = metadataStore()
+  const service = new SessionServiceImpl(agentWithSessions([]), {
+    metadataStore: persistedMetadata,
+  })
+
+  await service.setKnowledgeBases({ id: "session", knowledgeBaseIds: [" first ", "first", "", "second"] })
+
+  assert.deepEqual(await persistedMetadata.read(), new Map([["session", { knowledgeBaseIds: ["first", "second"] }]]))
+
+  await service.setKnowledgeBases({ id: "session", knowledgeBaseIds: [] })
+
+  assert.deepEqual(await persistedMetadata.read(), new Map())
+})
+
+test("removeKnowledgeBaseReferences cleans active and archived session metadata", async () => {
+  const persistedMetadata = metadataStore(
+    new Map([
+      ["active", { knowledgeBaseIds: [KNOWLEDGE_LIBRARY_CONTEXT_ID, "keep", "remove"] }],
+      ["archived", { archivedAt: 1, knowledgeBaseIds: ["remove"] }],
+      ["unrelated", { knowledgeBaseIds: [KNOWLEDGE_LIBRARY_CONTEXT_ID, "keep"] }],
+    ]),
+  )
+  const service = new SessionServiceImpl(agentWithSessions([]), { metadataStore: persistedMetadata })
+
+  assert.equal(await service.removeKnowledgeBaseReferences(" remove "), 2)
+  assert.deepEqual(
+    await persistedMetadata.read(),
+    new Map([
+      ["active", { knowledgeBaseIds: [KNOWLEDGE_LIBRARY_CONTEXT_ID, "keep"] }],
+      ["archived", { archivedAt: 1 }],
+      ["unrelated", { knowledgeBaseIds: [KNOWLEDGE_LIBRARY_CONTEXT_ID, "keep"] }],
+    ]),
+  )
+})
+
+test("list filters sessions by requested scope", async () => {
+  const service = new SessionServiceImpl(
+    agentWithSessions([
+      {
+        id: "archived",
+        title: "Archived",
+        createdAt: 1_000,
+        updatedAt: 1_000,
+      },
+      {
+        id: "aaa",
+        title: "AAA",
+        createdAt: 2_000,
+        updatedAt: 2_000,
+      },
+      {
+        id: "netless",
+        title: "Netless",
+        createdAt: 3_000,
+        updatedAt: 3_000,
+      },
+    ]),
+    {
+      metadataStore: metadataStore(
+        new Map([
+          ["archived", { scope: testTeamScope }],
+          ["aaa", { scope: { kind: "team", teamId: "aaa-id", teamName: "aaa" } }],
+          ["netless", { scope: { kind: "team", teamId: "netless-id", teamName: "netless" } }],
+        ]),
+      ),
+    },
+  )
+
+  assert.deepEqual(
+    (await service.list({ scope: { kind: "team", teamId: "team-id", teamName: "team-name" } })).map(
+      (session) => session.id,
+    ),
+    ["archived"],
+  )
+  assert.deepEqual(
+    (
+      await service.list({
+        scope: { kind: "team", teamId: "aaa-id", teamName: "aaa" },
+      })
+    ).map((session) => session.id),
+    ["aaa"],
+  )
+})
+
+test("list rejects invalid workspace scope requests", async () => {
+  const service = new SessionServiceImpl(agentWithSessions([]))
+
+  await assert.rejects(
+    () => service.list({ scope: { kind: "team", teamId: "", teamName: "Team" } }),
+    /Workspace scope is invalid/,
+  )
+})
+
+test("local and team workspaces keep sessions with the same identifier isolated", async () => {
+  const localScope: SessionScope = { kind: "local", workspaceId: "shared", workspaceName: "Local" }
+  const teamScope: SessionScope = { kind: "team", teamId: "shared", teamName: "Team" }
+  const sessions: SessionInfo[] = [
+    { id: "local-session", title: "Local", createdAt: 1_000, updatedAt: 1_000 },
+    { id: "team-session", title: "Team", createdAt: 2_000, updatedAt: 2_000 },
+  ]
+  const service = new SessionServiceImpl(agentWithSessions(sessions), {
+    metadataStore: metadataStore(
+      new Map([
+        ["local-session", { scope: localScope }],
+        ["team-session", { scope: teamScope }],
+      ]),
+    ),
+  })
+
+  assert.deepEqual(
+    (await service.list({ scope: localScope })).map((session) => session.id),
+    ["local-session"],
+  )
+  assert.deepEqual(
+    (await service.list({ scope: teamScope })).map((session) => session.id),
+    ["team-session"],
+  )
+})
+
+test("creates sessions and projects in the local workspace", async () => {
+  const scope: SessionScope = { kind: "local", workspaceId: "local", workspaceName: "Local" }
+  const persistedMetadata = metadataStore()
+  const persistedProjects = projectStore()
+  const service = new SessionServiceImpl(
+    {
+      createSession: async () => ({
+        id: "local-session",
+        title: "Local task",
+        createdAt: 1_000,
+        updatedAt: 1_000,
+      }),
+      listSessions: async () => [],
+    } as unknown as AgentManager,
+    { metadataStore: persistedMetadata, projectStore: persistedProjects },
+  )
+
+  const project = await service.createProject({ path: "/tmp/local-project", scope })
+  const session = await service.create({ projectId: project.id, scope, title: "Local task" })
+
+  assert.deepEqual(project.scope, scope)
+  assert.deepEqual(session.scope, scope)
+  assert.equal(session.projectId, project.id)
+  assert.deepEqual((await persistedMetadata.read()).get(session.id)?.scope, scope)
+  assert.deepEqual((await persistedProjects.read()).get(project.id)?.scope, scope)
+})
+
+test("list filters sessions by requested placement", async () => {
+  const project: SessionProject = {
+    id: "project",
+    name: "DWeis",
+    path: "/Users/example/code/dweis",
+    createdAt: 1_000,
+    updatedAt: 1_000,
+    scope: { kind: "team", teamId: "team-id", teamName: "team-name" },
+  }
+  const archivedProject: SessionProject = {
+    id: "archived-project",
+    name: "Archived",
+    path: "/Users/example/code/archived",
+    createdAt: 1_000,
+    updatedAt: 1_000,
+    archivedAt: 4_000,
+    scope: { kind: "team", teamId: "team-id", teamName: "team-name" },
+  }
+  const scopedProject: SessionProject = {
+    id: "scoped-project",
+    name: "Scoped",
+    path: "/Users/example/code/scoped",
+    createdAt: 1_000,
+    updatedAt: 1_000,
+    scope: { kind: "team", teamId: "team", teamName: "Team" },
+  }
+  const service = new SessionServiceImpl(
+    agentWithSessions([
+      {
+        id: "task",
+        title: "Task",
+        createdAt: 1_000,
+        updatedAt: 1_000,
+      },
+      {
+        id: "project-session",
+        title: "Project",
+        createdAt: 2_000,
+        updatedAt: 2_000,
+      },
+      {
+        id: "dangling-project-session",
+        title: "Dangling",
+        createdAt: 3_000,
+        updatedAt: 3_000,
+      },
+      {
+        id: "archived-project-session",
+        title: "Archived project",
+        createdAt: 4_000,
+        updatedAt: 4_000,
+      },
+      {
+        id: "scoped-project-session",
+        title: "Scoped project",
+        createdAt: 5_000,
+        updatedAt: 5_000,
+      },
+    ]),
+    {
+      metadataStore: metadataStore(
+        new Map([
+          ["task", { scope: testTeamScope }],
+          [
+            "project-session",
+            {
+              scope: { kind: "team", teamId: "team-id", teamName: "team-name" },
+              projectId: project.id,
+            },
+          ],
+          [
+            "dangling-project-session",
+            {
+              scope: { kind: "team", teamId: "team-id", teamName: "team-name" },
+              projectId: "missing-project",
+            },
+          ],
+          [
+            "archived-project-session",
+            {
+              scope: { kind: "team", teamId: "team-id", teamName: "team-name" },
+              projectId: archivedProject.id,
+            },
+          ],
+          [
+            "scoped-project-session",
+            {
+              scope: { kind: "team", teamId: "team-id", teamName: "team-name" },
+              projectId: scopedProject.id,
+            },
+          ],
+        ]),
+      ),
+      projectStore: projectStore(
+        new Map([
+          [project.id, project],
+          [archivedProject.id, archivedProject],
+          [scopedProject.id, scopedProject],
+        ]),
+      ),
+    },
+  )
+
+  const allSessions = await service.list({
+    placement: "all",
+    scope: { kind: "team", teamId: "team-id", teamName: "team-name" },
+  })
+  assert.deepEqual(
+    allSessions.map((session) => ({ id: session.id, projectId: session.projectId })),
+    [
+      { id: "scoped-project-session", projectId: undefined },
+      { id: "archived-project-session", projectId: undefined },
+      { id: "dangling-project-session", projectId: undefined },
+      { id: "project-session", projectId: "project" },
+      { id: "task", projectId: undefined },
+    ],
+  )
+  assert.deepEqual(
+    (
+      await service.list({
+        placement: "project",
+        scope: { kind: "team", teamId: "team-id", teamName: "team-name" },
+      })
+    ).map((session) => session.id),
+    ["project-session"],
+  )
+  assert.deepEqual(
+    (
+      await service.list({
+        placement: "task",
+        scope: { kind: "team", teamId: "team-id", teamName: "team-name" },
+      })
+    ).map((session) => session.id),
+    ["scoped-project-session", "archived-project-session", "dangling-project-session", "task"],
+  )
+})
+
+test("listArchived filters sessions by requested placement", async () => {
+  const project: SessionProject = {
+    id: "project",
+    name: "DWeis",
+    path: "/Users/example/code/dweis",
+    createdAt: 1_000,
+    updatedAt: 1_000,
+    scope: { kind: "team", teamId: "team-id", teamName: "team-name" },
+  }
+  const service = new SessionServiceImpl(
+    agentWithSessions([
+      {
+        id: "archived-task",
+        title: "Archived task",
+        createdAt: 1_000,
+        updatedAt: 1_000,
+      },
+      {
+        id: "archived-project",
+        title: "Archived project",
+        createdAt: 2_000,
+        updatedAt: 2_000,
+      },
+    ]),
+    {
+      metadataStore: metadataStore(
+        new Map([
+          [
+            "archived-task",
+            {
+              archivedAt: 3_000,
+              scope: { kind: "team", teamId: "team-id", teamName: "team-name" },
+            },
+          ],
+          [
+            "archived-project",
+            {
+              archivedAt: 4_000,
+              scope: { kind: "team", teamId: "team-id", teamName: "team-name" },
+              projectId: project.id,
+            },
+          ],
+        ]),
+      ),
+      projectStore: projectStore(new Map([[project.id, project]])),
+    },
+  )
+
+  assert.deepEqual(
+    (
+      await service.listArchived({
+        placement: "task",
+        scope: { kind: "team", teamId: "team-id", teamName: "team-name" },
+      })
+    ).map((session) => session.id),
+    ["archived-task"],
+  )
+  assert.deepEqual(
+    (
+      await service.listArchived({
+        placement: "project",
+        scope: { kind: "team", teamId: "team-id", teamName: "team-name" },
+      })
+    ).map((session) => session.id),
+    ["archived-project"],
+  )
+})
+
+test("create persists the requested session scope", async () => {
+  const persistedMetadata = metadataStore()
+  const service = new SessionServiceImpl(
+    {
+      createSession: async (title?: string) => ({
+        id: "created",
+        title: title ?? "Untitled",
+        createdAt: 1_000,
+        updatedAt: 1_000,
+      }),
+      listSessions: async () => [
+        {
+          id: "created",
+          title: "Scoped",
+          createdAt: 1_000,
+          updatedAt: 1_000,
+        },
+      ],
+    } as unknown as AgentManager,
+    {
+      metadataStore: persistedMetadata,
+    },
+  )
+
+  const scope: SessionScope = { kind: "team", teamId: "aaa-id", teamName: "aaa" }
+  const created = await service.create({ scope, title: "Scoped" })
+
+  assert.deepEqual(created.scope, scope)
+  assert.deepEqual(await persistedMetadata.read(), new Map([["created", { persona: "work", scope }]]))
+})
+
+test("create removes the OpenCode session when local metadata persistence fails", async () => {
+  const deleted: string[] = []
+  const service = new SessionServiceImpl(
+    {
+      createSession: async () => ({ id: "created", title: "Created", createdAt: 1_000, updatedAt: 1_000 }),
+      deleteSession: async (id: string) => {
+        deleted.push(id)
+      },
+    } as unknown as AgentManager,
+    {
+      metadataStore: {
+        read: async () => new Map(),
+        write: async () => {
+          throw new Error("metadata write failed")
+        },
+      } as unknown as SessionMetadataStore,
+    },
+  )
+
+  await assert.rejects(service.create({ scope: testTeamScope }), /metadata write failed/)
+
+  assert.deepEqual(deleted, ["created"])
+})
+
+test("createProject reuses an existing project in the same scope", async () => {
+  const persistedProjects = projectStore()
+  const service = new SessionServiceImpl(agentWithSessions([]), {
+    projectStore: persistedProjects,
+  })
+
+  const first = await service.createProject({
+    path: "/Users/example/code/dweis",
+    scope: { kind: "team", teamId: "team-id", teamName: "team-name" },
+  })
+  const second = await service.createProject({
+    path: "/Users/example/code/dweis/",
+    scope: { kind: "team", teamId: "team-id", teamName: "team-name" },
+  })
+
+  assert.equal(first.id, second.id)
+  assert.deepEqual(
+    (await service.listProjects({ scope: testTeamScope })).map((project) => ({
+      id: project.id,
+      name: project.name,
+      path: project.path,
+    })),
+    [{ id: first.id, name: "dweis", path: "/Users/example/code/dweis" }],
+  )
+})
+
+test("createProject consumes a one-time native picker trust entry", async () => {
+  const trustedProjectPaths = new Set(["/Users/example/code/trusted"])
+  const service = new SessionServiceImpl(agentWithSessions([]), {
+    projectStore: projectStore(),
+    trustedProjectPaths,
+  })
+
+  await assert.rejects(
+    service.createProject({ path: "/Users/example/code/untrusted", scope: testTeamScope }),
+    /native directory picker/,
+  )
+  const created = await service.createProject({
+    path: "/Users/example/code/trusted",
+    scope: testTeamScope,
+  })
+
+  assert.equal(created.path, "/Users/example/code/trusted")
+  assert.equal(trustedProjectPaths.size, 0)
+})
+
+test("createProject restores an archived project with the same path", async () => {
+  const persistedProjects = projectStore(
+    new Map([
+      [
+        "project",
+        {
+          id: "project",
+          name: "DWeis",
+          path: "/Users/example/code/dweis",
+          archivedAt: 3_000,
+          createdAt: 1_000,
+          pinnedAt: 2_000,
+          updatedAt: 1_000,
+          scope: { kind: "team", teamId: "team-id", teamName: "team-name" },
+        },
+      ],
+    ]),
+  )
+  const service = new SessionServiceImpl(agentWithSessions([]), {
+    projectStore: persistedProjects,
+  })
+
+  const restored = await service.createProject({
+    path: "/Users/example/code/dweis",
+    scope: { kind: "team", teamId: "team-id", teamName: "team-name" },
+  })
+
+  assert.equal(restored.id, "project")
+  assert.equal(restored.archivedAt, undefined)
+  assert.equal(restored.pinnedAt, undefined)
+  assert.equal((await persistedProjects.read()).get("project")?.archivedAt, undefined)
+  assert.equal((await persistedProjects.read()).get("project")?.pinnedAt, undefined)
+  assert.deepEqual(
+    (await service.listProjects({ scope: testTeamScope })).map((project) => project.id),
+    ["project"],
+  )
+})
+
+test("project actions rename, pin, and sort projects", async () => {
+  const persistedProjects = projectStore(
+    new Map([
+      [
+        "project-a",
+        {
+          id: "project-a",
+          name: "A",
+          path: "/Users/example/code/a",
+          createdAt: 1_000,
+          updatedAt: 1_000,
+          scope: { kind: "team", teamId: "team-id", teamName: "team-name" },
+        },
+      ],
+      [
+        "project-b",
+        {
+          id: "project-b",
+          name: "B",
+          path: "/Users/example/code/b",
+          createdAt: 2_000,
+          updatedAt: 2_000,
+          scope: { kind: "team", teamId: "team-id", teamName: "team-name" },
+        },
+      ],
+    ]),
+  )
+  const service = new SessionServiceImpl(agentWithSessions([]), {
+    projectStore: persistedProjects,
+  })
+
+  await service.renameProject({ id: "project-a", name: "Renamed" })
+  await service.pinProject({ id: "project-a", pinned: true })
+
+  const projects = await service.listProjects({ scope: testTeamScope })
+
+  assert.equal(projects[0]?.id, "project-a")
+  assert.equal(projects[0]?.name, "Renamed")
+  assert.equal(typeof projects[0]?.pinnedAt, "number")
+  assert.equal((await persistedProjects.read()).get("project-a")?.name, "Renamed")
+})
+
+test("archiveProject hides the project and archives assigned sessions", async () => {
+  const persistedMetadata = metadataStore(
+    new Map([
+      [
+        "session",
+        {
+          pinnedAt: 2_000,
+          projectId: "project",
+          scope: { kind: "team", teamId: "team-id", teamName: "team-name" },
+        },
+      ],
+      ["task", { scope: { kind: "team", teamId: "team-id", teamName: "team-name" } }],
+    ]),
+  )
+  const persistedProjects = projectStore(
+    new Map([
+      [
+        "project",
+        {
+          id: "project",
+          name: "DWeis",
+          path: "/Users/example/code/dweis",
+          createdAt: 1_000,
+          updatedAt: 1_000,
+          pinnedAt: 2_000,
+          scope: { kind: "team", teamId: "team-id", teamName: "team-name" },
+        },
+      ],
+    ]),
+  )
+  const service = new SessionServiceImpl(
+    agentWithSessions([
+      {
+        id: "session",
+        title: "Session",
+        createdAt: 1_000,
+        updatedAt: 1_000,
+      },
+      {
+        id: "task",
+        title: "Task",
+        createdAt: 2_000,
+        updatedAt: 2_000,
+      },
+    ]),
+    {
+      metadataStore: persistedMetadata,
+      projectStore: persistedProjects,
+    },
+  )
+
+  await service.archiveProject("project")
+
+  assert.deepEqual(
+    (await service.listProjects({ scope: testTeamScope })).map((project) => project.id),
+    [],
+  )
+  assert.deepEqual(
+    (await service.list({ scope: testTeamScope })).map((session) => session.id),
+    ["task"],
+  )
+  assert.deepEqual(
+    (await service.listArchived({ scope: testTeamScope })).map((session) => session.id),
+    ["session"],
+  )
+  const archivedProject = (await persistedProjects.read()).get("project")
+  assert.equal(typeof archivedProject?.archivedAt, "number")
+  assert.equal(archivedProject?.pinnedAt, undefined)
+  const archivedSessionMetadata = (await persistedMetadata.read()).get("session")
+  assert.equal(typeof archivedSessionMetadata?.archivedAt, "number")
+  assert.equal(archivedSessionMetadata?.pinnedAt, undefined)
+})
+
+test("unarchive restores the assigned project when it was archived with the session", async () => {
+  const persistedMetadata = metadataStore(
+    new Map([
+      [
+        "session",
+        {
+          archivedAt: 3_000,
+          pinnedAt: 2_000,
+          projectId: "project",
+          scope: { kind: "team", teamId: "team-id", teamName: "team-name" },
+        },
+      ],
+    ]),
+  )
+  const persistedProjects = projectStore(
+    new Map([
+      [
+        "project",
+        {
+          id: "project",
+          name: "DWeis",
+          path: "/Users/example/code/dweis",
+          archivedAt: 3_000,
+          createdAt: 1_000,
+          pinnedAt: 2_000,
+          updatedAt: 1_000,
+          scope: { kind: "team", teamId: "team-id", teamName: "team-name" },
+        },
+      ],
+    ]),
+  )
+  const service = new SessionServiceImpl(
+    agentWithSessions([
+      {
+        id: "session",
+        title: "Session",
+        createdAt: 1_000,
+        updatedAt: 1_000,
+      },
+    ]),
+    {
+      metadataStore: persistedMetadata,
+      projectStore: persistedProjects,
+    },
+  )
+
+  const restored = await service.unarchive("session")
+
+  assert.equal(restored?.projectId, "project")
+  assert.equal((await persistedMetadata.read()).get("session")?.archivedAt, undefined)
+  assert.equal((await persistedMetadata.read()).get("session")?.pinnedAt, undefined)
+  assert.equal((await persistedProjects.read()).get("project")?.archivedAt, undefined)
+  assert.equal((await persistedProjects.read()).get("project")?.pinnedAt, undefined)
+  assert.deepEqual(
+    (await service.listProjects({ scope: testTeamScope })).map((project) => project.id),
+    ["project"],
+  )
+})
+
+test("archiveProject rolls back project state when metadata persistence fails", async () => {
+  const persistedMetadata = metadataStore(
+    new Map([
+      [
+        "session",
+        {
+          pinnedAt: 2_000,
+          projectId: "project",
+          scope: { kind: "team", teamId: "team-id", teamName: "team-name" },
+        },
+      ],
+    ]),
+  )
+  let failMetadataWrite = true
+  const failingMetadataStore = {
+    read: persistedMetadata.read,
+    write: async (next: Map<string, SessionMetadata>) => {
+      if (failMetadataWrite) {
+        failMetadataWrite = false
+        throw new Error("metadata write failed")
+      }
+      await persistedMetadata.write(next)
+    },
+  } as SessionMetadataStore
+  const persistedProjects = projectStore(
+    new Map([
+      [
+        "project",
+        {
+          id: "project",
+          name: "DWeis",
+          path: "/Users/example/code/dweis",
+          createdAt: 1_000,
+          updatedAt: 1_000,
+          pinnedAt: 2_000,
+          scope: { kind: "team", teamId: "team-id", teamName: "team-name" },
+        },
+      ],
+    ]),
+  )
+  const service = new SessionServiceImpl(
+    agentWithSessions([
+      {
+        id: "session",
+        title: "Session",
+        createdAt: 1_000,
+        updatedAt: 1_000,
+      },
+    ]),
+    {
+      metadataStore: failingMetadataStore,
+      projectStore: persistedProjects,
+    },
+  )
+
+  await assert.rejects(() => service.archiveProject("project"), /metadata write failed/)
+
+  const projects = await service.listProjects({ scope: testTeamScope })
+  assert.equal(projects[0]?.archivedAt, undefined)
+  assert.equal(projects[0]?.pinnedAt, 2_000)
+  assert.deepEqual(
+    (await service.list({ scope: testTeamScope })).map((session) => session.id),
+    ["session"],
+  )
+  const restoredProject = (await persistedProjects.read()).get("project")
+  assert.equal(restoredProject?.archivedAt, undefined)
+  assert.equal(restoredProject?.pinnedAt, 2_000)
+})
+
+test("pin keeps the live snapshot unchanged when metadata persistence fails", async () => {
+  const persistedMetadata = metadataStore(new Map([["session", { scope: testTeamScope }]]))
+  let failWrite = true
+  const service = new SessionServiceImpl(
+    agentWithSessions([{ id: "session", title: "Session", createdAt: 1_000, updatedAt: 1_000 }]),
+    {
+      metadataStore: {
+        read: persistedMetadata.read,
+        write: async (next: Map<string, SessionMetadata>) => {
+          if (failWrite) {
+            failWrite = false
+            throw new Error("metadata write failed")
+          }
+          await persistedMetadata.write(next)
+        },
+      } as SessionMetadataStore,
+    },
+  )
+
+  await assert.rejects(service.pin({ id: "session", pinned: true }), /metadata write failed/)
+  assert.equal((await service.list({ scope: testTeamScope }))[0]?.pinnedAt, undefined)
+
+  await service.archive("session")
+
+  const metadata = (await persistedMetadata.read()).get("session")
+  assert.equal(metadata?.pinnedAt, undefined)
+  assert.equal(typeof metadata?.archivedAt, "number")
+})
+
+test("removeProject restores both stores when metadata persistence fails", async () => {
+  const project: SessionProject = {
+    id: "project",
+    name: "DWeis",
+    path: "/Users/example/code/dweis",
+    createdAt: 1_000,
+    updatedAt: 1_000,
+    scope: testTeamScope,
+  }
+  const persistedMetadata = metadataStore(new Map([["session", { projectId: project.id, scope: testTeamScope }]]))
+  const persistedProjects = projectStore(new Map([[project.id, project]]))
+  let failWrite = true
+  const service = new SessionServiceImpl(agentWithSessions([]), {
+    metadataStore: {
+      read: persistedMetadata.read,
+      write: async (next: Map<string, SessionMetadata>) => {
+        if (failWrite) {
+          failWrite = false
+          throw new Error("metadata write failed")
+        }
+        await persistedMetadata.write(next)
+      },
+    } as SessionMetadataStore,
+    projectStore: persistedProjects,
+  })
+
+  await assert.rejects(service.removeProject(project.id), /metadata write failed/)
+
+  assert.deepEqual(
+    (await service.listProjects({ scope: testTeamScope })).map((item) => item.id),
+    [project.id],
+  )
+  assert.equal((await persistedProjects.read()).has(project.id), true)
+  assert.equal((await persistedMetadata.read()).get("session")?.projectId, project.id)
+})
+
+test("create persists project assignment when the project matches the session scope", async () => {
+  const persistedMetadata = metadataStore()
+  const project: SessionProject = {
+    id: "project",
+    name: "DWeis",
+    path: "/Users/example/code/dweis",
+    createdAt: 1_000,
+    updatedAt: 1_000,
+    scope: { kind: "team", teamId: "team-id", teamName: "team-name" },
+  }
+  const service = new SessionServiceImpl(
+    {
+      createSession: async (title?: string) => ({
+        id: "created",
+        title: title ?? "Untitled",
+        createdAt: 2_000,
+        updatedAt: 2_000,
+      }),
+      listSessions: async () => [
+        {
+          id: "created",
+          title: "Scoped",
+          createdAt: 2_000,
+          updatedAt: 2_000,
+        },
+      ],
+    } as unknown as AgentManager,
+    {
+      metadataStore: persistedMetadata,
+      projectStore: projectStore(new Map([[project.id, project]])),
+    },
+  )
+
+  const created = await service.create({
+    projectId: "project",
+    scope: { kind: "team", teamId: "team-id", teamName: "team-name" },
+    title: "Scoped",
+  })
+
+  assert.equal(created.projectId, "project")
+  assert.deepEqual(
+    await persistedMetadata.read(),
+    new Map([
+      [
+        "created",
+        {
+          persona: "work",
+          scope: { kind: "team", teamId: "team-id", teamName: "team-name" },
+          projectId: "project",
+        },
+      ],
+    ]),
+  )
+})
+
+test("assignSessionProject persists only projects in the session scope", async () => {
+  const persistedMetadata = metadataStore(
+    new Map([["session", { scope: { kind: "team", teamId: "team-id", teamName: "team-name" } }]]),
+  )
+  const archiveProject: SessionProject = {
+    id: "archive-project",
+    name: "Archive",
+    path: "/Users/example/code/archive",
+    createdAt: 1_000,
+    updatedAt: 1_000,
+    scope: { kind: "team", teamId: "team-id", teamName: "team-name" },
+  }
+  const teamProject: SessionProject = {
+    id: "team-project",
+    name: "Team",
+    path: "/Users/example/code/team",
+    createdAt: 5_000,
+    updatedAt: 5_000,
+    scope: { kind: "team", teamId: "team", teamName: "Team" },
+  }
+  const archivedProject: SessionProject = {
+    id: "archived-project",
+    name: "Archived",
+    path: "/Users/example/code/archived",
+    archivedAt: 6_000,
+    createdAt: 6_000,
+    updatedAt: 6_000,
+    scope: { kind: "team", teamId: "team-id", teamName: "team-name" },
+  }
+  const persistedProjects = projectStore(
+    new Map([
+      [archiveProject.id, archiveProject],
+      [teamProject.id, teamProject],
+      [archivedProject.id, archivedProject],
+    ]),
+  )
+  const service = new SessionServiceImpl(agentWithSessions([]), {
+    metadataStore: persistedMetadata,
+    projectStore: persistedProjects,
+  })
+
+  await service.assignSessionProject({ sessionId: "session", projectId: "archive-project" })
+
+  assert.equal((await persistedMetadata.read()).get("session")?.projectId, "archive-project")
+  assert.equal((await persistedProjects.read()).get("archive-project")?.updatedAt, archiveProject.updatedAt)
+
+  await service.assignSessionProject({ sessionId: "session", projectId: "team-project" })
+
+  assert.deepEqual(
+    await persistedMetadata.read(),
+    new Map([["session", { persona: "work", scope: { kind: "team", teamId: "team-id", teamName: "team-name" } }]]),
+  )
+  assert.equal((await persistedProjects.read()).get("team-project")?.updatedAt, teamProject.updatedAt)
+
+  await service.assignSessionProject({ sessionId: "session", projectId: "archived-project" })
+
+  assert.deepEqual(
+    await persistedMetadata.read(),
+    new Map([["session", { persona: "work", scope: { kind: "team", teamId: "team-id", teamName: "team-name" } }]]),
+  )
+  assert.equal((await persistedProjects.read()).get("archived-project")?.updatedAt, archivedProject.updatedAt)
+})
+
+test("recordUseAndEmit keeps the assigned project's order unchanged", async () => {
+  const persistedProjects = projectStore(
+    new Map([
+      [
+        "project",
+        {
+          id: "project",
+          name: "DWeis",
+          path: "/Users/example/code/dweis",
+          createdAt: 1_000,
+          updatedAt: 1_000,
+          scope: { kind: "team", teamId: "team-id", teamName: "team-name" },
+        },
+      ],
+    ]),
+  )
+  const service = new SessionServiceImpl(
+    agentWithSessions([
+      {
+        id: "session",
+        title: "Session",
+        createdAt: 1_000,
+        updatedAt: 1_000,
+      },
+    ]),
+    {
+      activityStore: activityStore(),
+      metadataStore: metadataStore(
+        new Map([
+          [
+            "session",
+            {
+              scope: { kind: "team", teamId: "team-id", teamName: "team-name" },
+              projectId: "project",
+            },
+          ],
+        ]),
+      ),
+      projectStore: persistedProjects,
+    },
+  )
+
+  await service.recordUseAndEmit("session", 5_000)
+
+  assert.equal((await persistedProjects.read()).get("project")?.updatedAt, 1_000)
+})
+
+test("archive clears pinned state", async () => {
+  const service = new SessionServiceImpl(
+    agentWithSessions([
+      {
+        id: "session",
+        title: "Session",
+        createdAt: 1_000,
+        updatedAt: 1_000,
+      },
+    ]),
+    {
+      metadataStore: metadataStore(new Map([["session", { pinnedAt: 2_000, scope: testTeamScope }]])),
+    },
+  )
+
+  await service.archive("session")
+
+  assert.deepEqual(await service.list({ scope: testTeamScope }), [])
+  const archivedSessions = await service.listArchived({ scope: testTeamScope })
+  assert.equal(archivedSessions[0]?.id, "session")
+  assert.equal(archivedSessions[0]?.pinnedAt, undefined)
+  assert.equal(typeof archivedSessions[0]?.archivedAt, "number")
+})
+
+test("archiveMany archives matching sessions in one workspace and reports rejected ids", async () => {
+  const otherScope: SessionScope = {
+    kind: "team",
+    teamId: "other-team",
+    teamName: "Other team",
+  }
+  const sessions: SessionInfo[] = [
+    { id: "one", title: "One", createdAt: 1_000, updatedAt: 1_000 },
+    { id: "two", title: "Two", createdAt: 2_000, updatedAt: 2_000 },
+    { id: "other", title: "Other", createdAt: 3_000, updatedAt: 3_000 },
+  ]
+  const persistedMetadata = metadataStore(
+    new Map([
+      ["one", { pinnedAt: 4_000, scope: testTeamScope }],
+      ["two", { scope: testTeamScope }],
+      ["other", { scope: otherScope }],
+    ]),
+  )
+  const service = new SessionServiceImpl(agentWithSessions(sessions), { metadataStore: persistedMetadata })
+
+  const result = await service.archiveMany({
+    ids: ["one", "two", "other", "missing", "one"],
+    scope: testTeamScope,
+  })
+
+  assert.deepEqual(result.succeededIds, ["one", "two"])
+  assert.deepEqual(
+    result.failures.map(({ code, id }) => ({ code, id })),
+    [
+      { code: "out_of_scope", id: "other" },
+      { code: "not_found", id: "missing" },
+    ],
+  )
+  assert.deepEqual(await service.list({ scope: testTeamScope }), [])
+  assert.equal((await persistedMetadata.read()).get("one")?.pinnedAt, undefined)
+  assert.equal(typeof (await persistedMetadata.read()).get("two")?.archivedAt, "number")
+})
+
+test("removeMany reports partial remote failures and commits successful removals", async () => {
+  const deleted: string[] = []
+  const persistedActivity = activityStore(
+    new Map([
+      ["one", 1_000],
+      ["two", 2_000],
+    ]),
+  )
+  const persistedMetadata = metadataStore(
+    new Map([
+      ["one", { scope: testTeamScope }],
+      ["two", { scope: testTeamScope }],
+    ]),
+  )
+  const service = new SessionServiceImpl(
+    {
+      deleteSession: async (id: string) => {
+        if (id === "two") throw new Error("delete failed")
+        deleted.push(id)
+      },
+    } as unknown as AgentManager,
+    {
+      activityStore: persistedActivity,
+      metadataStore: persistedMetadata,
+    },
+  )
+
+  const result = await service.removeMany({ ids: ["one", "two"], scope: testTeamScope })
+
+  assert.deepEqual(deleted, ["one"])
+  assert.deepEqual(result.succeededIds, ["one"])
+  assert.equal(result.failures[0]?.id, "two")
+  assert.equal(result.failures[0]?.code, "runtime_error")
+  assert.equal((await persistedActivity.read()).has("one"), false)
+  assert.equal((await persistedActivity.read()).has("two"), true)
+  assert.equal((await persistedMetadata.read()).has("one"), false)
+  assert.equal((await persistedMetadata.read()).has("two"), true)
+})
+
+test("removeMany deletes independent sessions with bounded concurrency", async () => {
+  const ids = ["one", "two", "three", "four", "five", "six"]
+  let activeDeletes = 0
+  let maxActiveDeletes = 0
+  const service = new SessionServiceImpl(
+    {
+      deleteSession: async () => {
+        activeDeletes += 1
+        maxActiveDeletes = Math.max(maxActiveDeletes, activeDeletes)
+        await Promise.resolve()
+        activeDeletes -= 1
+      },
+    } as unknown as AgentManager,
+    {
+      metadataStore: metadataStore(new Map(ids.map((id) => [id, { scope: testTeamScope }]))),
+    },
+  )
+
+  const result = await service.removeMany({ ids, scope: testTeamScope })
+
+  assert.deepEqual(result.succeededIds, ids)
+  assert.equal(result.failures.length, 0)
+  assert.equal(maxActiveDeletes, 4)
+})
+
+test("removeMany stops dispatching queued deletions when the runtime changes", async () => {
+  const ids = ["one", "two", "three", "four", "five", "six"]
+  const firstWaveStarted = deferred<void>()
+  const releaseFirstWave = deferred<void>()
+  const startedIds: string[] = []
+  const service = new SessionServiceImpl(
+    {
+      deleteSession: async (id: string) => {
+        startedIds.push(id)
+        if (startedIds.length === 4) firstWaveStarted.resolve(undefined)
+        await releaseFirstWave.promise
+      },
+    } as unknown as AgentManager,
+    {
+      metadataStore: metadataStore(new Map(ids.map((id) => [id, { scope: testTeamScope }]))),
+    },
+  )
+
+  const removal = service.removeMany({ ids, scope: testTeamScope })
+  await firstWaveStarted.promise
+  service.setAgent(agentWithSessions([]))
+  releaseFirstWave.resolve(undefined)
+
+  await assert.rejects(removal, /Agent runtime changed/)
+  assert.deepEqual(startedIds, ids.slice(0, 4))
+})
+
+test("remove keeps local state when remote delete fails", async () => {
+  const persistedActivity = activityStore(new Map([["session", 3_000]]))
+  const persistedMetadata = metadataStore(new Map([["session", { pinnedAt: 2_000 }]]))
+  const service = new SessionServiceImpl(
+    {
+      deleteSession: async () => {
+        throw new Error("delete failed")
+      },
+    } as unknown as AgentManager,
+    {
+      activityStore: persistedActivity,
+      metadataStore: persistedMetadata,
+    },
+  )
+
+  await assert.rejects(service.remove("session"), /delete failed/)
+
+  assert.deepEqual(await persistedActivity.read(), new Map([["session", 3_000]]))
+  assert.deepEqual(await persistedMetadata.read(), new Map([["session", { pinnedAt: 2_000 }]]))
+})
+
+test("remove invokes local cleanup after remote delete succeeds", async () => {
+  const removed: string[] = []
+  const service = new SessionServiceImpl(
+    {
+      deleteSession: async () => undefined,
+    } as unknown as AgentManager,
+    {
+      onSessionRemoved: (sessionId) => {
+        removed.push(sessionId)
+      },
+    },
+  )
+
+  await service.remove("session")
+
+  assert.deepEqual(removed, ["session"])
+})
+
+test("runtime reset discards stale store loads before listing the replacement agent", async () => {
+  const firstRead = deferred<Map<string, SessionMetadata>>()
+  let metadataReadCount = 0
+  let oldAgentListCount = 0
+  let newAgentListCount = 0
+  const persistedMetadata = {
+    read: async () => {
+      metadataReadCount += 1
+      if (metadataReadCount === 1) {
+        return firstRead.promise
+      }
+      return new Map([["new-session", { scope: testTeamScope }]])
+    },
+    write: async () => undefined,
+  } as unknown as SessionMetadataStore
+  const oldAgent = {
+    listSessions: async () => {
+      oldAgentListCount += 1
+      return []
+    },
+  } as unknown as AgentManager
+  const newAgent = {
+    listSessions: async () => {
+      newAgentListCount += 1
+      return [{ id: "new-session", title: "New", createdAt: 1_000, updatedAt: 1_000 }]
+    },
+  } as unknown as AgentManager
+  const service = new SessionServiceImpl(oldAgent, { metadataStore: persistedMetadata })
+
+  const staleList = service.list({ scope: testTeamScope })
+  assert.equal(metadataReadCount, 1)
+  service.setAgent(null)
+  service.setAgent(newAgent)
+  firstRead.resolve(new Map([["old-session", { scope: testTeamScope }]]))
+
+  assert.deepEqual(await staleList, [])
+  assert.equal(oldAgentListCount, 0)
+  assert.deepEqual(
+    (await service.list({ scope: testTeamScope })).map((session) => session.id),
+    ["new-session"],
+  )
+  assert.equal(metadataReadCount, 2)
+  assert.equal(newAgentListCount, 1)
+})
+
+test("runtime reset rejects a queued mutation instead of running it on the replacement agent", async () => {
+  const writeStarted = deferred<void>()
+  const releaseWrite = deferred<void>()
+  let oldCreateCount = 0
+  let newCreateCount = 0
+  const persistedMetadata = {
+    read: async () => new Map<string, SessionMetadata>(),
+    write: async () => {
+      writeStarted.resolve(undefined)
+      await releaseWrite.promise
+    },
+  } as unknown as SessionMetadataStore
+  const oldAgent = {
+    createSession: async () => {
+      oldCreateCount += 1
+      throw new Error("unexpected old agent create")
+    },
+  } as unknown as AgentManager
+  const newAgent = {
+    createSession: async () => {
+      newCreateCount += 1
+      throw new Error("unexpected new agent create")
+    },
+  } as unknown as AgentManager
+  const service = new SessionServiceImpl(oldAgent, { metadataStore: persistedMetadata })
+
+  const activeMutation = service.pin({ id: "session", pinned: true })
+  await writeStarted.promise
+  const queuedCreate = service.create({ scope: testTeamScope })
+  service.setAgent(null)
+  service.setAgent(newAgent)
+  releaseWrite.resolve(undefined)
+
+  await activeMutation
+  await assert.rejects(queuedCreate, /Agent runtime changed/)
+  assert.equal(oldCreateCount, 0)
+  assert.equal(newCreateCount, 0)
+})
+
+test("runtime reset rejects a mutation waiting for a stale project store load", async () => {
+  const firstRead = deferred<Map<string, SessionProject>>()
+  let readCount = 0
+  let writeCount = 0
+  const persistedProjects = {
+    read: async () => {
+      readCount += 1
+      if (readCount === 1) {
+        return firstRead.promise
+      }
+      return new Map<string, SessionProject>()
+    },
+    write: async () => {
+      writeCount += 1
+    },
+  } as unknown as SessionProjectStore
+  const service = new SessionServiceImpl(agentWithSessions([]), { projectStore: persistedProjects })
+
+  const pendingCreate = service.createProject({ path: "/old-account/project", scope: testTeamScope })
+  await vi.waitFor(() => {
+    assert.equal(readCount, 1)
+  })
+  service.setAgent(null)
+  service.setAgent(agentWithSessions([]))
+  firstRead.resolve(new Map())
+
+  await assert.rejects(pendingCreate, /Agent runtime changed/)
+  assert.equal(writeCount, 0)
+  assert.deepEqual(await service.listProjects({ scope: testTeamScope }), [])
+  assert.equal(readCount, 2)
+})
+
+test("runtime reset rolls back a remotely created session before local persistence", async () => {
+  const createStarted = deferred<void>()
+  const createResult = deferred<SessionInfo>()
+  const deletedSessionIds: string[] = []
+  const oldAgent = {
+    createSession: async () => {
+      createStarted.resolve(undefined)
+      return createResult.promise
+    },
+    deleteSession: async (sessionId: string) => {
+      deletedSessionIds.push(sessionId)
+    },
+  } as unknown as AgentManager
+  const service = new SessionServiceImpl(oldAgent, { metadataStore: metadataStore() })
+
+  const pendingCreate = service.create({ scope: testTeamScope })
+  await createStarted.promise
+  service.setAgent(null)
+  service.setAgent(agentWithSessions([]))
+  createResult.resolve({ id: "created", title: "Created", createdAt: 1_000, updatedAt: 1_000 })
+
+  await assert.rejects(pendingCreate, /Agent runtime changed/)
+  assert.deepEqual(deletedSessionIds, ["created"])
+})
+
+test("lists projects filtered by the current persona", async () => {
+  const projects = new Map<string, SessionProject>([
+    [
+      "work-project",
+      {
+        id: "work-project",
+        name: "Work",
+        path: "/tmp/work",
+        createdAt: 1_000,
+        updatedAt: 1_000,
+        scope: testTeamScope,
+        persona: "work",
+      },
+    ],
+    [
+      "code-project",
+      {
+        id: "code-project",
+        name: "Code",
+        path: "/tmp/code",
+        createdAt: 1_000,
+        updatedAt: 1_000,
+        scope: testTeamScope,
+        persona: "code",
+      },
+    ],
+  ])
+  let persona: "work" | "code" = "work"
+  const service = new SessionServiceImpl(agentWithSessions([]), {
+    projectStore: projectStore(projects),
+    getPersona: () => persona,
+  })
+
+  assert.deepEqual(
+    (await service.listProjects({ scope: testTeamScope })).map((project) => project.id),
+    ["work-project"],
+  )
+  persona = "code"
+  assert.deepEqual(
+    (await service.listProjects({ scope: testTeamScope })).map((project) => project.id),
+    ["code-project"],
+  )
+})
+
+test("creates separate projects for the same directory per persona", async () => {
+  const persistedProjects = projectStore()
+  let persona: "work" | "code" = "work"
+  const service = new SessionServiceImpl(agentWithSessions([]), {
+    projectStore: persistedProjects,
+    getPersona: () => persona,
+  })
+
+  const workProject = await service.createProject({ path: "/tmp/shared", scope: testTeamScope })
+  persona = "code"
+  const codeProject = await service.createProject({ path: "/tmp/shared", scope: testTeamScope })
+
+  assert.notEqual(workProject.id, codeProject.id)
+  assert.equal(workProject.persona, "work")
+  assert.equal(codeProject.persona, "code")
+  // 同 persona 重复建同目录 → 复用原项目（查重 key 含 persona）
+  const again = await service.createProject({ path: "/tmp/shared", scope: testTeamScope })
+  assert.equal(again.id, codeProject.id)
+})
+
+test("filters out sessions inherited from another persona's project", async () => {
+  const projects = new Map<string, SessionProject>([
+    [
+      "code-project",
+      {
+        id: "code-project",
+        name: "Code",
+        path: "/tmp/code",
+        createdAt: 1_000,
+        updatedAt: 1_000,
+        scope: testTeamScope,
+        persona: "code",
+      },
+    ],
+  ])
+  const persistedMetadata = metadataStore(
+    new Map([["s1", { scope: testTeamScope, projectId: "code-project" } as SessionMetadata]]),
+  )
+  const service = new SessionServiceImpl(
+    agentWithSessions([{ id: "s1", title: "S", createdAt: 1_000, updatedAt: 1_000 }]),
+    {
+      metadataStore: persistedMetadata,
+      projectStore: projectStore(projects),
+      getPersona: () => "work",
+    },
+  )
+
+  // 旧会话（无 persona）从关联的 code 项目继承 code，当前 work 模式下不显示
+  const sessions = await service.list({ scope: testTeamScope })
+  assert.deepEqual(sessions, [])
+})
+
+test("create writes the current persona onto the session", async () => {
+  const persistedMetadata = metadataStore()
+  const service = new SessionServiceImpl(
+    {
+      createSession: async () => ({ id: "created", title: "T", createdAt: 1_000, updatedAt: 1_000 }),
+      listSessions: async () => [],
+    } as unknown as AgentManager,
+    { metadataStore: persistedMetadata, getPersona: () => "code" },
+  )
+
+  const created = await service.create({ scope: testTeamScope, title: "T" })
+
+  assert.equal(created.persona, "code")
+  assert.equal((await persistedMetadata.read()).get("created")?.persona, "code")
+})
+
+test("lists sessions filtered by the current persona", async () => {
+  const persistedMetadata = metadataStore(
+    new Map([
+      ["work-session", { scope: testTeamScope, persona: "work" as const }],
+      ["code-session", { scope: testTeamScope, persona: "code" as const }],
+    ]),
+  )
+  let persona: "work" | "code" = "work"
+  const service = new SessionServiceImpl(
+    agentWithSessions([
+      { id: "work-session", title: "W", createdAt: 1_000, updatedAt: 1_000 },
+      { id: "code-session", title: "C", createdAt: 2_000, updatedAt: 2_000 },
+    ]),
+    { metadataStore: persistedMetadata, getPersona: () => persona },
+  )
+
+  assert.deepEqual((await service.list({ scope: testTeamScope })).map((s) => s.id), ["work-session"])
+  persona = "code"
+  assert.deepEqual((await service.list({ scope: testTeamScope })).map((s) => s.id), ["code-session"])
+})
+
+test("assignSessionProject refuses projects of another persona once the session is owned", async () => {
+  const persistedMetadata = metadataStore(
+    new Map([["session", { scope: testTeamScope, persona: "work" as const }]]),
+  )
+  const codeProject: SessionProject = {
+    id: "code-project",
+    name: "Code",
+    path: "/tmp/code",
+    createdAt: 1_000,
+    updatedAt: 1_000,
+    scope: testTeamScope,
+    persona: "code",
+  }
+  const service = new SessionServiceImpl(agentWithSessions([]), {
+    metadataStore: persistedMetadata,
+    projectStore: projectStore(new Map([[codeProject.id, codeProject]])),
+    getPersona: () => "work",
+  })
+
+  await service.assignSessionProject({ sessionId: "session", projectId: "code-project" })
+
+  const stored = (await persistedMetadata.read()).get("session")
+  assert.equal(stored?.projectId, undefined)
+  assert.equal(stored?.persona, "work")
+})

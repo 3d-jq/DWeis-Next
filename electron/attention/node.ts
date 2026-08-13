@@ -1,0 +1,410 @@
+import type { AppLocale } from "../app-locale.ts"
+import type { AppSettings } from "../settings/common.ts"
+import type { Persona } from "../settings/common.ts"
+import type {
+  AttentionService,
+  AttentionState,
+  NotificationCapability,
+  NotificationTestResult,
+  VisibleSessionRequest,
+} from "./common.ts"
+import type { AttentionStore, UnreadAttentionEntry } from "./store.ts"
+import type { IConnectionService } from "@oomol/connection"
+import type { BrowserWindow as ElectronBrowserWindow, Event as ElectronEvent, NativeImage } from "electron"
+
+import { ConnectionService } from "@oomol/connection"
+import { app, nativeImage, Notification, shell } from "electron"
+import { branding } from "../branding.ts"
+import { logDiagnostic } from "../diagnostics-log.ts"
+import { AttentionService as AttentionServiceName } from "./common.ts"
+import {
+  notificationCapability,
+  openFirstAvailableSystemSettingsUrl,
+  systemNotificationSettingsUrls,
+} from "./notification-capability.ts"
+import { submitNotification } from "./notification-delivery.ts"
+import { waitForNotificationInHistory } from "./notification-history.ts"
+import { isSessionActivelyViewed, shouldShowCompletionNotification, unreadTeamIds } from "./policy.ts"
+
+interface AttentionServiceDeps {
+  getLocale: () => AppLocale
+  getSettings: () => AppSettings
+  getWindow: () => ElectronBrowserWindow | null
+  revealWindow: () => void
+  store: AttentionStore
+  /** 查询会话归属模式；通知点击跨模式打开时渲染层据此自动切换。 */
+  getSessionPersona?: (sessionId: string) => Promise<Persona | undefined>
+}
+
+interface CompleteSessionRequest {
+  teamId: string
+  runId: string
+  sessionId: string
+}
+
+const messages = {
+  en: {
+    completedBody: `Open ${branding.appName} to review the result.`,
+    completedTitle: "Task completed",
+    testBody: "Task completion notifications are ready.",
+    testTitle: "Test notification",
+    unreadBadge: "Unread tasks",
+  },
+  "zh-CN": {
+    completedBody: `打开 ${branding.appName} 查看结果。`,
+    completedTitle: "任务已完成",
+    testBody: "任务完成通知已准备好。",
+    testTitle: "测试通知",
+    unreadBadge: "未读任务",
+  },
+} as const
+
+let windowsUnreadOverlay: NativeImage | null = null
+const notificationDeliveryTimeoutMs = 5_000
+const notificationTestDeliveryTimeoutMs = 60_000
+
+/** 统一管理未读任务、应用图标红标和原生完成通知。 */
+export class AttentionServiceImpl
+  extends ConnectionService<AttentionService>
+  implements IConnectionService<AttentionService>
+{
+  private readonly deps: AttentionServiceDeps
+  private readonly notifications = new Map<string, Notification>()
+  private unreadSessions = new Map<string, UnreadAttentionEntry>()
+  private loadPromise: Promise<void> | null = null
+  private mutationQueue: Promise<void> = Promise.resolve()
+  private rendererVisible = false
+  private visibleSessionId: string | null = null
+
+  public constructor(deps: AttentionServiceDeps) {
+    super(AttentionServiceName)
+    this.deps = deps
+  }
+
+  public async initialize(): Promise<void> {
+    await this.ensureLoaded()
+    this.updateBadge(this.deps.getSettings())
+  }
+
+  public async getAttentionState(): Promise<AttentionState> {
+    await this.ensureLoaded()
+    return this.currentState()
+  }
+
+  public getNotificationCapability(): Promise<NotificationCapability> {
+    return Promise.resolve(
+      notificationCapability({
+        isPackaged: app.isPackaged,
+        platform: process.platform,
+        supported: Notification.isSupported(),
+      }),
+    )
+  }
+
+  public setVisibleSession(req: VisibleSessionRequest): Promise<void> {
+    this.visibleSessionId = req.sessionId?.trim() || null
+    this.rendererVisible = req.visible
+    if (!this.visibleSessionId || !this.rendererVisible || !this.deps.getWindow()?.isFocused()) {
+      return Promise.resolve()
+    }
+    return this.markSessionViewed(this.visibleSessionId)
+  }
+
+  public markSessionViewed(sessionId: string): Promise<void> {
+    const normalized = sessionId.trim()
+    if (!normalized) return Promise.resolve()
+    return this.enqueueMutation(async () => {
+      await this.ensureLoaded()
+      this.closeSessionNotification(normalized)
+      const cleared = await this.clearUnreadSession(normalized)
+      if (!cleared) return
+      logDiagnostic("attention", "unread task cleared", {
+        reason: "viewed",
+        runId: cleared.runId,
+        sessionId: normalized,
+        teamId: cleared.teamId,
+      })
+    })
+  }
+
+  public windowFocused(): Promise<void> {
+    if (!this.visibleSessionId || !this.rendererVisible) return Promise.resolve()
+    return this.markSessionViewed(this.visibleSessionId)
+  }
+
+  public completeSession(req: CompleteSessionRequest): Promise<void> {
+    return this.enqueueMutation(async () => {
+      await this.ensureLoaded()
+      const window = this.deps.getWindow()
+      const windowFocused = window?.isFocused() === true
+      const viewed = isSessionActivelyViewed({
+        rendererVisible: this.rendererVisible,
+        sessionId: req.sessionId,
+        visibleSessionId: this.visibleSessionId,
+        windowFocused,
+      })
+      if (viewed) {
+        const cleared = await this.clearUnreadSession(req.sessionId)
+        if (cleared) {
+          logDiagnostic("attention", "unread task cleared", {
+            reason: "completed-while-viewed",
+            runId: cleared.runId,
+            sessionId: req.sessionId,
+            teamId: cleared.teamId,
+          })
+        }
+      } else {
+        this.unreadSessions.set(req.sessionId, {
+          createdAt: Date.now(),
+          ...(req.teamId ? { teamId: req.teamId } : {}),
+          runId: req.runId,
+        })
+        await this.persistAndPublish()
+        logDiagnostic("attention", "unread task added", {
+          rendererVisible: this.rendererVisible,
+          runId: req.runId,
+          sessionId: req.sessionId,
+          teamId: req.teamId,
+          visibleSessionMatches: this.visibleSessionId === req.sessionId,
+          windowFocused,
+        })
+      }
+
+      const settings = this.deps.getSettings()
+      const shouldNotify = shouldShowCompletionNotification(settings.completionNotificationCondition, windowFocused)
+      logDiagnostic("attention", "completion notification decision", {
+        condition: settings.completionNotificationCondition,
+        shouldNotify,
+        windowFocused,
+      })
+      if (shouldNotify) {
+        void this.showNotification(req.sessionId, false).then((result) => {
+          logNotificationResult("completion notification completed", result)
+          if (result.outcome === "failed" || result.outcome === "timed-out") {
+            console.warn("[dweis] task completion notification was not delivered:", result)
+          }
+        })
+      }
+    })
+  }
+
+  public removeSession(sessionId: string): Promise<void> {
+    return this.markSessionViewed(sessionId)
+  }
+
+  public clearAll(): Promise<void> {
+    return this.enqueueMutation(async () => {
+      await this.ensureLoaded()
+      for (const [id, notification] of this.notifications) {
+        if (id.startsWith("completion-")) notification.close()
+      }
+      if (this.unreadSessions.size === 0) return
+      this.unreadSessions.clear()
+      await this.persistAndPublish()
+    })
+  }
+
+  public testCompletionNotification(): Promise<NotificationTestResult> {
+    return this.showNotification(null, true).then((result) => {
+      logNotificationResult("notification test completed", result)
+      return result
+    })
+  }
+
+  public async openSystemNotificationSettings(): Promise<void> {
+    const appBundleId = app.isPackaged ? branding.appId : branding.devBundleId
+    const urls = systemNotificationSettingsUrls(process.platform, appBundleId)
+    await openFirstAvailableSystemSettingsUrl(urls, (url) => shell.openExternal(url))
+  }
+
+  public settingsChanged(settings: AppSettings): void {
+    if (this.loadPromise) {
+      void this.loadPromise.then(() => this.updateBadge(settings))
+    }
+  }
+
+  public override dispose(): void {
+    for (const notification of this.notifications.values()) notification.close()
+    this.notifications.clear()
+    super.dispose()
+  }
+
+  private async ensureLoaded(): Promise<void> {
+    this.loadPromise ??= this.deps.store.read().then((entries) => {
+      this.unreadSessions = entries
+    })
+    await this.loadPromise
+  }
+
+  private enqueueMutation(task: () => Promise<void>): Promise<void> {
+    const next = this.mutationQueue.then(task, task)
+    this.mutationQueue = next.catch(() => undefined)
+    return next
+  }
+
+  private currentState(): AttentionState {
+    return {
+      unreadSessionIds: [...this.unreadSessions.keys()],
+      unreadTeamIds: unreadTeamIds(this.unreadSessions.values()),
+    }
+  }
+
+  private async clearUnreadSession(sessionId: string): Promise<UnreadAttentionEntry | null> {
+    const entry = this.unreadSessions.get(sessionId)
+    if (!entry) return null
+    this.unreadSessions.delete(sessionId)
+    try {
+      await this.persistAndPublish()
+      return entry
+    } catch (error) {
+      this.unreadSessions.set(sessionId, entry)
+      throw error
+    }
+  }
+
+  private async persistAndPublish(): Promise<void> {
+    await this.deps.store.write(this.unreadSessions)
+    const state = this.currentState()
+    this.updateBadge(this.deps.getSettings())
+    void this.send("attentionStateChanged", state).catch((error: unknown) => {
+      console.warn("[dweis] attention state broadcast failed:", error)
+    })
+  }
+
+  private updateBadge(settings: AppSettings): void {
+    const count = settings.unreadBadgeEnabled ? this.unreadSessions.size : 0
+    if (process.platform === "win32") {
+      const window = this.deps.getWindow()
+      if (!window || window.isDestroyed()) return
+      const overlay = count > 0 ? windowsUnreadOverlayIcon() : null
+      window.setOverlayIcon(
+        overlay?.isEmpty() ? null : overlay,
+        `${messages[this.deps.getLocale()].unreadBadge}: ${count}`,
+      )
+      return
+    }
+    app.badgeCount = count
+  }
+
+  private closeSessionNotification(sessionId: string): void {
+    this.notifications.get(`completion-${sessionId}`)?.close()
+  }
+
+  private resolveSessionPersona(sessionId: string): Promise<Persona | undefined> {
+    if (!this.deps.getSessionPersona) {
+      return Promise.resolve(undefined)
+    }
+    return this.deps.getSessionPersona(sessionId).catch((error: unknown) => {
+      console.warn("[dweis] failed to resolve notification session persona:", error)
+      return undefined
+    })
+  }
+
+  private showNotification(sessionId: string | null, test: boolean): Promise<NotificationTestResult> {
+    if (!Notification.isSupported()) return Promise.resolve({ outcome: "unsupported" })
+    const locale = this.deps.getLocale()
+    const copy = messages[locale]
+    const id = test ? `test-${Date.now()}` : `completion-${sessionId}`
+    this.notifications.get(id)?.close()
+    const notification = new Notification({
+      body: test ? copy.testBody : copy.completedBody,
+      ...(test ? {} : { groupId: "task-completion" }),
+      id,
+      silent: !this.deps.getSettings().notificationSoundEnabled,
+      title: test ? copy.testTitle : copy.completedTitle,
+    })
+    this.notifications.set(id, notification)
+    const forget = (): void => {
+      if (this.notifications.get(id) === notification) {
+        this.notifications.delete(id)
+      }
+    }
+    notification.once("close", forget)
+    if (sessionId) {
+    notification.once("click", () => {
+      this.deps.revealWindow()
+      const teamId = this.unreadSessions.get(sessionId)?.teamId
+      void this.resolveSessionPersona(sessionId).then((persona) => {
+        void this.send("openSessionRequested", {
+          sessionId,
+          ...(teamId ? { teamId } : {}),
+          ...(persona ? { persona } : {}),
+        }).catch((error: unknown) => {
+          console.warn("[dweis] failed to route task completion notification:", error)
+        })
+      })
+    })
+    }
+    let showListener: (() => void) | null = null
+    let failedEventListener: ((event: ElectronEvent, error: string) => void) | null = null
+    const windowFocused = this.deps.getWindow()?.isFocused() === true
+    return submitNotification(
+      {
+        onFailed: (listener) => {
+          failedEventListener = (_event, error) => listener(error)
+          notification.once("failed", failedEventListener)
+        },
+        onShow: (listener) => {
+          showListener = listener
+          notification.once("show", listener)
+        },
+        removeFailedListener: () => {
+          if (failedEventListener) notification.removeListener("failed", failedEventListener)
+        },
+        removeShowListener: () => {
+          if (showListener) notification.removeListener("show", showListener)
+        },
+        show: () => notification.show(),
+      },
+      test ? notificationTestDeliveryTimeoutMs : notificationDeliveryTimeoutMs,
+    ).then(async (result): Promise<NotificationTestResult> => {
+      if (result.outcome === "failed") forget()
+      const baseResult = { ...result, notificationId: id, windowFocused }
+      if (!test || process.platform !== "darwin" || result.outcome !== "accepted") return baseResult
+
+      try {
+        const foundInHistory = await waitForNotificationInHistory(id, () => Notification.getHistory())
+        if (foundInHistory) return { ...baseResult, foundInHistory, outcome: "delivered" }
+        return {
+          ...baseResult,
+          error: "The notification request was accepted but was not found in Notification Center.",
+          foundInHistory,
+        }
+      } catch (error) {
+        return {
+          ...baseResult,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      }
+    })
+  }
+}
+
+function logNotificationResult(message: string, result: NotificationTestResult): void {
+  logDiagnostic(
+    "attention",
+    message,
+    {
+      error: result.error,
+      foundInHistory: result.foundInHistory,
+      notificationId: result.notificationId,
+      outcome: result.outcome,
+      platform: process.platform,
+      windowFocused: result.windowFocused,
+    },
+    result.outcome === "failed" ||
+      result.outcome === "timed-out" ||
+      (result.outcome === "accepted" && result.error !== undefined)
+      ? "warn"
+      : "info",
+  )
+}
+
+function windowsUnreadOverlayIcon(): NativeImage {
+  windowsUnreadOverlay ??= nativeImage.createFromDataURL(
+    `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="#ef4444" stroke="#ffffff" stroke-width="2"/></svg>',
+    )}`,
+  )
+  return windowsUnreadOverlay
+}
