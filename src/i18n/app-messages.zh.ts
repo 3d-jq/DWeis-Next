@@ -382,6 +382,10 @@ export const zhCNMessages = {
 "chat.planGitStaged": "暂存",
 "chat.planGitModified": "修改",
 "chat.planGitUntracked": "未跟踪",
+"chat.planGitBranchPlaceholder": "新分支名",
+"chat.planGitCreateBranch": "创建并检出",
+"chat.planGitBranchFailed": "创建分支失败：{message}",
+"chat.planGitGraphEmpty": "暂无提交记录",
 "chat.planArtifactsTitle": "产物",
 "chat.planArtifactsPreview": "点击在右侧边栏预览",
 

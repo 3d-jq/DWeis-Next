@@ -40,6 +40,15 @@ export interface GitCreateBranchRequest extends GitRepositoryRequest {
   branch: string
 }
 
+/** `git log --graph` 图谱响应：每行是含 ASCII 连线与装饰的文本（等宽字体渲染）。 */
+export interface GitGraphResponse {
+  projectId: string
+  lines: string[]
+  available: boolean
+  error?: GitRepositoryError
+  message?: string
+}
+
 export type GitService = typeof GitService
 export const GitService = serviceName("git-service") as ServiceName<{
   ServerEvents: Record<string, never>
@@ -47,5 +56,6 @@ export const GitService = serviceName("git-service") as ServiceName<{
     getRepositoryState(req: GitRepositoryRequest): Promise<GitRepositoryState>
     checkoutBranch(req: GitCheckoutBranchRequest): Promise<GitRepositoryState>
     createAndCheckoutBranch(req: GitCreateBranchRequest): Promise<GitRepositoryState>
+    getGraph(req: GitRepositoryRequest): Promise<GitGraphResponse>
   }
 }>

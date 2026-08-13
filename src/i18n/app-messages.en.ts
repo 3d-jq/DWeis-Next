@@ -394,6 +394,10 @@ export const enMessages = {
 "chat.planGitStaged": "Staged",
 "chat.planGitModified": "Modified",
 "chat.planGitUntracked": "Untracked",
+"chat.planGitBranchPlaceholder": "New branch name",
+"chat.planGitCreateBranch": "Create & checkout",
+"chat.planGitBranchFailed": "Failed to create branch: {message}",
+"chat.planGitGraphEmpty": "No commits yet",
 "chat.planArtifactsTitle": "Artifacts",
 "chat.planArtifactsPreview": "Click to preview in the right sidebar",
 

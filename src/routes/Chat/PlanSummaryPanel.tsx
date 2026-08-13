@@ -1,9 +1,8 @@
 import type { ArtifactBundle, ChatMessage, LocalArtifactGroup } from "../../../electron/chat/common.ts"
 import type { SessionProject } from "../../../electron/session/common.ts"
 import type { ArtifactSelection } from "./GeneratedArtifacts.tsx"
+import type { SubTask } from "./sub-tasks.ts"
 
-import { AnimatePresence, motion } from "motion/react"
-import * as React from "react"
 import {
   Bot,
   Check,
@@ -16,11 +15,12 @@ import {
   ListTodo,
   Loader2,
 } from "lucide-react"
+import { AnimatePresence, motion } from "motion/react"
+import * as React from "react"
+import { useArtifactBundles } from "./artifact-bundle-records.ts"
+import { subTasksFromMessages } from "./sub-tasks.ts"
 import { useChatService } from "@/components/AppContext"
 import { useProjectGit } from "@/hooks/useProjectGit"
-import type { SubTask } from "./sub-tasks.ts"
-import { subTasksFromMessages } from "./sub-tasks.ts"
-import { useArtifactBundles } from "./artifact-bundle-records.ts"
 import { useT } from "@/i18n/i18n"
 import { cn } from "@/lib/utils"
 
@@ -128,13 +128,7 @@ const CheckIcon = ({ on }: { on?: boolean }) => (
 )
 
 const ArrowIcon = ({ on }: { on?: boolean }) => (
-  <svg
-    className={cls("oo-todo-icon strong", on)}
-    viewBox="0 0 24 24"
-    width="16"
-    height="16"
-    aria-hidden="true"
-  >
+  <svg className={cls("oo-todo-icon strong", on)} viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
     <path
       d="m12.75 15 3-3m0 0-3-3m3 3h-7.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
       fill="none"
@@ -192,12 +186,12 @@ function SectionHeader({
     <button
       type="button"
       aria-expanded={!collapsed}
-      className="flex w-full items-center gap-2 rounded-md px-1 py-1.5 text-left transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="flex w-full items-center gap-2 rounded-md px-1 py-1.5 text-left transition-colors hover:bg-accent/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
       onClick={onToggle}
     >
       <span className="flex size-5 shrink-0 items-center justify-center text-muted-foreground">{icon}</span>
       <span className="oo-text-label min-w-0 flex-1 truncate text-foreground">{title}</span>
-      {meta ? <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{meta}</span> : null}
+      {meta ? <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{meta}</span> : null}
       <ChevronDown
         className={cn("size-3.5 shrink-0 text-muted-foreground transition-transform", !collapsed && "rotate-180")}
       />
@@ -264,6 +258,25 @@ export function PlanSummaryPanel({
   const gitAvailable = Boolean(git.state?.available)
   const gitChangeCount =
     (git.state?.stagedCount ?? 0) + (git.state?.unstagedCount ?? 0) + (git.state?.untrackedCount ?? 0)
+  const [newBranchName, setNewBranchName] = React.useState("")
+  const [creatingBranch, setCreatingBranch] = React.useState(false)
+  const [branchError, setBranchError] = React.useState<string | null>(null)
+  const handleCreateBranch = React.useCallback(async (): Promise<void> => {
+    const name = newBranchName.trim()
+    if (!name || creatingBranch) {
+      return
+    }
+    setCreatingBranch(true)
+    setBranchError(null)
+    const next = await git.createAndCheckoutBranch(name)
+    if (!next || next.error) {
+      setBranchError(next?.message ?? t("chat.planGitBranchFailed", { message: "" }))
+    } else {
+      setNewBranchName("")
+      void git.refreshGraph()
+    }
+    setCreatingBranch(false)
+  }, [creatingBranch, git, newBranchName, t])
   React.useEffect(() => {
     if (!hasRunningSubTask) {
       return
@@ -348,8 +361,7 @@ export function PlanSummaryPanel({
     [activeSessionId],
   )
 
-  const hasAnyContent =
-    (todos && todos.length > 0) || subTasks.length > 0 || artifacts.length > 0 || gitAvailable
+  const hasAnyContent = (todos && todos.length > 0) || subTasks.length > 0 || artifacts.length > 0 || gitAvailable
 
   if (!open || !hasAnyContent) {
     return null
@@ -398,7 +410,7 @@ export function PlanSummaryPanel({
                       onToggle={() => toggleSection("git")}
                     />
                     <SectionBody open={!sectionCollapsed.git}>
-                      <div className="space-y-1">
+                      <div className="space-y-2">
                         <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
                           <GitBranch className="size-3.5 shrink-0" aria-hidden="true" />
                           <span className="min-w-0 truncate font-medium text-foreground">
@@ -407,12 +419,15 @@ export function PlanSummaryPanel({
                           <button
                             type="button"
                             className="ml-auto shrink-0 rounded px-1 text-xs transition-colors hover:bg-accent hover:text-foreground"
-                            onClick={() => void git.refresh()}
+                            onClick={() => {
+                              void git.refresh()
+                              void git.refreshGraph()
+                            }}
                           >
                             {t("chat.planGitRefresh")}
                           </button>
                         </div>
-                        <div className="flex flex-wrap items-center gap-1.5 text-xs tabular-nums text-muted-foreground">
+                        <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground tabular-nums">
                           <span className="rounded bg-muted px-1.5 py-0.5">
                             {t("chat.planGitStaged")} {git.state?.stagedCount ?? 0}
                           </span>
@@ -423,6 +438,35 @@ export function PlanSummaryPanel({
                             {t("chat.planGitUntracked")} {git.state?.untrackedCount ?? 0}
                           </span>
                         </div>
+                        {/* 创建并检出新分支 */}
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="text"
+                            value={newBranchName}
+                            placeholder={t("chat.planGitBranchPlaceholder")}
+                            className="h-7 min-w-0 flex-1 rounded border border-[var(--oo-divider)] bg-background px-2 text-xs outline-none focus-visible:border-ring"
+                            onChange={(event) => setNewBranchName(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                void handleCreateBranch()
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            disabled={creatingBranch || !newBranchName.trim()}
+                            className="flex h-7 shrink-0 items-center gap-1 rounded px-2 text-xs font-medium text-primary transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+                            onClick={() => void handleCreateBranch()}
+                          >
+                            <GitBranch className="size-3.5" aria-hidden="true" />
+                            {creatingBranch ? "…" : t("chat.planGitCreateBranch")}
+                          </button>
+                        </div>
+                        {branchError ? <p className="text-xs text-destructive">{branchError}</p> : null}
+                        {/* git 图谱：git log --graph 的 ASCII 输出，等宽字体渲染 */}
+                        <pre className="max-h-44 overflow-auto rounded-md bg-muted/40 p-2 font-mono text-[11px] leading-4 whitespace-pre text-foreground/80">
+                          {git.graph && git.graph.length > 0 ? git.graph.join("\n") : t("chat.planGitGraphEmpty")}
+                        </pre>
                       </div>
                     </SectionBody>
                   </section>
@@ -445,7 +489,10 @@ export function PlanSummaryPanel({
                             const done = todo.status === "completed"
                             const active = todo.status === "in_progress"
                             return (
-                              <li key={index} className={cn("oo-todo-item", done && "done", active && !allDone && "active")}>
+                              <li
+                                key={index}
+                                className={cn("oo-todo-item", done && "done", active && !allDone && "active")}
+                              >
                                 <span className="oo-todo-icon-wrap">
                                   <DashedIcon on={!done && !active} />
                                   <ArrowIcon on={active && !allDone} />
@@ -511,7 +558,7 @@ export function PlanSummaryPanel({
                             <button
                               type="button"
                               title={t("chat.planArtifactsPreview")}
-                              className="flex min-w-0 w-full items-center gap-2 rounded px-1 py-0.5 text-[13px] transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              className="flex w-full min-w-0 items-center gap-2 rounded px-1 py-0.5 text-[13px] transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                               onClick={() =>
                                 onOpenArtifact?.({
                                   messageId: file.messageId,
@@ -524,7 +571,7 @@ export function PlanSummaryPanel({
                               <span className="w-0 max-w-full min-w-0 flex-1 truncate text-foreground/90">
                                 {file.name}
                               </span>
-                              <span className="shrink-0 text-xs tabular-nums text-muted-foreground/80">
+                              <span className="shrink-0 text-xs text-muted-foreground/80 tabular-nums">
                                 {formatFileSize(file.size)}
                               </span>
                             </button>
@@ -566,15 +613,7 @@ function subTaskDuration(task: SubTask, now: number): string | null {
   return `${seconds}s`
 }
 
-function SubTaskRow({
-  task,
-  now,
-  t,
-}: {
-  task: SubTask
-  now: number
-  t: ReturnType<typeof useT>
-}) {
+function SubTaskRow({ task, now, t }: { task: SubTask; now: number; t: ReturnType<typeof useT> }) {
   const running = task.status === "running"
   const completed = task.status === "completed"
   const error = task.status === "error"
@@ -607,7 +646,7 @@ function SubTaskRow({
           {task.agentType}
         </span>
       ) : null}
-      <span className="shrink-0 text-xs tabular-nums text-muted-foreground/80">
+      <span className="shrink-0 text-xs text-muted-foreground/80 tabular-nums">
         {duration ? `${statusLabel} ${duration}` : statusLabel}
       </span>
     </li>

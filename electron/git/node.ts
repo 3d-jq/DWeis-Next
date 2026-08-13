@@ -2,6 +2,7 @@ import type { SessionProjectStore } from "../session/project-store.ts"
 import type {
   GitCheckoutBranchRequest,
   GitCreateBranchRequest,
+  GitGraphResponse,
   GitRepositoryRequest,
   GitRepositoryState,
   GitService,
@@ -152,6 +153,24 @@ export class GitServiceImpl extends ConnectionService<GitService> implements ICo
       return stateAfterCheckoutFailure({ ...req, path: checked.path }, cause as GitCommandError)
     }
     return readGitRepositoryState(checked.projectId, checked.path, runGit)
+  }
+
+  public async getGraph(req: GitRepositoryRequest): Promise<GitGraphResponse> {
+    const checked = await this.registeredProjectRequest(req)
+    if (!checked) {
+      return { projectId: req.projectId, lines: [], available: false, error: "not_repository" }
+    }
+    try {
+      const result = await runGit(
+        ["-C", checked.path, "log", "--graph", "--oneline", "--decorate", "--all", "-n", "80"],
+        { timeoutMs: gitCommandTimeoutMs },
+      )
+      const lines = result.stdout.split(/\r?\n/).filter((line) => line.trim().length > 0)
+      return { projectId: checked.projectId, lines, available: true }
+    } catch (cause) {
+      const classified = classifyGitError(cause as GitCommandError)
+      return { projectId: checked.projectId, lines: [], available: false, error: classified.error }
+    }
   }
 
   private async registeredProjectRequest(req: GitRepositoryRequest): Promise<GitRepositoryRequest | null> {
