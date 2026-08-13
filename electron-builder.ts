@@ -273,10 +273,11 @@ export default {
     //   「添加供应商」默认「自定义」供应商（0171344）。
     // build223 = 重写添加/编辑模型对话框（074574c）：formKey 重挂载使状态随打开完全重建，根治
     //   「自定义供应商名残留 DeepSeek」「删模型后 apiKey 锁住」；删除确认改应用内 Dialog。
+    // build225 = 自动更新源切到 GitHub Releases（c5743b8）：branding.updateRepo 单一来源，electron-updater github provider，删除 staticBaseUrl/updateFeedPath。
     // build224 = Apple HIG 视觉对齐（c5242cc）：设置页全高侧栏 + 全行图标 + iOS 分段控件、
     //   工具配置改弹窗、用量热力图缩放跟随、权限/提问卡片外壳统一、推理滑块标签对齐、Work/Code
     //   切换 pill、技能页卡片升级；agent workspace 启动 ENOTEMPTY 退避重试（dc2bcd3）。
-    output: "release/build224",
+    output: "release/build225",
   },
   publish: {
     provider: "github",
