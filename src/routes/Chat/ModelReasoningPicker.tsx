@@ -109,7 +109,10 @@ export function ModelReasoningPicker({
         .join(" · ")
     : modelLabel
   const addTitle = t("chat.modelAdd")
-  const providerGroups = React.useMemo<ProviderModelGroup[]>(() => buildProviderGroups(catalog, addTitle), [catalog, addTitle])
+  const providerGroups = React.useMemo<ProviderModelGroup[]>(
+    () => buildProviderGroups(catalog, addTitle),
+    [catalog, addTitle],
+  )
   const activeProvider = providerGroups[activeProviderIndex]
   const activeProviderElementId = activeProvider ? providerMenuItemElementId(activeProvider.id) : undefined
   const activeModelItem = activeProvider?.items[activeModelIndex]
@@ -363,7 +366,9 @@ export function ModelReasoningPicker({
             className="oo-border-divider fixed z-50 overflow-y-auto rounded-lg border bg-popover p-1.5 text-popover-foreground shadow-xl"
             onKeyDown={handleModelMenuKeyDown}
           >
-            <div className="oo-text-caption-compact px-2 py-1.5 font-medium text-muted-foreground">{activeProvider.title}</div>
+            <div className="oo-text-caption-compact px-2 py-1.5 font-medium text-muted-foreground">
+              {activeProvider.title}
+            </div>
             {activeProvider.items.map((item, index) => {
               if (item.kind === "add") {
                 return null
@@ -496,7 +501,9 @@ export function ModelReasoningPicker({
       >
         <Cpu className="size-4 shrink-0" />
         <span className="oo-composer-model-text flex min-w-0 flex-1 items-center gap-1 text-left">
-          <span className="min-w-0 truncate">{modelLabel}</span>
+          <span key={modelLabel} className="oo-flip-once min-w-0 truncate">
+            {modelLabel}
+          </span>
         </span>
         <ChevronDown
           className={cn("oo-composer-control-chevron size-3.5 shrink-0 transition-transform", open && "rotate-180")}

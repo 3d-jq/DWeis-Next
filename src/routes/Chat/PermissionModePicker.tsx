@@ -202,7 +202,9 @@ export function PermissionModePicker({
         onKeyDown={handleTriggerKeyDown}
       >
         <PermissionModeIcon mode={value} active={value === "full_access"} />
-        <span className="oo-composer-control-label min-w-0 flex-1 truncate text-left">{selectedLabel}</span>
+        <span key={selectedLabel} className="oo-composer-control-label oo-flip-once min-w-0 flex-1 truncate text-left">
+          {selectedLabel}
+        </span>
         <ChevronDown
           className={cn("oo-composer-control-chevron size-3.5 shrink-0 transition-transform", open && "rotate-180")}
         />
