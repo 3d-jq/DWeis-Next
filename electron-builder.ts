@@ -294,6 +294,7 @@ export default {
     // build235 = 生成图片对话内不显示（69d7d64）：agent 图片契约示例 `</absolute/path/image.png>`
     //   误导模型输出尖括号+假前缀路径 → 图片加载失败与产物卡分离；示例改真实绝对路径 +
     //   渲染层剥离 </absolute/path/> 前缀容错。
+    // build236 = 移除输入框选择值切换「翻一下」翻转特效（ba94370，含 CSS 动画与 4 组件 class）。
     // build226 = 版本 1.8.0：①git 工具区补全——创建并检出新分支 + git log --graph 图谱（getGraph IPC）；
     //   ②权限/提问卡片借鉴 deepseek-harness——composer takeover（请求接管输入框位置）+「我想直接说」
     //   讨论第三操作 + tinted strip 彩色顶条。
@@ -301,7 +302,7 @@ export default {
     // build224 = Apple HIG 视觉对齐（c5242cc）：设置页全高侧栏 + 全行图标 + iOS 分段控件、
     //   工具配置改弹窗、用量热力图缩放跟随、权限/提问卡片外壳统一、推理滑块标签对齐、Work/Code
     //   切换 pill、技能页卡片升级；agent workspace 启动 ENOTEMPTY 退避重试（dc2bcd3）。
-    output: "release/build235",
+    output: "release/build236",
   },
   publish: {
     provider: "github",
