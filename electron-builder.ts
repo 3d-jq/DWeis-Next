@@ -289,6 +289,8 @@ export default {
     // build233 = 思考中「深度思考」改推理块占位（b5eded9 revert c87d224 + 占位注入）：思考阶段
     //   即渲染空推理块（稳定 key message.id:reasoning，标题「深度思考」扫光），推理内容渐进填充到
     //   同一元素——无「占位→推理块」形态切换；build232 静默版思考过程无提示被用户报 bug 回退。
+    // build234 = 完成验证超时放宽 1s→5s + 失败原因诊断日志：大会话 getMessages 拉全量消息可能
+    //   超 1s，被静默当"未完成"→ 验证重试 20 次全失败误报 "Unable to verify"（消息实际已保存）。
     // build226 = 版本 1.8.0：①git 工具区补全——创建并检出新分支 + git log --graph 图谱（getGraph IPC）；
     //   ②权限/提问卡片借鉴 deepseek-harness——composer takeover（请求接管输入框位置）+「我想直接说」
     //   讨论第三操作 + tinted strip 彩色顶条。
@@ -296,7 +298,7 @@ export default {
     // build224 = Apple HIG 视觉对齐（c5242cc）：设置页全高侧栏 + 全行图标 + iOS 分段控件、
     //   工具配置改弹窗、用量热力图缩放跟随、权限/提问卡片外壳统一、推理滑块标签对齐、Work/Code
     //   切换 pill、技能页卡片升级；agent workspace 启动 ENOTEMPTY 退避重试（dc2bcd3）。
-    output: "release/build233",
+    output: "release/build234",
   },
   publish: {
     provider: "github",

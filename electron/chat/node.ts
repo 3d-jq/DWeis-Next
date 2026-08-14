@@ -1182,6 +1182,12 @@ export class ChatServiceImpl extends ConnectionService<ChatService> implements I
     const attempt = this.completionRetryAttempts.get(completionKey) ?? 0
     if (attempt >= completionRetryMaxAttempts) {
       this.clearCompletionRetry(completionKey)
+      logDiagnostic(
+        "chat-service",
+        "turn completion verification gave up after retries",
+        { sessionId, generationId: generation.id, attempts: attempt + 1 },
+        "warn",
+      )
       void this.interruptSessionGeneration(
         emit,
         sessionId,
