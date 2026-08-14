@@ -10,7 +10,7 @@ import type { ChatTurnProcessStatus } from "./chat-turns.ts"
 import type { ProcessOpenPreference } from "./process-activity-open.ts"
 import type { TranslateFn } from "@/i18n/i18n"
 
-import { BrainIcon, ChevronRight } from "lucide-react"
+import { ChevronRight } from "lucide-react"
 import * as React from "react"
 import { assistantBlockClassName } from "./assistant-turn-renderer-model.ts"
 import { chatTurnProcessStatus, isLiveTurnProcess, summarizeTurnProcess } from "./chat-turns.ts"
@@ -279,14 +279,11 @@ function LiveStatusBar({
   const status = chatTurnProcessStatus(process, live)
   const activeTool = latestActiveProcessTool(process)
   const showContent = shouldShowProcessLiveStatus(process, status)
-  // 状态行只在内容块未到达时显示（思考/整理占位）：推理内容一到，推理块（同为 24px 行）
-  // 原位替换它，不产生跳动；若处理中常驻空行会变成空白缝隙，且与内容块重复显示。
+  // 状态行只显示真实活动信息（工具运行/整理/重试）；思考阶段静默（对齐 deepseek-harness），
+  // 推理内容一到即渲染推理块，无「占位 → 推理块」形态切换，不跳动。
   if (!showContent) {
     return null
   }
-  // 思考阶段占位与 ReasoningBlock 完全一致（BrainIcon + text-xs + 扫光"深度思考"），
-  // 避免 thinking → reasoning 内容到达时字号/图标跳动。
-  const isThinking = status === "running" && process.activity?.phase === "thinking"
 
   const text = (() => {
     if (status === "retrying" && process.activity) {
@@ -304,15 +301,9 @@ function LiveStatusBar({
   return (
     <div className="rounded-md text-muted-foreground">
       <div className="flex min-h-6 items-center gap-2">
-        {/* 图标盒常驻（思考时显示脑图标）：相位切换时文字列固定在 28px，不再左右跳。 */}
-        <span className="flex size-5 shrink-0 items-center justify-center">
-          {isThinking ? <BrainIcon className="size-3.5 shrink-0" aria-hidden="true" /> : null}
-        </span>
-        {showContent ? (
-          <LoadingShimmerText className="min-w-0 truncate text-xs font-medium">
-            {isThinking ? t("chat.reasoningToggle") : text}
-          </LoadingShimmerText>
-        ) : null}
+        {/* 图标盒常驻（size-5）：相位切换时文字列位置固定，不再左右跳。 */}
+        <span className="flex size-5 shrink-0 items-center justify-center" />
+        <LoadingShimmerText className="min-w-0 truncate text-xs font-medium">{text}</LoadingShimmerText>
       </div>
     </div>
   )

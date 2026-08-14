@@ -35,12 +35,18 @@ export function shouldShowProcessLiveStatus(
   status: ChatTurnProcessStatus,
 ): boolean {
   const activeTool = latestActiveProcessTool(process)
-  // 运行中只在实际有动作信息时显示副状态（思考/整理/工具名/重试）；纯文本输出中
-  // 标题已显示"处理中+耗时"，不再重复一条扫光。
+  // 思考阶段静默（对齐 deepseek-harness：空推理不渲染占位，推理内容一到即渲染推理块）。
+  // 状态行只显示真实活动信息（工具运行/整理/重试），thinking 不再显示扫光占位，
+  // 避免「扫光占位 → 推理块」两种形态切换带来的跳动。
   return (
-    (status === "running" && (Boolean(activeTool) || Boolean(process.activity))) ||
+    (status === "running" && Boolean(activeTool)) ||
     status === "retrying" ||
-    Boolean(process.activity && status !== "completed" && status !== "stopped")
+    Boolean(
+      process.activity &&
+        status !== "completed" &&
+        status !== "stopped" &&
+        process.activity.phase !== "thinking",
+    )
   )
 }
 
