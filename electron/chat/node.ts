@@ -1131,10 +1131,15 @@ export class ChatServiceImpl extends ConnectionService<ChatService> implements I
 
   private async currentTurnIsComplete(sessionId: string, generation: SessionGeneration): Promise<boolean> {
     if (!this.agent) return false
-    const messages = await withTimeout(this.agent.getMessages(sessionId), 1_000, "idle history verification").catch(
+    // 大会话（消息多/长历史）拉全量消息可能超过 1s，超时会被静默当成"未完成"→ 验证失败重试。
+    // 放宽到 5s（后台验证，用户已看到回合完成，无感知），仍失败则记录原因供诊断。
+    const messages = await withTimeout(this.agent.getMessages(sessionId), 5_000, "idle history verification").catch(
       () => null,
     )
-    if (!messages || messages.length === 0) return false
+    if (!messages || messages.length === 0) {
+      logDiagnostic("chat-service", "turn completion verification: no messages", { sessionId }, "warn")
+      return false
+    }
     const userIndex = messages.findIndex(
       (message) => message.id === generation.userMessageId && message.role === "user",
     )
@@ -1145,7 +1150,25 @@ export class ChatServiceImpl extends ConnectionService<ChatService> implements I
     const assistant =
       activeAssistant ??
       (userIndex >= 0 ? messages.slice(userIndex + 1).find((message) => message.role === "assistant") : undefined)
-    return Boolean(assistant?.finishReason || assistant?.completedAt !== undefined)
+    if (!assistant) {
+      logDiagnostic(
+        "chat-service",
+        "turn completion verification: assistant message not found",
+        { sessionId, userMessageId: generation.userMessageId, userIndex, assistantId: assistantId ?? null, messageCount: messages.length },
+        "warn",
+      )
+      return false
+    }
+    if (!assistant.finishReason && assistant.completedAt === undefined) {
+      logDiagnostic(
+        "chat-service",
+        "turn completion verification: assistant lacks finish marker",
+        { sessionId, assistantId: assistant.id, finishReason: assistant.finishReason ?? null, completedAt: assistant.completedAt ?? null },
+        "warn",
+      )
+      return false
+    }
+    return true
   }
 
   private scheduleCompletionRetry(
