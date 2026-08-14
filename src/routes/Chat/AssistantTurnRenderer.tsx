@@ -32,7 +32,6 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { MessageResponse } from "@/components/ai-elements/message"
 import { MarkdownImage } from "@/components/ai-elements/message-image"
 import { useT } from "@/i18n/i18n"
-import { cn } from "@/lib/utils"
 
 /** 块级稳定 key：推理块按 message.id + "reasoning" 而非 partId——
  * 多个推理 part 合并为一个块，共用同一 key，流式增量实时填充到已展开的块
@@ -102,10 +101,12 @@ const ProcessDurationLabel = React.memo(function ProcessDurationLabel({
     return () => window.clearInterval(timer)
   }, [isLive])
   const duration = formatProcessDuration(process, now, live)
-  if (!duration) {
+  // 处理中耗时槽位常驻（min-w-8）："处理中" → "处理中 12s" 切换时 chevron 不再右移。
+  // 非 live 回合无耗时（纯文本回合）时不占位。
+  if (!isLive && !duration) {
     return null
   }
-  return <span className="shrink-0 tabular-nums">{duration}</span>
+  return <span className="inline-block min-w-8 shrink-0 text-left tabular-nums">{duration ?? ""}</span>
 })
 
 function processStatusText(t: TranslateFn, status: ChatTurnProcessStatus): string {
@@ -214,7 +215,7 @@ export function TurnProcessActivity({
             ))}
           </div>
         ) : null}
-        {showLiveStatus ? <LiveStatusBar process={process} live={live} /> : null}
+        {live || showLiveStatus ? <LiveStatusBar process={process} live={live} /> : null}
       </div>
     )
   }
@@ -225,7 +226,11 @@ export function TurnProcessActivity({
         <CollapsibleTrigger asChild>
           <button
             type="button"
-            className="group inline-flex max-w-full items-center gap-1.5 text-left font-medium text-[var(--oo-section-heading-foreground)] transition-colors select-none hover:text-foreground"
+            // 处理中锁定展开（生成期间不允许折叠，见 handleOpenChange）：禁用触发钮给出
+            // 明确视觉反馈，避免点击被静默吞掉后用户以为按钮坏了（"收不起"）。
+            disabled={live}
+            aria-disabled={live}
+            className="group inline-flex max-w-full items-center gap-1.5 text-left font-medium text-[var(--oo-section-heading-foreground)] transition-colors select-none hover:text-foreground disabled:cursor-default disabled:opacity-60 disabled:hover:text-[var(--oo-section-heading-foreground)]"
           >
             <span className="flex min-w-0 items-center gap-1">
               <span className="min-w-0 truncate">{titleText}</span>
@@ -251,7 +256,7 @@ export function TurnProcessActivity({
               onViewBilling={onViewBilling}
             />
           ))}
-          {showLiveStatus ? <LiveStatusBar process={process} live={live} /> : null}
+          {live || showLiveStatus ? <LiveStatusBar process={process} live={live} /> : null}
         </div>
       </CollapsibleContent>
     </Collapsible>
@@ -273,7 +278,10 @@ function LiveStatusBar({
 
   const status = chatTurnProcessStatus(process, live)
   const activeTool = latestActiveProcessTool(process)
-  if (!shouldShowProcessLiveStatus(process, status)) {
+  const showContent = shouldShowProcessLiveStatus(process, status)
+  // 非处理中的历史回合无副状态行；处理中状态行常驻占位（min-h-6），
+  // 思考→工具→文本输出相位切换时内容区不再上下跳 24px（副状态行消失/重现）。
+  if (!live && !showContent) {
     return null
   }
   // 思考阶段占位与 ReasoningBlock 完全一致（BrainIcon + text-xs + 扫光"深度思考"），
@@ -295,16 +303,16 @@ function LiveStatusBar({
 
   return (
     <div className="rounded-md text-muted-foreground">
-      <div className={cn("flex min-h-6 items-center", isThinking && "gap-2")}>
-        {/* 与工具行对齐：思考图标放 size-5 盒 + gap-2，文字列 28px */}
-        {isThinking ? (
-          <span className="flex size-5 shrink-0 items-center justify-center">
-            <BrainIcon className="size-3.5 shrink-0" aria-hidden="true" />
-          </span>
+      <div className="flex min-h-6 items-center gap-2">
+        {/* 图标盒常驻（思考时显示脑图标）：相位切换时文字列固定在 28px，不再左右跳。 */}
+        <span className="flex size-5 shrink-0 items-center justify-center">
+          {isThinking ? <BrainIcon className="size-3.5 shrink-0" aria-hidden="true" /> : null}
+        </span>
+        {showContent ? (
+          <LoadingShimmerText className="min-w-0 truncate text-xs font-medium">
+            {isThinking ? t("chat.reasoningToggle") : text}
+          </LoadingShimmerText>
         ) : null}
-        <LoadingShimmerText className={cn("min-w-0 truncate font-medium", isThinking && "text-xs")}>
-          {isThinking ? t("chat.reasoningToggle") : text}
-        </LoadingShimmerText>
       </div>
     </div>
   )
