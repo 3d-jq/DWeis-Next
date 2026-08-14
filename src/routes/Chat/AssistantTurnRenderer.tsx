@@ -215,7 +215,7 @@ export function TurnProcessActivity({
             ))}
           </div>
         ) : null}
-        {live || showLiveStatus ? <LiveStatusBar process={process} live={live} /> : null}
+        {showLiveStatus ? <LiveStatusBar process={process} live={live} /> : null}
       </div>
     )
   }
@@ -256,7 +256,7 @@ export function TurnProcessActivity({
               onViewBilling={onViewBilling}
             />
           ))}
-          {live || showLiveStatus ? <LiveStatusBar process={process} live={live} /> : null}
+          {showLiveStatus ? <LiveStatusBar process={process} live={live} /> : null}
         </div>
       </CollapsibleContent>
     </Collapsible>
@@ -279,9 +279,9 @@ function LiveStatusBar({
   const status = chatTurnProcessStatus(process, live)
   const activeTool = latestActiveProcessTool(process)
   const showContent = shouldShowProcessLiveStatus(process, status)
-  // 非处理中的历史回合无副状态行；处理中状态行常驻占位（min-h-6），
-  // 思考→工具→文本输出相位切换时内容区不再上下跳 24px（副状态行消失/重现）。
-  if (!live && !showContent) {
+  // 状态行只在内容块未到达时显示（思考/整理占位）：推理内容一到，推理块（同为 24px 行）
+  // 原位替换它，不产生跳动；若处理中常驻空行会变成空白缝隙，且与内容块重复显示。
+  if (!showContent) {
     return null
   }
   // 思考阶段占位与 ReasoningBlock 完全一致（BrainIcon + text-xs + 扫光"深度思考"），
