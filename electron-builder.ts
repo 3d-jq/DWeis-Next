@@ -279,6 +279,11 @@ export default {
     // build229 = 轻量启动画面（22b0abd）：品牌名+扫光进度条，主窗口就绪后淡入替换、splash 淡出关闭。
     // build230 = 启动画面 v2（da55202）：splash 改与主窗口同尺寸（1280×800）遮挡加载，渲染层 UI
     //   就绪（App 可进入）才淡出切换，最短展示 1.5s；不再 ready-to-show 即切换。
+    // build231 = ①上下文明细对齐 deepseek-harness 口径（b578fa4）：块级结构开销 + 真实 usage 与
+    //   估算取保守大者兜底，无 usage 不显示 0；②移除 token 估算过时注释（32941b1）；
+    //   ③移除计划面板 git 工具区（8034403，含 getGraph 链路与文案）；
+    //   ④处理过程状态行常驻占位消除跳动（d542cf7）；⑤.gitattributes 统一 LF（8d1ff32）+ README 恢复
+    //   Agent Engine 声明（2049923）。
     // build226 = 版本 1.8.0：①git 工具区补全——创建并检出新分支 + git log --graph 图谱（getGraph IPC）；
     //   ②权限/提问卡片借鉴 deepseek-harness——composer takeover（请求接管输入框位置）+「我想直接说」
     //   讨论第三操作 + tinted strip 彩色顶条。
@@ -286,7 +291,7 @@ export default {
     // build224 = Apple HIG 视觉对齐（c5242cc）：设置页全高侧栏 + 全行图标 + iOS 分段控件、
     //   工具配置改弹窗、用量热力图缩放跟随、权限/提问卡片外壳统一、推理滑块标签对齐、Work/Code
     //   切换 pill、技能页卡片升级；agent workspace 启动 ENOTEMPTY 退避重试（dc2bcd3）。
-    output: "release/build230",
+    output: "release/build231",
   },
   publish: {
     provider: "github",
