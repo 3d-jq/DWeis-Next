@@ -182,7 +182,7 @@ export function ReasoningStrengthSlider({
                   }}
                   className={cn(
                     "oo-text-micro absolute top-0 shrink-0 rounded px-1 py-0.5 whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground",
-                    itemLevel === effectiveLevel && "font-medium text-[var(--info)]",
+                    itemLevel === effectiveLevel && "bg-[var(--info)] font-medium text-white",
                   )}
                 >
                   {reasoningLevelLabel(itemLevel, t)}
