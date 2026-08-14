@@ -284,6 +284,8 @@ export default {
     //   ③移除计划面板 git 工具区（8034403，含 getGraph 链路与文案）；
     //   ④处理过程状态行常驻占位消除跳动（d542cf7）；⑤.gitattributes 统一 LF（8d1ff32）+ README 恢复
     //   Agent Engine 声明（2049923）。
+    // build232 = ①回退状态行常驻占位（fcfeb40，避免空白缝隙与重复显示）；
+    //   ②思考阶段静默对齐 deepseek-harness（c87d224）：移除扫光占位，推理内容一到即渲染推理块（无占位切换跳动）。
     // build226 = 版本 1.8.0：①git 工具区补全——创建并检出新分支 + git log --graph 图谱（getGraph IPC）；
     //   ②权限/提问卡片借鉴 deepseek-harness——composer takeover（请求接管输入框位置）+「我想直接说」
     //   讨论第三操作 + tinted strip 彩色顶条。
@@ -291,7 +293,7 @@ export default {
     // build224 = Apple HIG 视觉对齐（c5242cc）：设置页全高侧栏 + 全行图标 + iOS 分段控件、
     //   工具配置改弹窗、用量热力图缩放跟随、权限/提问卡片外壳统一、推理滑块标签对齐、Work/Code
     //   切换 pill、技能页卡片升级；agent workspace 启动 ENOTEMPTY 退避重试（dc2bcd3）。
-    output: "release/build231",
+    output: "release/build232",
   },
   publish: {
     provider: "github",
