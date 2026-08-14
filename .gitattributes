@@ -1,0 +1,39 @@
+# 统一 LF 换行符：文本文件入库与检出均为 LF。
+# 背景：Windows 上 core.autocrlf 曾把检出文件转成 CRLF，而 oxfmt 按 LF 判定格式，
+# 导致本地 `pnpm run format` 门禁 857 个文件假阳性；显式属性后不再依赖 autocrlf 配置。
+* text=auto eol=lf
+
+# Shell 脚本必须保持 LF（shebang 依赖 LF 换行）。
+*.sh text eol=lf
+
+# 二进制文件不做换行处理。
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.icns binary
+*.bmp binary
+*.avif binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.eot binary
+*.pdf binary
+*.zip binary
+*.gz binary
+*.tar binary
+*.7z binary
+*.exe binary
+*.dll binary
+*.dylib binary
+*.so binary
+*.dat binary
+*.mp3 binary
+*.mp4 binary
+*.wav binary
+*.ogg binary
+*.wasm binary
+*.pdb binary
