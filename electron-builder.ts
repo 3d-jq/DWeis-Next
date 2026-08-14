@@ -276,6 +276,7 @@ export default {
     // build227 = git 工具交互改按钮+弹窗（53e044c）。
     // build228 = 推理强度按钮补 hover（9c5b7a9）+ 输入框选择值切换「翻一下」特效（4c38240，rotateX
     //   翻转动画，尊重 prefers-reduced-motion）；档位选中态反转已回退（2977698）。
+    // build229 = 轻量启动画面（22b0abd）：品牌名+扫光进度条，主窗口就绪后淡入替换、splash 淡出关闭。
     // build226 = 版本 1.8.0：①git 工具区补全——创建并检出新分支 + git log --graph 图谱（getGraph IPC）；
     //   ②权限/提问卡片借鉴 deepseek-harness——composer takeover（请求接管输入框位置）+「我想直接说」
     //   讨论第三操作 + tinted strip 彩色顶条。
@@ -283,7 +284,7 @@ export default {
     // build224 = Apple HIG 视觉对齐（c5242cc）：设置页全高侧栏 + 全行图标 + iOS 分段控件、
     //   工具配置改弹窗、用量热力图缩放跟随、权限/提问卡片外壳统一、推理滑块标签对齐、Work/Code
     //   切换 pill、技能页卡片升级；agent workspace 启动 ENOTEMPTY 退避重试（dc2bcd3）。
-    output: "release/build228",
+    output: "release/build229",
   },
   publish: {
     provider: "github",
