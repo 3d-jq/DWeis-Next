@@ -90,3 +90,11 @@ test("extractLocalImagePaths ignores code examples but keeps explicit inline pat
     ),
   ).toEqual(["/Users/me/output files/real.png"])
 })
+
+test("normalizeLocalImageMarkdown strips model-invented angle-bracket absolute paths", () => {
+  // 模型照旧示例输出 `</absolute/path/C:\...>`（尖括号 + 假前缀）：应剥掉还原成可解析路径。
+  const markdown = String.raw`![地球](</absolute/path/C:\Users\me\image.png>)`
+  expect(normalizeLocalImageMarkdown(markdown)).toBe(String.raw`![地球](C:\Users\me\image.png)`)
+  expect(extractMarkdownImageSources(markdown)).toEqual([String.raw`C:\Users\me\image.png`])
+  expect(extractLocalImagePaths(markdown)).toEqual([String.raw`C:\Users\me\image.png`])
+})

@@ -15,6 +15,20 @@ const exactLocalImagePathPattern = new RegExp(
   "i",
 )
 
+/** 容错：模型可能照旧示例输出 `![alt](</absolute/path/C:\\...>)`（尖括号+假前缀），
+ * 归一化成可解析的绝对本地路径 `![alt](C:\\...)`。 */
+const angleBracketLocalPathPattern = new RegExp(
+  `!\\[([^\\]\\n]*)\\]\\(\\s*<\\s*(?:\\/absolute\\/path\\/)?((?:file:\\/\\/|\\/|[A-Za-z]:[\\\\/])[^<>\\n]*?\\.${imageExtensionSource})\\s*>\\)`,
+  "gi",
+)
+
+function stripAngleBracketLocalPaths(markdown: string): string {
+  return markdown.replace(
+    angleBracketLocalPathPattern,
+    (_match, alt: string, path: string) => `![${alt}](${path})`,
+  )
+}
+
 function fenceStart(line: string): { character: "`" | "~"; length: number } | null {
   const match = /^(?: {0,3})(`{3,}|~{3,})/.exec(line)
   const marker = match?.[1]
@@ -121,7 +135,7 @@ function normalizeLocalImageProse(markdown: string): string {
 }
 
 export function normalizeLocalImageMarkdown(markdown: string): string {
-  return mapMarkdownProse(markdown, normalizeLocalImageProse)
+  return mapMarkdownProse(stripAngleBracketLocalPaths(markdown), normalizeLocalImageProse)
 }
 
 export function extractMarkdownImageSources(markdown: string): string[] {
@@ -150,7 +164,7 @@ export function extractLocalImagePaths(markdown: string): string[] {
     }
     return prose
   }
-  mapMarkdownBlocks(markdown, (prose) =>
+  mapMarkdownBlocks(stripAngleBracketLocalPaths(markdown), (prose) =>
     mapInlineCode(prose, appendMatches, (code) => {
       const candidate = code.trim()
       if (exactLocalImagePathPattern.test(candidate) && !paths.includes(candidate)) {
