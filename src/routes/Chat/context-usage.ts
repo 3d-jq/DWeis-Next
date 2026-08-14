@@ -123,10 +123,16 @@ export function selectedModelContextWindow(catalog: ModelCatalog | null): number
   return selectedModelContextBudget(catalog)?.contextLimitTokens
 }
 
-export function buildContextUsageInfo(messages: ChatMessage[], catalog: ModelCatalog | null): ContextUsageInfo | null {
+export function buildContextUsageInfo(
+  messages: ChatMessage[],
+  catalog: ModelCatalog | null,
+  estimateOptions?: { mcpServerCount?: number; memory: MemoryContent | null; skillInventory: SkillInventory | null },
+): ContextUsageInfo | null {
   const budget = selectedModelContextBudget(catalog)
   const usage = latestContextTokenUsage(messages)
-  const usedTokens = usage ? contextTokensFromUsage(usage) : 0
+  const usageTotal = usage ? contextTokensFromUsage(usage) : 0
+  // dsh 取保守大者：provider 真实 usage 优先；缺失或小于启发式估算时用估算兜底（永不低估、不显示 0）。
+  const usedTokens = Math.max(usageTotal, estimateContextTokens(messages, estimateOptions))
   if (!budget?.contextLimitTokens && usedTokens === 0) {
     return null
   }
@@ -163,6 +169,12 @@ export function formatTokenCount(value: number): string {
 
 /* ===== 上下文占用明细（估算） ===== */
 
+// 估算口径对齐 deepseek-harness token-meter（@deepseek-ai/dsh-token-meter/estimate）：
+// 固定密度 chars/4 + 每块 JSON 结构开销 4 + 每消息 role 开销 4；与真实 provider usage 取保守大者。
+const CHARS_PER_TOKEN = 4
+const BLOCK_OVERHEAD = 4
+const ROLE_OVERHEAD = 4
+
 // 工具桶常量：opencode 内置工具（bash/read/write/edit/grep/glob/list/webfetch/todo/task/skill/patch）
 // + Wanta 附加工具（memory/browser_*）的 description+schema 总长近似。MCP 服务器工具按每服务器常量。
 const BUILTIN_TOOLS_TOKEN_ESTIMATE = 1200
@@ -177,9 +189,15 @@ function estimateMessagePart(part: ChatMessagePart): number {
   switch (part.kind) {
     case "text":
     case "reasoning":
-      return estimateTokens(part.text ?? "")
+      return Math.ceil((part.text ?? "").length / CHARS_PER_TOKEN) + BLOCK_OVERHEAD
     case "tool":
-      return estimateTokens(`${JSON.stringify(part.input ?? {})} ${part.output ?? ""}`)
+      // dsh 口径：tool-call（name+arguments）与 tool-result（内容）各计一个块开销。
+      return (
+        Math.ceil(JSON.stringify(part.input ?? {}).length / CHARS_PER_TOKEN) +
+        BLOCK_OVERHEAD +
+        Math.ceil((part.output ?? "").length / CHARS_PER_TOKEN) +
+        BLOCK_OVERHEAD
+      )
     case "attachment":
       if (part.attachment?.size && part.attachment.size > 0) {
         return Math.max(200, Math.round((part.attachment.size / 100_000) * ATTACHMENT_TOKEN_PER_100KB))
@@ -193,11 +211,30 @@ function estimateMessagePart(part: ChatMessagePart): number {
 function estimateMessages(messages: ChatMessage[]): number {
   let total = 0
   for (const message of messages) {
+    total += ROLE_OVERHEAD
     for (const part of message.parts) {
       total += estimateMessagePart(part)
     }
   }
   return total
+}
+
+/** 当前会话上下文的启发式估算总量（不含 provider usage）：消息 + 工具 + 技能 + 系统提示 + 记忆。 */
+function estimateContextTokens(
+  messages: ChatMessage[],
+  options: { mcpServerCount?: number; memory: MemoryContent | null; skillInventory: SkillInventory | null } | undefined,
+): number {
+  if (!options) {
+    return estimateMessages(messages)
+  }
+  return (
+    estimateMessages(messages) +
+    BUILTIN_TOOLS_TOKEN_ESTIMATE +
+    (options.mcpServerCount ?? 0) * MCP_SERVER_TOOLS_TOKEN_ESTIMATE +
+    estimateSkills(options.skillInventory) +
+    estimateMemory(options.memory) +
+    SYSTEM_PROMPT_BASE_TOKEN_ESTIMATE
+  )
 }
 
 function estimateSkills(inventory: SkillInventory | null): number {
@@ -243,7 +280,9 @@ export function buildContextUsageBreakdown(
   // contextTokensFromUsage 已包含 cache.read/cache.write（total 分支或 input+output+cache 分支），
   // 不能再额外加 cache.read，否则缓存读取 token 重复计、other/total 虚高。
   const usageTotal = options.usage ? contextTokensFromUsage(options.usage) : 0
-  const other = Math.max(0, usageTotal - known)
+  // 与 buildContextUsageInfo 同口径：真实 usage 与启发式估算取保守大者；other 吸收差额（已压缩历史等）。
+  const total = Math.max(usageTotal, known)
+  const other = Math.max(0, total - known)
   return {
     messages: messagesTokens,
     tools: toolsTokens,
@@ -251,6 +290,6 @@ export function buildContextUsageBreakdown(
     systemPrompt: systemPromptTokens,
     memory: memoryTokens,
     other,
-    total: known + other,
+    total,
   }
 }

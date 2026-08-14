@@ -648,19 +648,19 @@ export function ChatComposer({
     : placeholder
   const hasInputAddons = command !== null || attachments.length > 0 || contextMentions.length > 0
   const contextUsage = React.useMemo(() => {
-    const info = buildContextUsageInfo(messages, modelCatalog)
+    const estimateOptions = {
+      mcpServerCount: mcpServers.servers.length,
+      memory: memory.content,
+      skillInventory: skillInventory.data,
+    }
+    const info = buildContextUsageInfo(messages, modelCatalog, estimateOptions)
     if (!info) {
       return null
     }
     const usage = latestContextTokenUsage(messages)
     return {
       ...info,
-      breakdown: buildContextUsageBreakdown(messages, {
-        mcpServerCount: mcpServers.servers.length,
-        memory: memory.content,
-        skillInventory: skillInventory.data,
-        usage,
-      }),
+      breakdown: buildContextUsageBreakdown(messages, { ...estimateOptions, usage }),
     }
   }, [messages, modelCatalog, memory.content, mcpServers.servers.length, skillInventory.data])
 

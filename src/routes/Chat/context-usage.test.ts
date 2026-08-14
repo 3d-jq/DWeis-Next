@@ -305,9 +305,10 @@ describe("buildContextUsageBreakdown", () => {
         ],
       },
     ]
-    // text 40/4=10，reasoning 20/4=5，tool (JSON input≈24 + output 4)/4=7
+    // dsh 口径：text 40/4=10+块 4=14，reasoning 20/4=5+块 4=9，
+    // tool input JSON≈26/4=7+块 4=11、output 4/4=1+块 4=5，每消息 role 4×2=8
     const breakdown = buildContextUsageBreakdown(messages, { memory: null, mcpServerCount: 0, skillInventory: null, usage: undefined })
-    expect(breakdown.messages).toBe(23)
+    expect(breakdown.messages).toBe(47)
   })
 
   it("counts skills and memory buckets from inventory and memory content", () => {
@@ -354,5 +355,51 @@ describe("buildContextUsageBreakdown", () => {
     // usage 总量 = input + cache.read = 15000，各桶之和远小于此 → other 吸收差额
     expect(breakdown.other).toBeGreaterThan(10_000)
     expect(breakdown.total).toBe(breakdown.messages + breakdown.tools + breakdown.skills + breakdown.systemPrompt + breakdown.memory + breakdown.other)
+  })
+
+  it("falls back to the heuristic estimate when provider usage is absent", () => {
+    // dsh 兜底：无 usage 时不再显示 0，用消息 + 工具/系统提示等常量估算。
+    const messages: ChatMessage[] = [
+      { id: "m1", role: "user", createdAt: 1, parts: [{ kind: "text", partId: "p1", text: "x".repeat(40) }] },
+    ]
+    const info = buildContextUsageInfo(messages, catalog, { memory: null, mcpServerCount: 0, skillInventory: null })
+    expect(info?.usedTokens).toBeGreaterThan(0)
+    expect(info?.percent).toBeGreaterThan(0)
+  })
+
+  it("prefers the larger of provider usage and the heuristic estimate", () => {
+    // dsh 取保守大者：usage 异常小（估算 ≈ 消息 18 + 工具 1200 + 系统 2600 = 3818）时用估算，
+    // usage 正常大时用真实值——永不低估。
+    const base: ChatMessage = {
+      id: "m1",
+      role: "assistant",
+      createdAt: 1,
+      parts: [{ kind: "text", partId: "p1", text: "x".repeat(40) }],
+    }
+    const smallUsage = buildContextUsageInfo(
+      [{ ...base, tokenUsage: { input: 30, output: 20, reasoning: 0, cache: { read: 0, write: 0 } } }],
+      catalog,
+      { memory: null, mcpServerCount: 0, skillInventory: null },
+    )
+    expect(smallUsage?.usedTokens).toBeGreaterThan(3000)
+    const bigUsage = buildContextUsageInfo(
+      [{ ...base, tokenUsage: { input: 50_000, output: 1_000, reasoning: 0, cache: { read: 10_000, write: 0 } } }],
+      catalog,
+      { memory: null, mcpServerCount: 0, skillInventory: null },
+    )
+    expect(bigUsage?.usedTokens).toBe(61_000)
+  })
+
+  it("keeps the breakdown total aligned with the estimate fallback", () => {
+    const messages: ChatMessage[] = [
+      { id: "m1", role: "user", createdAt: 1, parts: [{ kind: "text", partId: "p1", text: "x".repeat(40) }] },
+    ]
+    const breakdown = buildContextUsageBreakdown(messages, { memory: null, mcpServerCount: 0, skillInventory: null, usage: undefined })
+    // 无 usage → total = known（估算兜底），other = 0
+    expect(breakdown.other).toBe(0)
+    expect(breakdown.total).toBeGreaterThan(3000)
+    expect(breakdown.total).toBe(
+      breakdown.messages + breakdown.tools + breakdown.skills + breakdown.systemPrompt + breakdown.memory + breakdown.other,
+    )
   })
 })
