@@ -34,6 +34,7 @@ export interface DWeisBridge {
   selectProjectDirectory(): Promise<SelectedAttachmentPath | null>
   selectDataDirectory(): Promise<string | null>
   relaunchApp(): Promise<void>
+  notifyUiReady(): void
   setAppLocale(locale: AppLocale): void
   version: string
   writeClipboardText(text: string): Promise<void>
@@ -86,6 +87,7 @@ const dweis: DWeisBridge = {
     ipcRenderer.invoke("dweis:select-project-directory") as Promise<SelectedAttachmentPath | null>,
   selectDataDirectory: () => ipcRenderer.invoke("dweis:select-data-directory") as Promise<string | null>,
   relaunchApp: () => ipcRenderer.invoke("dweis:relaunch-app") as Promise<void>,
+  notifyUiReady: () => ipcRenderer.send("dweis:ui-ready"),
   setAppLocale: (locale: AppLocale) => ipcRenderer.send(APP_LOCALE_CHANNEL, locale),
   version: typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : "0.0.0",
   writeClipboardText: (text: string) => ipcRenderer.invoke(WRITE_CLIPBOARD_TEXT_CHANNEL, text) as Promise<void>,

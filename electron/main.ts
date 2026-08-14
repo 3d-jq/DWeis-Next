@@ -117,7 +117,7 @@ import {
 } from "./window/title-bar-overlay.ts"
 import { createHideOnCloseHandler, revealMainWindow } from "./window/window-close-behavior.ts"
 import { createWindowsTrayLifecycle } from "./window/windows-tray-lifecycle.ts"
-import { dismissSplashWindow, showSplashWindow } from "./window/splash.ts"
+import { dismissSplashWindow, showSplashWindow, SPLASH_FALLBACK_MS, SPLASH_MIN_VISIBLE_MS } from "./window/splash.ts"
 
 declare const __APP_COMMIT__: string | undefined
 
@@ -149,6 +149,11 @@ const shutdownCleanupTimeoutMs = 5_000
 const protocolScheme = viteDevServerUrl ? branding.devProtocolScheme : branding.protocolScheme
 
 let mainWindow: BrowserWindow | null = null
+// 启动画面切换状态：splash 遮挡加载，渲染层 UI 就绪（ui-ready IPC）后才淡出替换。
+let splashShownAt = 0
+let mainWindowReadyToShow = false
+let uiReadyReceived = false
+let mainWindowRevealScheduled = false
 let currentLocale: AppLocale | null = null
 let isQuitting = false
 type AppQuitIntent = "none" | "user-quit" | "update-install" | "termination-signal" | "relaunch"
@@ -614,6 +619,7 @@ registerAttachmentDialogHandlers(
 registerClipboardHandler(windowBoundsIpcGuard)
 registerAppLocaleHandler()
 registerRendererErrorHandler()
+registerUiReadyHandler()
 registerWindowBoundsHandlers()
 
 if (isLocked) {
@@ -831,6 +837,16 @@ function registerRendererErrorHandler(): void {
     if (report.level === "error") console.error("[dweis] renderer error:", report)
     else console.warn("[dweis] renderer handled issue:", report)
     logDiagnostic("renderer", message, { ...report }, report.level)
+  })
+}
+
+function registerUiReadyHandler(): void {
+  ipcMain.on("dweis:ui-ready", (event) => {
+    if (!isTrustedIpcSender(event, { viteDevServerUrl, rendererBaseUrl })) {
+      return
+    }
+    uiReadyReceived = true
+    maybeRevealMainWindow()
   })
 }
 
@@ -1200,9 +1216,51 @@ function registerAppLocaleHandler(): void {
   })
 }
 
+function maybeRevealMainWindow(): void {
+  if (!mainWindow || mainWindowRevealScheduled || !mainWindowReadyToShow || !uiReadyReceived) {
+    return
+  }
+  mainWindowRevealScheduled = true
+  // 最短展示时长：UI 就绪过早时也把 splash 留够时间，避免一闪而过。
+  const waitMs = Math.max(0, splashShownAt + SPLASH_MIN_VISIBLE_MS - Date.now())
+  setTimeout(() => {
+    dismissSplashWindow()
+    revealMainWindowWithFade()
+  }, waitMs)
+}
+
+function revealMainWindowWithFade(): void {
+  if (!mainWindow) {
+    return
+  }
+  // 主窗口与 splash 同尺寸同位置：先透明再渐显，衔接成同一位置的「替换」过渡。
+  try {
+    mainWindow.setOpacity(0)
+    mainWindow.show()
+    const fadeIn = (opacity: number): void => {
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        return
+      }
+      if (opacity >= 1) {
+        mainWindow.setOpacity(1)
+        return
+      }
+      mainWindow.setOpacity(opacity)
+      setTimeout(() => fadeIn(opacity + 0.18), 24)
+    }
+    fadeIn(0.1)
+  } catch {
+    mainWindow.show()
+  }
+}
+
 function createMainWindow(): void {
   installPermissionRequestHandler()
-  // 冷启动先弹品牌启动画面，主窗口就绪后淡入替换（见下方 ready-to-show）。
+  // 冷启动先弹品牌启动画面（与主窗口同尺寸），渲染层 UI 就绪后淡出替换。
+  mainWindowReadyToShow = false
+  uiReadyReceived = false
+  mainWindowRevealScheduled = false
+  splashShownAt = Date.now()
   showSplashWindow()
   const isMac = process.platform === "darwin"
   const titleBarTheme = resolveWindowsTitleBarTheme(nativeTheme.shouldUseDarkColors)
@@ -1244,29 +1302,8 @@ function createMainWindow(): void {
   browserManager.setMainWindow(mainWindow)
 
   mainWindow.once("ready-to-show", () => {
-    if (!mainWindow) {
-      return
-    }
-    dismissSplashWindow()
-    // 淡入显示：先透明再渐显，与 splash 淡出衔接成「替换」过渡；setOpacity 不可用则直接显示。
-    try {
-      mainWindow.setOpacity(0)
-      mainWindow.show()
-      const fadeIn = (opacity: number): void => {
-        if (!mainWindow || mainWindow.isDestroyed()) {
-          return
-        }
-        if (opacity >= 1) {
-          mainWindow.setOpacity(1)
-          return
-        }
-        mainWindow.setOpacity(opacity)
-        setTimeout(() => fadeIn(opacity + 0.18), 24)
-      }
-      fadeIn(0.1)
-    } catch {
-      mainWindow.show()
-    }
+    mainWindowReadyToShow = true
+    maybeRevealMainWindow()
   })
   mainWindow.on("focus", () => {
     updateService.handleWindowForegrounded()
@@ -1338,8 +1375,10 @@ function createMainWindow(): void {
       return
     }
     console.error("[dweis] renderer failed to load:", { errorCode, errorDescription, validatedURL })
-    // 渲染加载失败同样收起 splash，避免启动画面永远挂着。
+    // 渲染加载失败同样收起 splash，主窗口直接显示（不等待 ui-ready）。
     dismissSplashWindow()
+    mainWindowRevealScheduled = true
+    mainWindow?.show()
     logDiagnostic(
       "main-window",
       "renderer failed to load",
@@ -1372,6 +1411,15 @@ function createMainWindow(): void {
       logMainError("failed to load renderer file", error, { path: rendererEntry })
     })
   }
+
+  // 兜底：渲染层迟迟未发 ui-ready（渲染异常等）也强制切换，避免 splash 永久占屏。
+  setTimeout(() => {
+    if (!mainWindow || mainWindowRevealScheduled) {
+      return
+    }
+    uiReadyReceived = true
+    maybeRevealMainWindow()
+  }, SPLASH_FALLBACK_MS)
 
   mainWindow.on("closed", () => {
     mainWindow = null

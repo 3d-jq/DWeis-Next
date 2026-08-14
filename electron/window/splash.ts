@@ -1,11 +1,16 @@
 // 轻量启动画面：冷启动时主窗口还在后台加载（agent 初始化、渲染进程就绪），
-// 先弹一个品牌卡片给用户即时反馈；主窗口就绪后由调用方触发淡出销毁。
+// 先弹一个与主窗口同尺寸的品牌画面遮挡加载；渲染层 UI 就绪后由调用方触发淡出销毁。
 import { BrowserWindow, nativeTheme } from "electron"
 import { branding } from "../branding.ts"
 
-const SPLASH_WIDTH = 360
-const SPLASH_HEIGHT = 220
-/** 兜底超时：即使主窗口一直没就绪，splash 也要自动关掉，避免永远占屏。 */
+/** 与主窗口默认尺寸一致（electron/main.ts 主窗口 1280×800），切换时无尺寸跳跃。 */
+export const SPLASH_WIDTH = 1280
+export const SPLASH_HEIGHT = 800
+/** 最短可见时长：渲染层 UI 就绪过早时也至少展示这么久，避免一闪而过。 */
+export const SPLASH_MIN_VISIBLE_MS = 1500
+/** 外部兜底超时（main.ts 强制切换），内部再留一层保险。 */
+export const SPLASH_FALLBACK_MS = 10_000
+/** 内部兜底超时：即使没人触发切换，splash 也要自动关掉，避免永远占屏。 */
 const SPLASH_MAX_MS = 20_000
 
 interface SplashPalette {
@@ -55,9 +60,9 @@ function splashHtml(palette: SplashPalette): string {
     user-select: none; -webkit-user-select: none;
   }
   .card { text-align: center; }
-  .brand { font-size: 30px; font-weight: 600; letter-spacing: 0.04em; }
+  .brand { font-size: 46px; font-weight: 600; letter-spacing: 0.04em; }
   .bar {
-    width: 132px; height: 3px; margin: 22px auto 0;
+    width: 180px; height: 3px; margin: 30px auto 0;
     border-radius: 999px; background: ${palette.bar};
     position: relative; overflow: hidden;
   }

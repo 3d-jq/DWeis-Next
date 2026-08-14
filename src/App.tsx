@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react"
+import { lazy, Suspense, useEffect, useRef } from "react"
 import { resolveAppEntryState } from "@/app-entry"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
 import { ThemeProvider } from "@/components/ThemeProvider"
@@ -18,11 +18,24 @@ const AuthenticatedAppShell = lazy(() =>
 function AuthGate() {
   const auth = useAuth()
   const runtime = useRuntimeCapabilities()
+  const uiReadyNotified = useRef(false)
   const entry = resolveAppEntryState({
     authReady: auth.state !== null,
     runtimeFailed: runtime.error !== null,
     runtimeReady: runtime.capabilities !== null,
   })
+
+  // 主界面可进入时通知主进程收起启动画面（splash 遮挡加载，就绪后才切换）。
+  useEffect(() => {
+    if (entry !== "app" || uiReadyNotified.current) {
+      return
+    }
+    uiReadyNotified.current = true
+    const frame = requestAnimationFrame(() => {
+      window.dweisnext?.notifyUiReady()
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [entry])
 
   if (entry === "loading") {
     return <div className="h-full bg-background" />
