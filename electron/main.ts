@@ -117,6 +117,7 @@ import {
 } from "./window/title-bar-overlay.ts"
 import { createHideOnCloseHandler, revealMainWindow } from "./window/window-close-behavior.ts"
 import { createWindowsTrayLifecycle } from "./window/windows-tray-lifecycle.ts"
+import { dismissSplashWindow, showSplashWindow } from "./window/splash.ts"
 
 declare const __APP_COMMIT__: string | undefined
 
@@ -1201,6 +1202,8 @@ function registerAppLocaleHandler(): void {
 
 function createMainWindow(): void {
   installPermissionRequestHandler()
+  // 冷启动先弹品牌启动画面，主窗口就绪后淡入替换（见下方 ready-to-show）。
+  showSplashWindow()
   const isMac = process.platform === "darwin"
   const titleBarTheme = resolveWindowsTitleBarTheme(nativeTheme.shouldUseDarkColors)
   const nativeMaterial = nativeWindowMaterialForPlatform(process.platform)
@@ -1240,7 +1243,31 @@ function createMainWindow(): void {
   })
   browserManager.setMainWindow(mainWindow)
 
-  mainWindow.once("ready-to-show", () => mainWindow?.show())
+  mainWindow.once("ready-to-show", () => {
+    if (!mainWindow) {
+      return
+    }
+    dismissSplashWindow()
+    // 淡入显示：先透明再渐显，与 splash 淡出衔接成「替换」过渡；setOpacity 不可用则直接显示。
+    try {
+      mainWindow.setOpacity(0)
+      mainWindow.show()
+      const fadeIn = (opacity: number): void => {
+        if (!mainWindow || mainWindow.isDestroyed()) {
+          return
+        }
+        if (opacity >= 1) {
+          mainWindow.setOpacity(1)
+          return
+        }
+        mainWindow.setOpacity(opacity)
+        setTimeout(() => fadeIn(opacity + 0.18), 24)
+      }
+      fadeIn(0.1)
+    } catch {
+      mainWindow.show()
+    }
+  })
   mainWindow.on("focus", () => {
     updateService.handleWindowForegrounded()
     void attentionService.windowFocused().catch((error: unknown) => {
@@ -1311,6 +1338,8 @@ function createMainWindow(): void {
       return
     }
     console.error("[dweis] renderer failed to load:", { errorCode, errorDescription, validatedURL })
+    // 渲染加载失败同样收起 splash，避免启动画面永远挂着。
+    dismissSplashWindow()
     logDiagnostic(
       "main-window",
       "renderer failed to load",
