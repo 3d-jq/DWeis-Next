@@ -131,8 +131,15 @@ corepack pnpm run dev
 署名、リリースのワークフローについては [開発ガイド](docs/development.md) を参照してください。
 
 スタックは Electron 42、Vite 8、React 19、Tailwind CSS 4、OpenCode、TypeScript、Vitest、oxlint、
-oxfmt。DWeis Next は OpenCode ランタイム、SDK、プラグインをまったく同じバージョンにピン留めして
-います（API は安定扱いされていないため）。
+oxfmt。
+
+> ### Agent Engine: OpenCode
+
+DWeis Next はピン留めした `opencode-ai@1.17.13` バイナリをループバック専用の `opencode serve`
+サイドカーとして起動し、`@opencode-ai/sdk@1.17.13` で駆動します。OpenCode パッケージは MIT
+ライセンスで、[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) に謝辞を掲載しています。DWeis Next
+はランタイム、SDK、プラグインをまったく同じバージョンにピン留めしています（API は安定扱い
+されていないため）。
 
 ## 自分の Agent を構築する
 

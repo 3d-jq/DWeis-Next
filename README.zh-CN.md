@@ -120,7 +120,13 @@ corepack pnpm run dev
 [开发指南](docs/development.md)。
 
 技术栈：Electron 42、Vite 8、React 19、Tailwind CSS 4、OpenCode、TypeScript、Vitest、oxlint、oxfmt。
-DWeis Next 把 OpenCode 运行时、SDK 与插件锁定到完全相同的版本，因为它们的 API 不被视为稳定接口。
+
+> ### Agent Engine: OpenCode
+
+DWeis Next 启动固定版本 `opencode-ai@1.17.13` 二进制作为仅回环的 `opencode serve` sidecar，并通过
+`@opencode-ai/sdk@1.17.13` 驱动它。OpenCode 各包为 MIT 许可，已在
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) 中致谢。DWeis Next 把运行时、SDK 与插件锁定到
+完全相同的版本，因为它们的 API 不被视为稳定接口。
 
 ## 构建你自己的 Agent
 

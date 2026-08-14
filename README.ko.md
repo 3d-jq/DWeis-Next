@@ -130,8 +130,13 @@ corepack pnpm run dev
 릴리스 워크플로우는 [개발 가이드](docs/development.md)에 있습니다.
 
 스택은 Electron 42, Vite 8, React 19, Tailwind CSS 4, OpenCode, TypeScript, Vitest, oxlint, oxfmt입니다.
-DWeis Next는 OpenCode 런타임, SDK, 플러그인을 완전히 동일한 버전으로 핀 고정합니다 (API가 안정
-API로 간주되지 않기 때문).
+
+> ### Agent Engine: OpenCode
+
+DWeis Next는 고정된 `opencode-ai@1.17.13` 바이너리를 루프백 전용 `opencode serve` 사이드카로
+실행하고 `@opencode-ai/sdk@1.17.13`로 구동합니다. OpenCode 패키지는 MIT 라이선스이며
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)에 고지되어 있습니다. DWeis Next는 런타임, SDK,
+플러그인을 완전히 동일한 버전으로 핀 고정합니다 (API가 안정 API로 간주되지 않기 때문).
 
 ## 자신만의 Agent 만들기
 

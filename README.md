@@ -131,8 +131,14 @@ verification, packaging, signing, and release workflows live in the
 [Development Guide](docs/development.md).
 
 The stack is Electron 42, Vite 8, React 19, Tailwind CSS 4, OpenCode, TypeScript, Vitest, oxlint, and
-oxfmt. DWeis Next pins the OpenCode runtime, SDK, and plugins to the same exact version because their
-APIs are not treated as stable.
+oxfmt.
+
+> ### Agent Engine: OpenCode
+
+DWeis Next starts the pinned `opencode-ai@1.17.13` binary as a loopback-only `opencode serve` sidecar
+and drives it through `@opencode-ai/sdk@1.17.13`. The OpenCode packages are MIT-licensed and
+acknowledged in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). DWeis Next pins the runtime, SDK, and
+plugins to the same exact version because their APIs are not treated as stable.
 
 ## Build Your Own Agent
 

@@ -145,8 +145,15 @@ pruebas, la verificación del tiempo de ejecución, el empaquetado, la firma y l
 publicación están en la [Guía de desarrollo](docs/development.md).
 
 La pila es Electron 42, Vite 8, React 19, Tailwind CSS 4, OpenCode, TypeScript, Vitest, oxlint y
-oxfmt. DWeis Next fija el tiempo de ejecución, el SDK y los plugins de OpenCode exactamente a la
-misma versión porque sus APIs no se consideran estables.
+oxfmt.
+
+> ### Agent Engine: OpenCode
+
+DWeis Next inicia el binario fijado `opencode-ai@1.17.13` como un sidecar `opencode serve` solo de
+loopback y lo controla mediante `@opencode-ai/sdk@1.17.13`. Los paquetes de OpenCode tienen licencia
+MIT y se reconocen en [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). DWeis Next fija el tiempo de
+ejecución, el SDK y los plugins exactamente a la misma versión porque sus APIs no se consideran
+estables.
 
 ## Construye tu propio Agent
 
