@@ -62,9 +62,26 @@ export function buildTurnProcessActivityRenderModel({
     process.errors.map((part) => part.partId).join("|"),
   ].join(":")
   let activityBlocks = groupedWikigraphToolActivityBlocks(blocks, { live })
-  // 不再注入占位推理块（对齐 opencode：思考前由 LiveStatusBar 显示"思考中"，无需占位切换）。
-  // 之前占位块消息 id 依赖 activity.messageId，submit→messageStarted 阶段 id 变化导致
-  // 推理块重挂载、「思考中」消失跳变——移除占位后不存在该切换，推理 part 一到即稳定渲染。
+  // 思考阶段且推理内容未到达：注入空推理块占位（ReasoningBlock 标题「深度思考」扫光）。
+  // 推理 part 一到即被同 key（message.id:reasoning）的真实块替换，React 不重挂载 → 无占位切换；
+  // 模型思考内联进 text（无 reasoning part）时，文本到达 activity 清空，占位块随之消失（与 LiveStatusBar 等效）。
+  if (
+    live &&
+    process.activity?.phase === "thinking" &&
+    !activityBlocks.some((item) => item.block.kind === "reasoning")
+  ) {
+    const messageId = process.activity.messageId ?? "thinking"
+    activityBlocks = [
+      {
+        message: { id: messageId, role: "assistant", createdAt: 0, parts: [] },
+        block: {
+          kind: "reasoning",
+          part: { kind: "reasoning", partId: `thinking-live:${messageId}`, text: "" },
+        },
+      },
+      ...activityBlocks,
+    ]
+  }
   const renderBlocks = activityBlocks.map((item) => item.block)
   return {
     activityBlocks,

@@ -119,17 +119,18 @@ describe("buildTurnProcessActivityRenderModel", () => {
     expect(renderedToolParts(model)).toHaveLength(0)
   })
 
-  it("shows the live status bar while live thinking has no reasoning part yet", () => {
+  it("renders a thinking placeholder reasoning block while live thinking has no reasoning part yet", () => {
     const model = buildTurnProcessActivityRenderModel({
       blocks: [],
       live: true,
       process: processFor([], { activity: { sessionId: "s1", messageId: "m1", phase: "thinking" } }),
     })
 
-    // 不注入占位推理块（对齐 opencode）：思考中由 LiveStatusBar 显示，
-    // 推理 part 一到即稳定渲染，无占位→真实切换就不存在「思考中」消失跳变。
-    expect(model.activityBlocks).toHaveLength(0)
-    expect(model.showLiveStatus).toBe(true)
+    // 思考阶段注入空推理块占位（标题"深度思考"扫光，稳定 key message.id:reasoning）：
+    // 推理 part 一到即被同 key 的真实块替换（不重挂载、无占位切换）。
+    expect(model.activityBlocks).toHaveLength(1)
+    expect(model.activityBlocks[0]?.block.kind).toBe("reasoning")
+    expect(model.showLiveStatus).toBe(false)
   })
 
   it("renders a real reasoning part directly as a reasoning block once it arrives", () => {
