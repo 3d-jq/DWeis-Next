@@ -79,23 +79,3 @@ test("GitServiceImpl rejects branch creation for archived projects", async () =>
   assert.equal(state.error, "path_unavailable")
   assert.equal(state.message, "Project is not registered.")
 })
-
-test("GitServiceImpl rejects graph for unregistered project paths", async () => {
-  const service = new GitServiceImpl({
-    projectStore: projectStore([
-      {
-        id: "project-a",
-        name: "A",
-        path: "/Users/example/project-a",
-        createdAt: 1,
-        updatedAt: 1,
-      },
-    ]),
-  })
-
-  const graph = await service.getGraph({ projectId: "project-a", path: "/Users/example/other" })
-
-  assert.equal(graph.available, false)
-  assert.equal(graph.error, "not_repository")
-  assert.deepEqual(graph.lines, [])
-})

@@ -1,5 +1,4 @@
 import type { ArtifactBundle, ChatMessage, LocalArtifactGroup } from "../../../electron/chat/common.ts"
-import type { SessionProject } from "../../../electron/session/common.ts"
 import type { ArtifactSelection } from "./GeneratedArtifacts.tsx"
 import type { SubTask } from "./sub-tasks.ts"
 
@@ -11,8 +10,6 @@ import {
   CircleAlert,
   FileText,
   Files,
-  GitBranch,
-  GitCommitHorizontal,
   ListTodo,
   Loader2,
 } from "lucide-react"
@@ -21,9 +18,6 @@ import * as React from "react"
 import { useArtifactBundles } from "./artifact-bundle-records.ts"
 import { subTasksFromMessages } from "./sub-tasks.ts"
 import { useChatService } from "@/components/AppContext"
-import { Button } from "@/components/ui/button"
-import { Dialog } from "@/components/ui/dialog"
-import { useProjectGit } from "@/hooks/useProjectGit"
 import { useT } from "@/i18n/i18n"
 import { cn } from "@/lib/utils"
 
@@ -39,7 +33,7 @@ const planPanelBodyCollapsedKey = "dweis:chat:plan-panel-body-collapsed"
 /** 分区折叠状态的 localStorage 前缀（按会话隔离）。 */
 const planSectionCollapsedKeyPrefix = "dweis:chat:plan-section-collapsed"
 
-type PlanSection = "git" | "plan" | "agents" | "artifacts"
+type PlanSection = "plan" | "agents" | "artifacts"
 
 /**
  * 计划面板状态按会话隔离：折叠/关闭快照都以 sessionId 为后缀存 localStorage，
@@ -220,7 +214,6 @@ export function PlanSummaryPanel({
   onOpenArtifact,
   onOpenChange,
   open,
-  project,
 }: {
   activeSessionId: string | null
   className?: string
@@ -229,8 +222,6 @@ export function PlanSummaryPanel({
   onOpenArtifact?: (selection: ArtifactSelection) => void
   onOpenChange: (open: boolean) => void
   open: boolean
-  /** 当前项目：git 工具区读取其仓库状态；无项目则隐藏 git 区。 */
-  project?: SessionProject
 }) {
   const t = useT()
   // 父组件用 key={activeSessionId} 强制切会话重挂载，这里按当前会话读取各自的折叠/关闭状态。
@@ -242,7 +233,6 @@ export function PlanSummaryPanel({
     () => localStorage.getItem(storageKeys.bodyCollapsed) === "1",
   )
   const [sectionCollapsed, setSectionCollapsed] = React.useState<Record<PlanSection, boolean>>(() => ({
-    git: localStorage.getItem(planSectionStorageKey(activeSessionId, "git")) === "1",
     plan: localStorage.getItem(planSectionStorageKey(activeSessionId, "plan")) === "1",
     agents: localStorage.getItem(planSectionStorageKey(activeSessionId, "agents")) === "1",
     artifacts: localStorage.getItem(planSectionStorageKey(activeSessionId, "artifacts")) === "1",
@@ -257,31 +247,6 @@ export function PlanSummaryPanel({
   const artifacts = React.useMemo(() => artifactItemsFromBundles(artifactBundles), [artifactBundles])
   const hasRunningSubTask = subTasks.some((task) => task.status === "running")
   const [now, setNow] = React.useState(() => Date.now())
-  const git = useProjectGit(project)
-  const gitAvailable = Boolean(git.state?.available)
-  const gitChangeCount =
-    (git.state?.stagedCount ?? 0) + (git.state?.unstagedCount ?? 0) + (git.state?.untrackedCount ?? 0)
-  const [newBranchName, setNewBranchName] = React.useState("")
-  const [creatingBranch, setCreatingBranch] = React.useState(false)
-  const [branchError, setBranchError] = React.useState<string | null>(null)
-  const [branchDialogOpen, setBranchDialogOpen] = React.useState(false)
-  const [graphDialogOpen, setGraphDialogOpen] = React.useState(false)
-  const handleCreateBranch = React.useCallback(async (): Promise<void> => {
-    const name = newBranchName.trim()
-    if (!name || creatingBranch) {
-      return
-    }
-    setCreatingBranch(true)
-    setBranchError(null)
-    const next = await git.createAndCheckoutBranch(name)
-    if (!next || next.error) {
-      setBranchError(next?.message ?? t("chat.planGitBranchFailed", { message: "" }))
-    } else {
-      setNewBranchName("")
-      void git.refreshGraph()
-    }
-    setCreatingBranch(false)
-  }, [creatingBranch, git, newBranchName, t])
   React.useEffect(() => {
     if (!hasRunningSubTask) {
       return
@@ -366,7 +331,7 @@ export function PlanSummaryPanel({
     [activeSessionId],
   )
 
-  const hasAnyContent = (todos && todos.length > 0) || subTasks.length > 0 || artifacts.length > 0 || gitAvailable
+  const hasAnyContent = (todos && todos.length > 0) || subTasks.length > 0 || artifacts.length > 0
 
   if (!open || !hasAnyContent) {
     return null
@@ -404,72 +369,6 @@ export function PlanSummaryPanel({
           {!bodyCollapsed ? (
             <div className="max-h-[min(60vh,32rem)] overflow-y-auto pr-0.5">
               <div className="space-y-1 pt-1">
-                {/* git工具 */}
-                {gitAvailable ? (
-                  <section>
-                    <SectionHeader
-                      icon={<GitBranch className="size-4" aria-hidden="true" />}
-                      title={t("chat.planGitTitle")}
-                      meta={gitChangeCount > 0 ? String(gitChangeCount) : git.state?.currentBranch}
-                      collapsed={sectionCollapsed.git}
-                      onToggle={() => toggleSection("git")}
-                    />
-                    <SectionBody open={!sectionCollapsed.git}>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
-                          <GitBranch className="size-3.5 shrink-0" aria-hidden="true" />
-                          <span className="min-w-0 truncate font-medium text-foreground">
-                            {git.state?.currentBranch ?? "-"}
-                          </span>
-                          <button
-                            type="button"
-                            className="ml-auto shrink-0 rounded px-1 text-xs transition-colors hover:bg-accent hover:text-foreground"
-                            onClick={() => {
-                              void git.refresh()
-                              void git.refreshGraph()
-                            }}
-                          >
-                            {t("chat.planGitRefresh")}
-                          </button>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground tabular-nums">
-                          <span className="rounded bg-muted px-1.5 py-0.5">
-                            {t("chat.planGitStaged")} {git.state?.stagedCount ?? 0}
-                          </span>
-                          <span className="rounded bg-muted px-1.5 py-0.5">
-                            {t("chat.planGitModified")} {git.state?.unstagedCount ?? 0}
-                          </span>
-                          <span className="rounded bg-muted px-1.5 py-0.5">
-                            {t("chat.planGitUntracked")} {git.state?.untrackedCount ?? 0}
-                          </span>
-                        </div>
-                        {/* git 操作：创建分支 / 图谱 弹窗入口 */}
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <button
-                            type="button"
-                            className="flex h-7 items-center gap-1 rounded border border-[var(--oo-divider)] bg-background px-2 text-xs font-medium transition-colors hover:bg-accent hover:text-foreground"
-                            onClick={() => setBranchDialogOpen(true)}
-                          >
-                            <GitBranch className="size-3.5" aria-hidden="true" />
-                            {t("chat.planGitCreateBranchAction")}
-                          </button>
-                          <button
-                            type="button"
-                            className="flex h-7 items-center gap-1 rounded border border-[var(--oo-divider)] bg-background px-2 text-xs font-medium transition-colors hover:bg-accent hover:text-foreground"
-                            onClick={() => {
-                              void git.refreshGraph()
-                              setGraphDialogOpen(true)
-                            }}
-                          >
-                            <GitCommitHorizontal className="size-3.5" aria-hidden="true" />
-                            {t("chat.planGitGraphAction")}
-                          </button>
-                        </div>
-                      </div>
-                    </SectionBody>
-                  </section>
-                ) : null}
-
                 {/* 计划 */}
                 {todos && todos.length > 0 ? (
                   <section>
@@ -584,68 +483,6 @@ export function PlanSummaryPanel({
           ) : null}
         </div>
       </motion.div>
-      {/* 创建分支弹窗 */}
-      <Dialog
-        open={branchDialogOpen}
-        onClose={() => setBranchDialogOpen(false)}
-        title={t("chat.planGitCreateBranchAction")}
-        description={
-          git.state?.currentBranch ? `${t("chat.planGitCurrentBranch")} ${git.state.currentBranch}` : undefined
-        }
-        footer={
-          <Button type="button" size="sm" onClick={() => setBranchDialogOpen(false)}>
-            {t("common.close")}
-          </Button>
-        }
-      >
-        <div className="space-y-2">
-          <input
-            type="text"
-            value={newBranchName}
-            autoFocus
-            placeholder={t("chat.planGitBranchPlaceholder")}
-            className="h-9 w-full rounded-md border border-[var(--oo-divider)] bg-background px-3 text-sm outline-none focus-visible:border-ring"
-            onChange={(event) => setNewBranchName(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                void handleCreateBranch()
-              }
-            }}
-          />
-          {branchError ? <p className="text-xs text-destructive">{branchError}</p> : null}
-          <div className="flex justify-end">
-            <Button
-              type="button"
-              size="sm"
-              disabled={creatingBranch || !newBranchName.trim()}
-              onClick={() => void handleCreateBranch()}
-            >
-              <GitBranch className="size-4" />
-              {creatingBranch ? "…" : t("chat.planGitCreateBranch")}
-            </Button>
-          </div>
-        </div>
-      </Dialog>
-      {/* git 图谱弹窗 */}
-      <Dialog
-        open={graphDialogOpen}
-        onClose={() => setGraphDialogOpen(false)}
-        title={t("chat.planGitGraphAction")}
-        footer={
-          <div className="flex items-center gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => void git.refreshGraph()}>
-              {t("chat.planGitRefresh")}
-            </Button>
-            <Button type="button" size="sm" onClick={() => setGraphDialogOpen(false)}>
-              {t("common.close")}
-            </Button>
-          </div>
-        }
-      >
-        <pre className="max-h-80 overflow-auto rounded-md bg-muted/40 p-3 font-mono text-xs leading-5 whitespace-pre text-foreground/80">
-          {git.graph && git.graph.length > 0 ? git.graph.join("\n") : t("chat.planGitGraphEmpty")}
-        </pre>
-      </Dialog>
     </AnimatePresence>
   )
 }

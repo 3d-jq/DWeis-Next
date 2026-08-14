@@ -11,38 +11,19 @@ export interface UseProjectGit {
   checkoutBranch: (branch: string) => Promise<GitRepositoryState | null>
   createAndCheckoutBranch: (branch: string) => Promise<GitRepositoryState | null>
   error: UserFacingError | null
-  graph: string[] | null
   loading: boolean
   refresh: () => Promise<GitRepositoryState | null>
-  refreshGraph: () => Promise<string[] | null>
   state: GitRepositoryState | null
 }
 
 export function useProjectGit(project: SessionProject | undefined): UseProjectGit {
   const gitService = useGitService()
   const [state, setState] = React.useState<GitRepositoryState | null>(null)
-  const [graph, setGraph] = React.useState<string[] | null>(null)
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<UserFacingError | null>(null)
   const requestSequence = React.useRef(0)
   const projectId = project?.id ?? ""
   const projectPath = project?.path ?? ""
-
-  const refreshGraph = React.useCallback(async (): Promise<string[] | null> => {
-    if (!projectId || !projectPath) {
-      setGraph(null)
-      return null
-    }
-    try {
-      const next = await gitService.invoke("getGraph", { projectId, path: projectPath })
-      setGraph(next.available ? next.lines : null)
-      return next.available ? next.lines : null
-    } catch (cause) {
-      reportRendererHandledError("git", "graph refresh failed", cause)
-      setGraph(null)
-      return null
-    }
-  }, [gitService, projectId, projectPath])
 
   const refresh = React.useCallback(async (): Promise<GitRepositoryState | null> => {
     const requestId = ++requestSequence.current
@@ -76,8 +57,7 @@ export function useProjectGit(project: SessionProject | undefined): UseProjectGi
 
   React.useEffect(() => {
     void refresh()
-    void refreshGraph()
-  }, [refresh, refreshGraph])
+  }, [refresh])
 
   const checkoutBranch = React.useCallback(
     async (branch: string): Promise<GitRepositoryState | null> => {
@@ -137,5 +117,5 @@ export function useProjectGit(project: SessionProject | undefined): UseProjectGi
     [gitService, projectId, projectPath],
   )
 
-  return { checkoutBranch, createAndCheckoutBranch, error, graph, loading, refresh, refreshGraph, state }
+  return { checkoutBranch, createAndCheckoutBranch, error, loading, refresh, state }
 }

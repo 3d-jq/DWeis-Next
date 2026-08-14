@@ -14,16 +14,11 @@ import * as React from "react"
 import { act } from "react"
 import { createRoot } from "react-dom/client"
 
-// useChatService / useGitService mock：getPlanMarkdown 返回 null（无计划文件），questionAsked 退订函数。
+// useChatService mock：getPlanMarkdown 返回 null（无计划文件），questionAsked 退订函数。
 vi.mock("@/components/AppContext", () => ({
   useChatService: () => ({
     invoke: vi.fn(async () => null),
     serverEvents: { on: vi.fn(() => () => undefined) },
-  }),
-  useGitService: () => ({
-    getRepositoryState: vi.fn(async () => null),
-    checkoutBranch: vi.fn(async () => null),
-    createAndCheckoutBranch: vi.fn(async () => null),
   }),
 }))
 

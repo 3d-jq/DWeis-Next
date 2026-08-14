@@ -1429,7 +1429,6 @@ export function AppShell({ auth }: { auth: UseAuth }) {
                   onOpenArtifact={handleArtifactsOpen}
                   onOpenChange={setPlanPanelOpen}
                   open={planPanelOpen}
-                  project={activeProject}
                 />
               </React.Suspense>
             ) : null}
