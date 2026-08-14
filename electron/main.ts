@@ -1300,6 +1300,7 @@ function createMainWindow(): void {
     },
   })
   browserManager.setMainWindow(mainWindow)
+  settingsService.trackTitleBarOverlayWindow(mainWindow)
 
   mainWindow.once("ready-to-show", () => {
     mainWindowReadyToShow = true

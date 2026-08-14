@@ -47,10 +47,22 @@ export class SettingsServiceImpl
   private readonly deps: SettingsServiceDeps
   private lastAppliedWindowsTitleBarTheme: WindowsTitleBarTheme | null = null
   private nativeThemeListenerInstalled = false
+  /** 启用了 titleBarOverlay 的窗口（当前只有主窗口）：nativeTheme 变化时只更新这些窗口，
+   *  避免对启动画面等无 overlay 的窗口调 setTitleBarOverlay 抛 "Titlebar overlay is not enabled"。 */
+  private readonly titleBarOverlayWindows = new Set<BrowserWindow>()
 
   public constructor(deps: SettingsServiceDeps) {
     super(SettingsServiceName)
     this.deps = deps
+  }
+
+  /** 登记启用 titleBarOverlay 的窗口（主窗口创建时调用；重建/关闭时替换或自动移除）。 */
+  public trackTitleBarOverlayWindow(window: BrowserWindow | null): void {
+    this.titleBarOverlayWindows.clear()
+    if (window && !window.isDestroyed()) {
+      this.titleBarOverlayWindows.add(window)
+      window.once("closed", () => this.titleBarOverlayWindows.delete(window))
+    }
   }
 
   private readonly handleNativeThemeUpdated = (): void => {
@@ -320,7 +332,7 @@ export class SettingsServiceImpl
       return
     }
 
-    const windows = BrowserWindow.getAllWindows().filter((window) => !window.isDestroyed())
+    const windows = [...this.titleBarOverlayWindows].filter((window) => !window.isDestroyed())
     if (windows.length === 0) {
       return
     }
