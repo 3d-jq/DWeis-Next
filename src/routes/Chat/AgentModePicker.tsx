@@ -202,7 +202,7 @@ export function AgentModePicker({
         onKeyDown={handleTriggerKeyDown}
       >
         <AgentModeIcon mode={value} />
-        <span key={selectedLabel} className="oo-composer-control-label oo-flip-once min-w-0 flex-1 truncate text-left">
+        <span key={selectedLabel} className="oo-composer-control-label min-w-0 flex-1 truncate text-left">
           {selectedLabel}
         </span>
         <ChevronDown

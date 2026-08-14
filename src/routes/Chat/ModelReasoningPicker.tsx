@@ -501,7 +501,7 @@ export function ModelReasoningPicker({
       >
         <Cpu className="size-4 shrink-0" />
         <span className="oo-composer-model-text flex min-w-0 flex-1 items-center gap-1 text-left">
-          <span key={modelLabel} className="oo-flip-once min-w-0 truncate">
+          <span key={modelLabel} className="min-w-0 truncate">
             {modelLabel}
           </span>
         </span>

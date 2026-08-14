@@ -572,17 +572,3 @@
   .ig-glow { animation: none; opacity: 0.7; }
   .ig-label { animation: none; -webkit-text-fill-color: var(--foreground); color: var(--foreground); }
 }
-
-/* 选择值切换时的"翻一下"特效：值变化 → span 重挂载 → 动画自动触发 */
-@keyframes oo-flip-once {
-  0% { transform: rotateX(0); }
-  50% { transform: rotateX(90deg); }
-  100% { transform: rotateX(0); }
-}
-.oo-flip-once {
-  display: inline-block;
-  animation: oo-flip-once 0.22s ease;
-}
-@media (prefers-reduced-motion: reduce) {
-  .oo-flip-once { animation: none; }
-}
