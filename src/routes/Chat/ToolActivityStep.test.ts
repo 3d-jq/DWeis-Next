@@ -31,21 +31,12 @@ function renderToolActivityStep(
   )
 }
 
-function shimmerClassFor(html: string, text: string): string {
-  const escaped = text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-  const match = html.match(new RegExp(`class="([^"]*text-transparent[^"]*)"[^>]*>${escaped}</span>`))
-  if (!match?.[1]) {
-    throw new Error(`Missing shimmer span for ${text}.`)
-  }
-  return match[1]
-}
-
 function assistantMessage(id: string): ChatMessage {
   return { id, role: "assistant", parts: [], createdAt: 1 }
 }
 
 describe("ToolActivityStep", () => {
-  it("shimmers only the active tool title when a command is shown inline", () => {
+  it("sweeps the whole running row when a command is shown inline", () => {
     const html = renderToolActivityStep({
       kind: "tool",
       partId: "tool-1",
@@ -55,13 +46,12 @@ describe("ToolActivityStep", () => {
       input: { command: "curl -s -L -o /tmp/1688_page.html" },
     })
 
-    expect(html).toMatch(/class="[^"]*text-transparent[^"]*"[^>]*>运行命令<\/span>/)
-    expect(shimmerClassFor(html, "运行命令")).toContain("shrink-0")
-    expect(shimmerClassFor(html, "运行命令")).not.toContain("flex-1")
+    // dsh 单行扫光：整行加 oo-row-sweep，标题实色可读（不再文字透明渐变）。
+    expect(html).toContain("oo-row-sweep")
+    expect(html).toMatch(/>运行命令<\/span>/)
     expect(html).toMatch(/<code class="[^"]*"[^>]*>curl -s -L -o \/tmp\/1688_page\.html<\/code>/)
     expect(html).toMatch(/<code class="[^"]*w-0[^"]*max-w-full[^"]*truncate[^"]*"/)
-    expect(html).toContain("w-full max-w-full min-w-0 flex-1 items-center gap-2 overflow-hidden")
-    expect(html).not.toMatch(/class="[^"]*text-transparent[^"]*"[^>]*>[^<]*curl/)
+    expect(html).not.toContain("text-transparent")
   })
 
   it("keeps a long completed command within the tool row width", () => {
@@ -709,7 +699,7 @@ describe("ToolActivityStep", () => {
     expect(html).not.toContain("lucide-chevron-right")
   })
 
-  it("uses the live status and shimmer instead of loading punctuation for active knowledge queries", () => {
+  it("uses the live status and row sweep instead of loading punctuation for active knowledge queries", () => {
     const html = renderToolActivityStep({
       kind: "tool",
       partId: "tool-wg-running",
@@ -721,11 +711,11 @@ describe("ToolActivityStep", () => {
 
     expect(html).toContain("查询知识库")
     expect(html).toContain("运行中")
-    expect(html).toMatch(/class="[^"]*text-transparent[^"]*"[^>]*>查询知识库<\/span>/)
+    expect(html).toContain("oo-row-sweep")
     expect(html).not.toContain("查询知识库...")
   })
 
-  it("shimmers only the active web fetch title when the URL is shown inline", () => {
+  it("sweeps the whole running web fetch row when the URL is shown inline", () => {
     const html = renderToolActivityStep({
       kind: "tool",
       partId: "tool-1",
@@ -735,14 +725,13 @@ describe("ToolActivityStep", () => {
       input: { url: "https://detail.1688.com/offer/825951472006.html" },
     })
 
-    expect(html).toMatch(/class="[^"]*text-transparent[^"]*"[^>]*>读取网页<\/span>/)
-    expect(shimmerClassFor(html, "读取网页")).toContain("shrink-0")
-    expect(shimmerClassFor(html, "读取网页")).not.toContain("flex-1")
+    expect(html).toContain("oo-row-sweep")
+    expect(html).toContain("读取网页")
     expect(html).toContain("https://detail.1688.com/offer/825951472006.html")
-    expect(html).not.toMatch(/class="[^"]*text-transparent[^"]*"[^>]*>[^<]*1688/)
+    expect(html).not.toContain("text-transparent")
   })
 
-  it("shimmers only the active file tool title when a path is shown inline", () => {
+  it("sweeps the whole running file tool row when a path is shown inline", () => {
     const html = renderToolActivityStep({
       kind: "tool",
       partId: "tool-1",
@@ -752,13 +741,13 @@ describe("ToolActivityStep", () => {
       input: { filePath: "/tmp/a.txt" },
     })
 
-    expect(html).toMatch(/class="[^"]*text-transparent[^"]*"[^>]*>读取文件<\/span>/)
-    expect(shimmerClassFor(html, "读取文件")).toContain("shrink-0")
+    expect(html).toContain("oo-row-sweep")
+    expect(html).toContain("读取文件")
     expect(html).toContain("/tmp/a.txt")
-    expect(html).not.toMatch(/class="[^"]*text-transparent[^"]*"[^>]*>[^<]*\/tmp/)
+    expect(html).not.toContain("text-transparent")
   })
 
-  it("shimmers only the active connector title when a connector target is shown inline", () => {
+  it("sweeps the whole running connector row when a connector target is shown inline", () => {
     const html = renderToolActivityStep({
       kind: "tool",
       partId: "tool-1",
@@ -768,13 +757,13 @@ describe("ToolActivityStep", () => {
       input: { service: "gmail", action: "send_email" },
     })
 
-    expect(html).toMatch(/class="[^"]*text-transparent[^"]*"[^>]*>调用连接器<\/span>/)
-    expect(shimmerClassFor(html, "调用连接器")).toContain("shrink-0")
+    expect(html).toContain("oo-row-sweep")
+    expect(html).toContain("调用连接器")
     expect(html).toContain("gmail · send_email")
-    expect(html).not.toMatch(/class="[^"]*text-transparent[^"]*"[^>]*>[^<]*gmail/)
+    expect(html).not.toContain("text-transparent")
   })
 
-  it("keeps the active title shimmer width stable when no inline detail is available", () => {
+  it("keeps the running row a stable single line when no inline detail is available", () => {
     const html = renderToolActivityStep({
       kind: "tool",
       partId: "tool-1",
@@ -784,12 +773,12 @@ describe("ToolActivityStep", () => {
       input: {},
     })
 
-    expect(shimmerClassFor(html, "运行命令")).toContain("shrink-0")
-    expect(shimmerClassFor(html, "运行命令")).not.toContain("flex-1")
+    expect(html).toContain("oo-row-sweep")
+    expect(html).toContain("运行命令")
     expect(html).toContain('aria-hidden="true"')
   })
 
-  it("does not shimmer a completed tool row", () => {
+  it("does not sweep a completed tool row", () => {
     const html = renderToolActivityStep({
       kind: "tool",
       partId: "tool-1",
@@ -801,7 +790,7 @@ describe("ToolActivityStep", () => {
 
     expect(html).toContain("读取网页")
     expect(html).toContain("https://detail.1688.com/offer/825951472006.html")
-    expect(html).not.toContain("text-transparent")
+    expect(html).not.toContain("oo-row-sweep")
   })
 
   it("does not shimmer a non-live active question row", () => {
@@ -823,7 +812,7 @@ describe("ToolActivityStep", () => {
     expect(html).toContain("文章标题")
     expect(html).toContain("已停止")
     expect(html).not.toContain("等待回答")
-    expect(html).not.toContain("text-transparent")
+    expect(html).not.toContain("oo-row-sweep")
   })
 
   it("uses a finalizing status for a completed tool row while the turn is still transitioning", () => {
@@ -840,7 +829,8 @@ describe("ToolActivityStep", () => {
       { shimmer: true, settling: true },
     )
 
-    expect(html).toMatch(/class="[^"]*text-transparent[^"]*"[^>]*>使用工具<\/span>/)
+    expect(html).toContain("oo-row-sweep")
+    expect(html).toContain("使用工具")
     expect(html).toContain("4 todos")
     expect(html).toContain("正在整理")
     expect(html).not.toContain("已完成")
@@ -857,11 +847,11 @@ describe("ToolActivityStep", () => {
       error: "Ripgrep JSON record exceeded 65536 bytes",
     })
 
+    // dsh 口径：错误行折叠摘要 = 错误首行（错误色），一眼看到失败原因；展开仍有完整详情。
     expect(html).toContain("未完成")
-    expect(html).toContain("text-muted-foreground")
-    expect(html).not.toContain("text-destructive")
+    expect(html).toContain("text-destructive")
+    expect(html).toContain("Ripgrep JSON record exceeded 65536 bytes")
     expect(html).not.toContain("text-amber")
-    expect(html).not.toContain("Ripgrep JSON record exceeded 65536 bytes")
     expect(html).not.toContain("这个步骤没有完成")
   })
 })

@@ -1,5 +1,4 @@
 import type { AuthorizationInfo, ChatMessagePart, ToolStatus } from "../../../electron/chat/common.ts"
-import type { ToolDisplayLine } from "./tool-display.ts"
 import type { TranslateFn } from "@/i18n/i18n"
 
 import {
@@ -19,7 +18,6 @@ import {
   Loader2,
   Package,
   PlayCircle,
-  Plug,
   Search,
   SlidersHorizontal,
   Square,
@@ -29,7 +27,6 @@ import {
 import { motion } from "motion/react"
 import * as React from "react"
 import { ImageGenAnimation } from "./ImageGenAnimation.tsx"
-import { LoadingShimmerText } from "./LoadingShimmerText.tsx"
 import { shouldShowRunningNoOutput } from "./tool-activity.ts"
 import { shouldHideToolDetailsImmediately } from "./tool-details-visibility.ts"
 import { isWikigraphKnowledgeActivityPart, parseToolAuthorization, toolDisplayLine } from "./tool-display.ts"
@@ -68,18 +65,13 @@ function toolPartStatusLabel(t: TranslateFn, part: ChatMessagePart, stopped = fa
   return isToolCancellation(part) ? t("chat.toolStatusStopped") : toolStatusLabel(t, part.status)
 }
 
-function ToolInlineDetail({ line }: { line: ToolDisplayLine }) {
-  if (!line.detail) {
+/** dsh 口径：错误行的折叠摘要 = 错误首行（错误色），高于参数摘要。 */
+function errorFirstLine(part: ChatMessagePart): string | null {
+  if (part.status !== "error" || !part.error) {
     return null
   }
-  if (line.detailKind === "code") {
-    return (
-      <code className="w-0 max-w-full min-w-0 flex-1 truncate rounded bg-muted px-1.5 py-0.5 font-mono text-[0.875em] font-medium text-muted-foreground">
-        {line.detail}
-      </code>
-    )
-  }
-  return <span className="w-0 max-w-full min-w-0 flex-1 truncate font-medium text-muted-foreground">{line.detail}</span>
+  const first = part.error.split("\n")[0]?.trim()
+  return first || null
 }
 
 function formatJson(value: Record<string, unknown>): string {
@@ -134,8 +126,6 @@ function ToolStatusIcon({ status, stopped = false }: { status: ToolStatus | unde
 function ToolActionIcon({ part }: { part: ChatMessagePart }) {
   const className = "size-3.5 text-muted-foreground"
   switch (part.tool) {
-    case "list_apps":
-      return <Plug className={className} />
     case "search_actions":
       return <Search className={className} />
     case "inspect_action":
@@ -245,11 +235,27 @@ function ToolStepIcon({ part, stopped = false }: { part: ChatMessagePart; stoppe
   return <ToolActionIcon part={part} />
 }
 
-function ToolDetailSection({ label, children }: { label: string; children: React.ReactNode }) {
+/** IN/OUT 展开卡的一个分区：左侧小标签 + 右侧内容（对齐 dsh io-card 布局）。 */
+function ToolIoSection({
+  label,
+  tone = "default",
+  children,
+}: {
+  label: string
+  tone?: "default" | "error"
+  children: React.ReactNode
+}) {
   return (
-    <div className="space-y-1.5">
-      <div className="oo-text-micro font-medium text-muted-foreground uppercase">{label}</div>
-      {children}
+    <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-2.5">
+      <span
+        className={cn(
+          "oo-text-micro pt-1 font-medium tracking-wide text-muted-foreground uppercase",
+          tone === "error" && "text-destructive",
+        )}
+      >
+        {label}
+      </span>
+      <div className={cn("min-w-0", tone === "error" && "text-destructive")}>{children}</div>
     </div>
   )
 }
@@ -311,8 +317,12 @@ export const ToolActivityStep = React.memo(function ToolActivityStep({
   const statusText =
     settling && part.status === "completed" ? t("chat.toolStatusFinalizing") : toolPartStatusLabel(t, part, stopped)
   const active = live && activePart
-  const showShimmer = active || shimmer
+  const running = active || shimmer
+  const failureLine = errorFirstLine(part)
+  // dsh 单行摘要：标题 + 分隔点 + FILL 截断摘要。错误行的摘要 = 错误首行（错误色）。
   const displayLine = toolDisplayLine(t, part)
+  const summaryText = failureLine ?? displayLine.detail ?? ""
+  const summaryIsCode = !failureLine && displayLine.detailKind === "code"
   const metaItems = [statusText].filter(Boolean)
   const hideCompletedMeta = part.status === "completed" && !auth && !hideDetails
   const outputPreview = React.useMemo(() => {
@@ -352,55 +362,67 @@ export const ToolActivityStep = React.memo(function ToolActivityStep({
     [open],
   )
 
+  // dsh 单行：图标槽 + 标题 + 2px 分隔点 + 摘要(FILL 截断) + 状态文字；运行中整行扫光（文字保持可读）。
   const row = (
-    <div className="group/tool-step flex min-h-6 w-full max-w-full min-w-0 flex-1 items-center gap-2 overflow-hidden">
+    <div
+      className={cn(
+        "group/tool-step flex min-h-6 w-full max-w-full min-w-0 flex-1 items-center gap-2 overflow-hidden rounded-md",
+        running && "oo-row-sweep",
+      )}
+    >
       <span className="flex size-5 shrink-0 items-center justify-center" title={statusText}>
         <ToolStepIcon part={part} stopped={stopped} />
       </span>
-      <div className="w-0 max-w-full min-w-0 flex-1 overflow-hidden">
-        {showShimmer ? (
-          <div className="flex w-full max-w-full min-w-0 items-center gap-2 overflow-hidden">
-            <LoadingShimmerText className="min-w-0 shrink-0 truncate font-medium">
-              {displayLine.title}
-            </LoadingShimmerText>
-            <ToolInlineDetail line={displayLine} />
-            {displayLine.detail ? null : <span aria-hidden="true" className="min-w-0 flex-1" />}
-            <span className="flex min-w-0 shrink-0 items-center gap-1 font-medium text-muted-foreground">
-              {metaItems.map((item, index) => (
-                <React.Fragment key={`${index}:${item}`}>
-                  {index > 0 ? <span className="text-muted-foreground/70">·</span> : null}
-                  <span>{item}</span>
-                </React.Fragment>
-              ))}
-            </span>
-          </div>
-        ) : (
-          <div className="flex w-full max-w-full min-w-0 items-center gap-2 overflow-hidden">
-            <span
-              className={cn("min-w-0 truncate font-medium text-foreground", displayLine.detail ? "shrink-0" : "flex-1")}
-            >
-              {displayLine.title}
-            </span>
-            <ToolInlineDetail line={displayLine} />
-            <span
+      <span
+        className={cn(
+          "min-w-0 shrink-0 truncate font-medium",
+          failureLine ? "text-destructive" : "text-foreground",
+        )}
+      >
+        {displayLine.title}
+      </span>
+      {summaryText ? (
+        <>
+          <span aria-hidden="true" className="size-0.5 shrink-0 rounded-full bg-muted-foreground/50" />
+          {summaryIsCode ? (
+            <code
               className={cn(
-                "flex min-w-0 shrink-0 items-center gap-1 font-medium text-muted-foreground transition-opacity",
-                hideCompletedMeta && "opacity-0 group-hover/tool-step:opacity-100",
-                hideCompletedMeta &&
-                  details &&
-                  "group-focus-visible/tool-step:opacity-100 group-data-[state=open]/tool-step:opacity-100",
+                "w-0 max-w-full min-w-0 flex-1 truncate rounded bg-muted px-1.5 py-0.5 font-mono text-[0.875em] font-medium",
+                failureLine ? "text-destructive" : "text-muted-foreground",
               )}
             >
-              {metaItems.map((item, index) => (
-                <React.Fragment key={`${index}:${item}`}>
-                  {index > 0 ? <span className="text-muted-foreground/70">·</span> : null}
-                  <span>{item}</span>
-                </React.Fragment>
-              ))}
+              {summaryText}
+            </code>
+          ) : (
+            <span
+              className={cn(
+                "w-0 max-w-full min-w-0 flex-1 truncate font-medium",
+                failureLine ? "text-destructive" : "text-muted-foreground",
+              )}
+            >
+              {summaryText}
             </span>
-          </div>
+          )}
+        </>
+      ) : (
+        <span aria-hidden="true" className="min-w-0 flex-1" />
+      )}
+      <span
+        className={cn(
+          "flex min-w-0 shrink-0 items-center gap-1 font-medium text-muted-foreground transition-opacity",
+          hideCompletedMeta && "opacity-0 group-hover/tool-step:opacity-100",
+          hideCompletedMeta &&
+            details &&
+            "group-focus-visible/tool-step:opacity-100 group-data-[state=open]/tool-step:opacity-100",
         )}
-      </div>
+      >
+        {metaItems.map((item, index) => (
+          <React.Fragment key={`${index}:${item}`}>
+            {index > 0 ? <span className="text-muted-foreground/70">·</span> : null}
+            <span>{item}</span>
+          </React.Fragment>
+        ))}
+      </span>
     </div>
   )
   return (
@@ -425,16 +447,17 @@ export const ToolActivityStep = React.memo(function ToolActivityStep({
           className="overflow-hidden motion-reduce:animate-none"
           onAnimationEnd={handleContentAnimationEnd}
         >
-          <div className="ml-7 space-y-2.5 pt-1.5 pb-1">
+          {/* IN/OUT 卡（对齐 dsh io-card）：左标签右内容，长内容内部滚动。 */}
+          <div className="ml-7 space-y-2.5 rounded-md border border-[var(--oo-divider)] bg-muted/20 p-2.5 pt-1.5 pb-1">
             {detailsVisible && part.tool === "question" && answerSummary ? (
-              <ToolDetailSection label={t("chat.questionAnswered")}>
+              <ToolIoSection label={t("chat.questionAnswered")}>
                 <ToolPre>{answerSummary}</ToolPre>
-              </ToolDetailSection>
+              </ToolIoSection>
             ) : null}
             {detailsVisible && part.tool !== "question" && hasKeys(part.input) && (
-              <ToolDetailSection label={t("chat.toolParams")}>
+              <ToolIoSection label={t("chat.toolParams")}>
                 <ToolPre>{formatJson(part.input ?? {})}</ToolPre>
-              </ToolDetailSection>
+              </ToolIoSection>
             )}
             {detailsVisible && !stopped && shouldShowRunningNoOutput(part) && (
               <div className="oo-text-caption text-muted-foreground">{t("chat.toolRunningNoOutput")}</div>
@@ -448,30 +471,30 @@ export const ToolActivityStep = React.memo(function ToolActivityStep({
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2, ease: "easeOut" }}
               >
-                <ToolDetailSection label={t("chat.toolResult")}>
+                <ToolIoSection label={t("chat.toolResult")}>
                   <ToolPre>{outputPreview.text}</ToolPre>
                   {outputPreview.truncated ? (
                     <div className="oo-text-caption text-muted-foreground">
                       {t("chat.toolResultPreviewTruncated", { limit: toolOutputPreviewLimitChars })}
                     </div>
                   ) : null}
-                </ToolDetailSection>
+                </ToolIoSection>
               </motion.div>
             ) : null}
             {detailsVisible && part.error && !stopped && (
-              <ToolDetailSection label={t("chat.toolError")}>
-                <ToolPre>{part.error}</ToolPre>
-              </ToolDetailSection>
+              <ToolIoSection label={t("chat.toolError")} tone="error">
+                <ToolPre tone="error">{part.error}</ToolPre>
+              </ToolIoSection>
             )}
             {detailsVisible && auth?.message && (
-              <ToolDetailSection label={t("chat.toolError")}>
+              <ToolIoSection label={t("chat.toolError")} tone="error">
                 <ToolPre tone="error">{auth.message}</ToolPre>
-              </ToolDetailSection>
+              </ToolIoSection>
             )}
             {detailsVisible && hasKeys(part.metadata) && (
-              <ToolDetailSection label={t("chat.toolMetadata")}>
+              <ToolIoSection label={t("chat.toolMetadata")}>
                 <ToolPre>{formatJson(part.metadata ?? {})}</ToolPre>
-              </ToolDetailSection>
+              </ToolIoSection>
             )}
             {detailsVisible && part.attachmentsCount ? (
               <div className="oo-text-caption text-muted-foreground">

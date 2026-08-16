@@ -14,23 +14,39 @@ function part(text: string): ChatMessagePart {
   return { kind: "reasoning", partId: "p1", text }
 }
 
-function render(p: ChatMessagePart): string {
+function render(p: ChatMessagePart, live = false): string {
   return renderToStaticMarkup(
     React.createElement(
       I18nContext.Provider,
       { value: { locale: "zh-CN", setLocale: () => undefined, t: (key, vars) => translate("zh-CN", key, vars) } },
-      React.createElement(ReasoningBlock, { part: p }),
+      React.createElement(ReasoningBlock, { part: p, live }),
     ),
   )
 }
 
 describe("ReasoningBlock", () => {
-  it("shows the deep-thinking placeholder and stays expandable while reasoning is empty", () => {
-    const html = render(part("   "))
+  it("shows the deep-thinking shimmer placeholder while reasoning is empty", () => {
+    const html = render(part(""))
     expect(html).toContain("深度思考")
-    // 思考中不再禁用按钮：可点击展开实时查看推理内容。
+    // 空文本时摘要位是扫光占位（不再是禁用按钮），可点击展开。
     expect(html).not.toContain("disabled")
     expect(html).not.toContain("思考过程")
+  })
+
+  it("shows the first reasoning line as the collapsed summary once settled", () => {
+    // dsh 口径：完成后折叠摘要 = 推理第一行（非 live 默认渲染）。
+    const html = render(part("先分析约束，再设计接口"))
+    expect(html).toContain("深度思考")
+    expect(html).toContain("先分析约束，再设计接口")
+    expect(html).toContain('aria-expanded="false"')
+    expect(html).not.toContain("思考过程")
+  })
+
+  it("follows the latest reasoning line while streaming", () => {
+    // dsh 口径：运行中（live）摘要 = 最新一行。
+    const html = render(part("第一行\n第二行进行中"), true)
+    expect(html).toContain("第二行进行中")
+    expect(html).toContain('aria-expanded="false"')
   })
 
   it("expands during thinking to reveal the live reasoning area", () => {
@@ -42,7 +58,7 @@ describe("ReasoningBlock", () => {
         React.createElement(
           I18nContext.Provider,
           { value: { locale: "zh-CN", setLocale: () => undefined, t: (key, vars) => translate("zh-CN", key, vars) } },
-          React.createElement(ReasoningBlock, { part: part("") }),
+          React.createElement(ReasoningBlock, { part: part(""), live: true }),
         ),
       )
     })
@@ -52,21 +68,11 @@ describe("ReasoningBlock", () => {
       button?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
     })
     expect(button?.getAttribute("aria-expanded")).toBe("true")
-    // 展开后即使还没有文本，也出现深度思考占位（内容到了即填充）。
     expect(host.textContent).toContain("深度思考")
     act(() => root.unmount())
   })
 
-  it("keeps the deep-thinking label and content collapsed by default", () => {
-    const html = render(part("先分析约束，再设计接口"))
-    expect(html).toContain("深度思考")
-    expect(html).not.toContain("思考过程")
-    expect(html).toContain('aria-expanded="false"')
-    // 默认收起：推理内容不应出现。
-    expect(html).not.toContain("先分析约束，再设计接口")
-  })
-
-  it("reveals the reasoning text after clicking the toggle", () => {
+  it("reveals the full reasoning text after clicking the toggle", () => {
     const host = document.createElement("div")
     document.body.append(host)
     const root = createRoot(host)
@@ -81,11 +87,11 @@ describe("ReasoningBlock", () => {
     })
     const button = host.querySelector("button")
     expect(button?.getAttribute("aria-expanded")).toBe("false")
-    expect(host.textContent).not.toContain("推理内容")
     act(() => {
       button?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
     })
     expect(button?.getAttribute("aria-expanded")).toBe("true")
+    // 展开区显示完整推理（多行都在）。
     expect(host.textContent).toContain("推理内容")
     act(() => root.unmount())
   })

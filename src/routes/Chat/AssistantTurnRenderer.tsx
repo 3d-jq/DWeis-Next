@@ -364,7 +364,7 @@ export function AssistantBlock({
           <MessageResponse smooth={smoothText}>{block.part.text}</MessageResponse>
         ) : null
       ) : block.kind === "reasoning" ? (
-        <ReasoningBlock part={block.part} />
+        <ReasoningBlock part={block.part} live={liveTools} />
       ) : block.kind === "error" ? (
         <ChatErrorNotice
           errorCode={block.part.errorCode}
