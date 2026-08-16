@@ -126,6 +126,7 @@ export function useChat(activeSessionId: string | null, activeRunsRefreshKey?: s
   } | null>(null)
   const [sessionSnapshotReloadVersion, setSessionSnapshotReloadVersion] = React.useState(0)
   const userStoppedSessions = React.useRef(new Map<string, number>())
+  const userStoppedTimers = React.useRef(new Map<string, number>())
   const cancelledToolParts = React.useRef<CancelledToolPartsMap>(new Map())
   const pendingQuestionsMutationVersions = React.useRef(new Map<string, number>())
   const pendingPermissionsMutationVersions = React.useRef(new Map<string, number>())
@@ -216,6 +217,11 @@ export function useChat(activeSessionId: string | null, activeRunsRefreshKey?: s
       permissionModeVersionsRef.current = omitSessionRecord(permissionModeVersionsRef.current, sessionId)
       setErrorsBySession((current) => omitSessionRecord(current, sessionId))
       userStoppedSessions.current.delete(sessionId)
+      const stoppedTimer = userStoppedTimers.current.get(sessionId)
+      if (stoppedTimer !== undefined) {
+        window.clearTimeout(stoppedTimer)
+        userStoppedTimers.current.delete(sessionId)
+      }
       cancelledToolParts.current.delete(sessionId)
       pendingQuestionsMutationVersions.current.delete(sessionId)
       pendingPermissionsMutationVersions.current.delete(sessionId)
@@ -245,6 +251,10 @@ export function useChat(activeSessionId: string | null, activeRunsRefreshKey?: s
     setErrorsBySession({})
     setSessionSnapshotErrorState(null)
     userStoppedSessions.current.clear()
+    for (const timer of userStoppedTimers.current.values()) {
+      window.clearTimeout(timer)
+    }
+    userStoppedTimers.current.clear()
     cancelledToolParts.current.clear()
     pendingQuestionsMutationVersions.current.clear()
     pendingPermissionsMutationVersions.current.clear()
@@ -420,16 +430,27 @@ export function useChat(activeSessionId: string | null, activeRunsRefreshKey?: s
   const markSessionUserStopped = React.useCallback((sessionId: string) => {
     const expiresAt = Date.now() + userStoppedToolCancelWindowMs
     userStoppedSessions.current.set(sessionId, expiresAt)
+    const existing = userStoppedTimers.current.get(sessionId)
+    if (existing !== undefined) {
+      window.clearTimeout(existing)
+    }
     const timer = window.setTimeout(() => {
+      userStoppedTimers.current.delete(sessionId)
       if (userStoppedSessions.current.get(sessionId) === expiresAt) {
         userStoppedSessions.current.delete(sessionId)
       }
     }, userStoppedToolCancelWindowMs)
+    userStoppedTimers.current.set(sessionId, timer)
     return timer
   }, [])
 
   const unmarkSessionUserStopped = React.useCallback((sessionId: string) => {
     userStoppedSessions.current.delete(sessionId)
+    const timer = userStoppedTimers.current.get(sessionId)
+    if (timer !== undefined) {
+      window.clearTimeout(timer)
+      userStoppedTimers.current.delete(sessionId)
+    }
   }, [])
 
   const isSessionUserStopped = React.useCallback((sessionId: string): boolean => {

@@ -4,6 +4,7 @@ import type { ComponentProps, FormEvent, FormEventHandler, HTMLAttributes, Keybo
 import { ArrowUpIcon, Loader2Icon, SquareIcon, XIcon } from "lucide-react"
 import { useState } from "react"
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from "@/components/ui/input-group"
+import { useT } from "@/i18n/i18n"
 import { cn } from "@/lib/utils"
 
 export type PromptInputMessage = {
@@ -52,10 +53,12 @@ export const PromptInputTextarea = ({
   onCompositionEnd,
   onCompositionStart,
   onKeyDown,
-  placeholder = "What would you like to know?",
+  placeholder,
   ...props
 }: PromptInputTextareaProps) => {
+  const t = useT()
   const [isComposing, setIsComposing] = useState(false)
+  const resolvedPlaceholder = placeholder ?? t("promptInput.placeholder")
 
   const handleKeyDown: KeyboardEventHandler<HTMLTextAreaElement> = (e) => {
     onKeyDown?.(e)
@@ -97,7 +100,7 @@ export const PromptInputTextarea = ({
         onCompositionStart?.(event)
       }}
       onKeyDown={handleKeyDown}
-      placeholder={placeholder}
+      placeholder={resolvedPlaceholder}
       {...props}
     />
   )
@@ -109,13 +112,11 @@ export const PromptInputToolbar = ({ className, ...props }: PromptInputToolbarPr
   <InputGroupAddon align="block-end" className={cn("justify-between gap-1 px-4 pt-0 pb-2.5", className)} {...props} />
 )
 
-
 export type PromptInputToolsProps = HTMLAttributes<HTMLDivElement>
 
 export const PromptInputTools = ({ className, ...props }: PromptInputToolsProps) => (
   <div className={cn("flex items-center gap-1", className)} {...props} />
 )
-
 
 export type PromptInputSubmitProps = ComponentProps<typeof InputGroupButton> & {
   status?: ChatStatus
@@ -132,6 +133,7 @@ export const PromptInputSubmit = ({
   ...props
 }: PromptInputSubmitProps) => {
   const iconStatus = visualStatus ?? status
+  const t = useT()
   let Icon = <ArrowUpIcon className="size-4" />
 
   if (iconStatus === "submitted") {
@@ -144,7 +146,7 @@ export const PromptInputSubmit = ({
 
   return (
     <InputGroupButton
-      aria-label="Submit"
+      aria-label={props["aria-label"] ?? t("promptInput.submit")}
       className={cn("rounded-full", className)}
       size={size}
       type="submit"

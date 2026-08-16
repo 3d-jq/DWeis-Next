@@ -2,17 +2,7 @@ import type { ArtifactBundle, ChatMessage, LocalArtifactGroup } from "../../../e
 import type { ArtifactSelection } from "./GeneratedArtifacts.tsx"
 import type { SubTask } from "./sub-tasks.ts"
 
-import {
-  Bot,
-  Check,
-  ChevronDown,
-  Circle,
-  CircleAlert,
-  FileText,
-  Files,
-  ListTodo,
-  Loader2,
-} from "lucide-react"
+import { Bot, Check, ChevronDown, Circle, CircleAlert, FileText, Files, ListTodo, Loader2 } from "lucide-react"
 import { AnimatePresence, motion } from "motion/react"
 import * as React from "react"
 import { useArtifactBundles } from "./artifact-bundle-records.ts"
@@ -536,7 +526,7 @@ function SubTaskRow({ task, now, t }: { task: SubTask; now: number; t: ReturnTyp
         )}
       </span>
       <span className="w-0 max-w-full min-w-0 flex-1 truncate text-[13px] leading-5 text-foreground/90">
-        {task.description}
+        {task.description || t("chat.subTaskFallback")}
       </span>
       {task.agentType ? (
         <span className="shrink-0 rounded bg-muted px-1 py-0.5 text-[11px] leading-none font-medium text-muted-foreground">

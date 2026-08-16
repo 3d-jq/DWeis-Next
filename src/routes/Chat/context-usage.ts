@@ -1,7 +1,7 @@
 import type { ChatMessage, ChatMessagePart, ChatTokenUsage } from "../../../electron/chat/common.ts"
+import type { MemoryContent } from "../../../electron/memory/common.ts"
 import type { ModelCatalog } from "../../../electron/models/common.ts"
 import type { SkillInventory } from "../../../electron/skills/common.ts"
-import type { MemoryContent } from "../../../electron/memory/common.ts"
 
 import { compactionThresholdTokens, contextLimitTokens } from "../../../electron/models/limits.ts"
 import { estimateTokens } from "@/lib/token-estimate"
@@ -46,17 +46,29 @@ function positiveNumber(value: number | undefined): number {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0
 }
 
+/**
+ * 从 provider usage 推导本轮 prompt token 总量。
+ *
+ * provider 语义分两种（与 cacheHitRateFromUsage 同判别）：
+ * - Anthropic 风格：usage.input 已包含缓存读取/写入（input >= cache.read），总量 = input + output；
+ * - DeepSeek/OpenAI 兼容风格：usage.input 是未命中部分，总量 = input + output + cache.read + cache.write。
+ * 仅在 total 缺失（部分 provider 不返回）时走兜底分支，且按 read 与 input 的大小关系自动判别，
+ * 避免 Anthropic 风格下缓存 token 被重复计入导致 usedTokens/百分比虚高。
+ */
 export function contextTokensFromUsage(usage: ChatTokenUsage): number {
   const total = positiveNumber(usage.total)
   if (total > 0) {
     return total
   }
-  return (
-    positiveNumber(usage.input) +
-    positiveNumber(usage.output) +
-    positiveNumber(usage.cache.read) +
-    positiveNumber(usage.cache.write)
-  )
+  const input = positiveNumber(usage.input)
+  const output = positiveNumber(usage.output)
+  const read = positiveNumber(usage.cache.read)
+  const written = positiveNumber(usage.cache.write)
+  // Anthropic 风格：input 已含缓存，再加 cache.read/write 会双计。
+  if (read > 0 && input >= read) {
+    return input + output
+  }
+  return input + output + read + written
 }
 
 /**
@@ -94,10 +106,11 @@ export function selectedModelContextBudget(catalog: ModelCatalog | null): Contex
   if (!catalog) {
     return undefined
   }
-  const model =
-    catalog.selected.kind === "custom"
-      ? catalog.customModels.find((item) => item.id === catalog.selected.id)
-      : catalog.builtins.find((item) => item.id === catalog.selected.id)
+  if (!catalog.selected) {
+    return undefined
+  }
+  const selected = catalog.selected
+  const model = selected.kind === "custom" ? catalog.customModels.find((item) => item.id === selected.id) : undefined
   if (!model) {
     return undefined
   }
@@ -255,7 +268,11 @@ function estimateMemory(memory: MemoryContent | null): number {
   if (!agent && !user) {
     return 0
   }
-  const block = ["## Persistent memory", agent ? `### Your memory\n${agent}` : "", user ? `### User profile\n${user}` : ""]
+  const block = [
+    "## Persistent memory",
+    agent ? `### Your memory\n${agent}` : "",
+    user ? `### User profile\n${user}` : "",
+  ]
     .filter(Boolean)
     .join("\n")
   return estimateTokens(block)
@@ -268,7 +285,12 @@ function estimateMemory(memory: MemoryContent | null): number {
  */
 export function buildContextUsageBreakdown(
   messages: ChatMessage[],
-  options: { mcpServerCount?: number; memory: MemoryContent | null; skillInventory: SkillInventory | null; usage: ChatTokenUsage | undefined },
+  options: {
+    mcpServerCount?: number
+    memory: MemoryContent | null
+    skillInventory: SkillInventory | null
+    usage: ChatTokenUsage | undefined
+  },
 ): ContextUsageBreakdown {
   const messagesTokens = estimateMessages(messages)
   const toolsTokens = BUILTIN_TOOLS_TOKEN_ESTIMATE + (options.mcpServerCount ?? 0) * MCP_SERVER_TOOLS_TOKEN_ESTIMATE

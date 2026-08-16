@@ -27,6 +27,22 @@ interface QuestionPromptCardProps {
   onReject: (requestId: string) => Promise<void>
 }
 
+/** 字段标签显示翻译：语义标识（recipient/email/subject/body）映射到界面语言，其余原样（问题原文）。 */
+function displayFieldLabel(t: ReturnType<typeof useT>, label: string): string {
+  switch (label) {
+    case "recipient":
+      return t("question.fieldRecipient")
+    case "email":
+      return t("question.fieldEmail")
+    case "subject":
+      return t("question.fieldSubject")
+    case "body":
+      return t("question.fieldBody")
+    default:
+      return label
+  }
+}
+
 const customOptionValue = "__custom__"
 
 function placeholderForField(t: ReturnType<typeof useT>, field: QuestionField): string {
@@ -36,7 +52,7 @@ function placeholderForField(t: ReturnType<typeof useT>, field: QuestionField): 
   if (field.kind === "textarea") {
     return t("chat.questionTextareaPlaceholder")
   }
-  return t("chat.questionTextPlaceholder", { label: field.label })
+  return t("chat.questionTextPlaceholder", { label: displayFieldLabel(t, field.label) })
 }
 
 function chooseOption(
@@ -157,14 +173,15 @@ function QuestionStepIndicator({
       {fields.map((field, index) => {
         const answered = canSubmitFieldAnswers([field], [drafts[index] ?? { value: "", selected: [] }])
         const active = index === activeIndex
-        const label = questionStepLabel(field, t("chat.questionFallbackLabel", { index: index + 1 }))
+        const visibleLabel = displayFieldLabel(t, field.label)
+        const label = questionStepLabel(visibleLabel, t("chat.questionFallbackLabel", { index: index + 1 }))
         return (
           <li key={field.id} className="min-w-0 flex-1">
             <button
               type="button"
               role="tab"
               aria-selected={active}
-              title={field.prompt ?? field.label}
+              title={field.prompt ?? visibleLabel}
               disabled={disabled}
               className={cn(
                 "flex w-full min-w-0 items-center justify-center gap-1.5 rounded-full px-2.5 py-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50",
@@ -330,7 +347,7 @@ export function QuestionPromptCard({
               className={cn("space-y-2.5", spaciousField ? "max-h-64 min-h-28 overflow-y-auto pr-1" : "min-h-0")}
             >
               <Label htmlFor={inputId} className="oo-text-label block font-semibold text-foreground">
-                {field.prompt ?? field.label}
+                {field.prompt ?? displayFieldLabel(t, field.label)}
                 {field.multiple ? (
                   <span className="oo-text-micro ml-1.5 font-normal text-muted-foreground">
                     {t("chat.questionMultipleHint")}

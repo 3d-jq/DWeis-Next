@@ -27,9 +27,9 @@ describe("question-fields", () => {
     const fields = deriveQuestionFields(request)
 
     expect(fields.map((field) => ({ label: field.label, kind: field.kind, value: field.value }))).toEqual([
-      { label: "收件人", kind: "email", value: "" },
-      { label: "主题", kind: "text", value: "" },
-      { label: "正文", kind: "textarea", value: "测试连接" },
+      { label: "recipient", kind: "email", value: "" },
+      { label: "subject", kind: "text", value: "" },
+      { label: "body", kind: "textarea", value: "测试连接" },
     ])
     expect(fields.every((field) => field.options.length === 0)).toBe(true)
   })
@@ -52,7 +52,7 @@ describe("question-fields", () => {
     drafts[1].value = "测试主题"
 
     expect(answersFromFieldDrafts(request, fields, drafts)).toEqual([
-      ["收件人: foo@example.com\n主题: 测试主题\n正文: 测试连接"],
+      ["recipient: foo@example.com\nsubject: 测试主题\nbody: 测试连接"],
     ])
   })
 
@@ -72,8 +72,8 @@ describe("question-fields", () => {
     const fields = deriveQuestionFields(request)
 
     expect(fields.map((field) => ({ label: field.label, kind: field.kind, options: field.options }))).toEqual([
-      { label: "收件人", kind: "email", options: [] },
-      { label: "主题", kind: "text", options: [] },
+      { label: "recipient", kind: "email", options: [] },
+      { label: "subject", kind: "text", options: [] },
     ])
   })
 
@@ -97,8 +97,8 @@ describe("question-fields", () => {
     const fields = deriveQuestionFields(request)
 
     expect(fields.map((field) => ({ label: field.label, kind: field.kind, options: field.options.length }))).toEqual([
-      { label: "收件人", kind: "email", options: 0 },
-      { label: "主题", kind: "text", options: 0 },
+      { label: "recipient", kind: "email", options: 0 },
+      { label: "subject", kind: "text", options: 0 },
     ])
   })
 
@@ -121,7 +121,7 @@ describe("question-fields", () => {
     const fields = deriveQuestionFields(request)
 
     expect(fields).toHaveLength(1)
-    expect(fields[0].label).toBe("收件人")
+    expect(fields[0].label).toBe("recipient")
     expect(fields[0].kind).toBe("email")
     expect(fields[0].options).toEqual([
       { label: "zhangli@oomol.com", description: "最近联系人", value: "zhangli@oomol.com" },
@@ -147,7 +147,7 @@ describe("question-fields", () => {
     const fields = deriveQuestionFields(request)
 
     expect(fields).toHaveLength(1)
-    expect(fields[0].label).toBe("主题")
+    expect(fields[0].label).toBe("subject")
     expect(fields[0].kind).toBe("text")
     expect(fields[0].options).toEqual([
       { label: "测试连接", description: "主题使用「测试连接」", value: "测试连接" },
@@ -171,7 +171,7 @@ describe("question-fields", () => {
     const fields = deriveQuestionFields(request)
 
     expect(fields).toHaveLength(1)
-    expect(fields[0].label).toBe("收件人")
+    expect(fields[0].label).toBe("recipient")
     expect(fields[0].kind).toBe("email")
     expect(fields[0].options).toEqual([])
   })
@@ -219,7 +219,7 @@ describe("question-fields", () => {
       ],
     })[0]
 
-    expect(questionStepLabel(field, "问题 1")).toBe("问题 1")
+    expect(questionStepLabel(field.label, "问题 1")).toBe("问题 1")
   })
 
   it("renders plan_exit confirm questions as direct options, not email fields", () => {
@@ -292,29 +292,25 @@ describe("question-fields", () => {
   })
 })
 
-  it("supports multiple selection and submits every selected value", () => {
-    const request: ChatQuestionRequest = {
-      id: "q-multi",
-      sessionId: "s1",
-      questions: [
-        {
-          question: "选择你需要的功能",
-          header: "功能",
-          multiple: true,
-          options: [
-            { label: "文档" },
-            { label: "表格" },
-            { label: "演示" },
-          ],
-        },
-      ],
-    }
-    const fields = deriveQuestionFields(request)
-    const field = fields[0]
+it("supports multiple selection and submits every selected value", () => {
+  const request: ChatQuestionRequest = {
+    id: "q-multi",
+    sessionId: "s1",
+    questions: [
+      {
+        question: "选择你需要的功能",
+        header: "功能",
+        multiple: true,
+        options: [{ label: "文档" }, { label: "表格" }, { label: "演示" }],
+      },
+    ],
+  }
+  const fields = deriveQuestionFields(request)
+  const field = fields[0]
 
-    expect(field.multiple).toBe(true)
-    const drafts = [{ selected: ["文档", "演示"], value: "" }]
-    expect(answersFromFieldDrafts(request, fields, drafts)[0]).toEqual(["文档", "演示"])
-    // 单选一个时仍返回单值
-    expect(answersFromFieldDrafts(request, fields, [{ selected: ["表格"], value: "" }])[0]).toEqual(["表格"])
-  })
+  expect(field.multiple).toBe(true)
+  const drafts = [{ selected: ["文档", "演示"], value: "" }]
+  expect(answersFromFieldDrafts(request, fields, drafts)[0]).toEqual(["文档", "演示"])
+  // 单选一个时仍返回单值
+  expect(answersFromFieldDrafts(request, fields, [{ selected: ["表格"], value: "" }])[0]).toEqual(["表格"])
+})

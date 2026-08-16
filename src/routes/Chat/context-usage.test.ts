@@ -13,17 +13,20 @@ import {
 } from "./context-usage.ts"
 
 const catalog: ModelCatalog = {
-  selected: { kind: "builtin", id: "oopilot" },
+  selected: { kind: "custom", id: "custom-1" },
   providers: [],
-  customModels: [],
-  builtins: [
+  builtins: [],
+  customModels: [
     {
-      id: "oopilot",
-      displayName: "Auto",
-      providerName: "OOMOL",
-      supportsImages: true,
-      toolCall: true,
-      runtimeKind: "openai-compatible",
+      id: "custom-1",
+      providerId: "custom",
+      providerName: "Custom",
+      baseUrl: "https://models.example.test/v1",
+      modelName: "custom-model",
+      displayName: "Custom Model",
+      apiKeyConfigured: true,
+      supportsImages: false,
+      supportsToolCalls: true,
       contextWindow: 400_000,
       inputTokenLimit: 256_000,
       maxOutputTokens: 32_000,
@@ -57,8 +60,10 @@ describe("chat context usage", () => {
     ]
 
     expect(latestContextTokenUsage(messages)).toEqual(messages[2]?.tokenUsage)
+    // assistant-2 usage：input(1000) >= cache.read(300) → Anthropic 风格，总量 = input + output = 1200
+    //（不再把 300 + 25 缓存重复计入）。
     expect(buildContextUsageInfo(messages, catalog)).toEqual({
-      usedTokens: 1525,
+      usedTokens: 1200,
       cacheHitRate: 30,
       contextWindowTokens: 400_000,
       inputLimitTokens: 256_000,
@@ -100,6 +105,7 @@ describe("chat context usage", () => {
   })
 
   it("matches the OpenCode overflow fallback when total tokens are absent", () => {
+    // DeepSeek 风格：cache.read(5) > input(10)？否——此夹具 input >= read，按 Anthropic 语义 input 已含缓存。
     expect(
       contextTokensFromUsage({
         input: 10,
@@ -107,7 +113,31 @@ describe("chat context usage", () => {
         reasoning: 2,
         cache: { read: 5, write: 1 },
       }),
-    ).toBe(19)
+    ).toBe(13)
+  })
+
+  it("does not double count cache tokens for Anthropic-style usage without total", () => {
+    // Anthropic 风格：input 已包含缓存读取（input >= cache.read），总量 = input + output。
+    expect(
+      contextTokensFromUsage({
+        input: 10,
+        output: 3,
+        reasoning: 2,
+        cache: { read: 6, write: 4 },
+      }),
+    ).toBe(13)
+  })
+
+  it("sums cache tokens separately for DeepSeek-style usage without total", () => {
+    // DeepSeek/OpenAI 兼容风格：input 是未命中部分（cache.read 可大于 input），总量 = input + output + read + write。
+    expect(
+      contextTokensFromUsage({
+        input: 10,
+        output: 3,
+        reasoning: 2,
+        cache: { read: 50, write: 1 },
+      }),
+    ).toBe(64)
   })
 
   it("prefers provider total tokens when present", () => {
@@ -262,21 +292,6 @@ describe("chat context usage", () => {
     expect(selectedModelContextWindow(customCatalog)).toBe(128_000)
   })
 
-  it("prefers the input token limit for built-in models", () => {
-    const builtinCatalog: ModelCatalog = {
-      ...catalog,
-      builtins: [
-        {
-          ...catalog.builtins[0]!,
-          contextWindow: 1_000_000,
-          inputTokenLimit: 128_000,
-        },
-      ],
-    }
-
-    expect(selectedModelContextWindow(builtinCatalog)).toBe(128_000)
-  })
-
   it("formats token counts as plain numbers", () => {
     expect(formatTokenCount(42)).toBe("42")
     expect(formatTokenCount(1200)).toBe("1,200")
@@ -307,7 +322,12 @@ describe("buildContextUsageBreakdown", () => {
     ]
     // dsh 口径：text 40/4=10+块 4=14，reasoning 20/4=5+块 4=9，
     // tool input JSON≈26/4=7+块 4=11、output 4/4=1+块 4=5，每消息 role 4×2=8
-    const breakdown = buildContextUsageBreakdown(messages, { memory: null, mcpServerCount: 0, skillInventory: null, usage: undefined })
+    const breakdown = buildContextUsageBreakdown(messages, {
+      memory: null,
+      mcpServerCount: 0,
+      skillInventory: null,
+      usage: undefined,
+    })
     expect(breakdown.messages).toBe(47)
   })
 
@@ -317,9 +337,26 @@ describe("buildContextUsageBreakdown", () => {
       mcpServerCount: 0,
       skillInventory: {
         groups: [
-          { id: "g1", name: "release-notes", description: "d".repeat(40), kind: "local", hosts: [], externalHosts: [], runtimeHosts: [] },
+          {
+            id: "g1",
+            name: "release-notes",
+            description: "d".repeat(40),
+            kind: "local",
+            hosts: [],
+            externalHosts: [],
+            runtimeHosts: [],
+          },
         ],
-        summary: { localSkills: 1, managedSkills: 0, modifiedHosts: 0, needsAttention: 0, publishableSkills: 0, registrySkills: 0, sourceMissingHosts: 0, skills: [] },
+        summary: {
+          localSkills: 1,
+          managedSkills: 0,
+          modifiedHosts: 0,
+          needsAttention: 0,
+          publishableSkills: 0,
+          registrySkills: 0,
+          sourceMissingHosts: 0,
+          skills: [],
+        },
         updatedAt: "",
       },
       usage: undefined,
@@ -333,16 +370,28 @@ describe("buildContextUsageBreakdown", () => {
   })
 
   it("does not double count cache.read in the usage total", () => {
-    // 回归：contextTokensFromUsage 已含 cache.read（input+output+cache 分支），
+    // 回归：contextTokensFromUsage 已按 provider 语义吸收 cache（Anthropic 风格 input 已含缓存），
     // buildContextUsageBreakdown 曾额外 + cache.read 导致 other/total 虚高一个 read 的量。
     const messages: ChatMessage[] = [
       { id: "m1", role: "user", createdAt: 1, parts: [{ kind: "text", partId: "p1", text: "x".repeat(40) }] },
     ]
     const usage = { input: 10_000, output: 100, reasoning: 0, cache: { read: 5_000, write: 1_000 } }
-    const breakdown = buildContextUsageBreakdown(messages, { memory: null, mcpServerCount: 0, skillInventory: null, usage })
-    // contextTokensFromUsage = 10000 + 100 + 5000 + 1000 = 16100；other = 16100 - known。
-    const expectedTotal = breakdown.messages + breakdown.tools + breakdown.skills + breakdown.systemPrompt + breakdown.memory + breakdown.other
-    expect(expectedTotal).toBeLessThan(17_000)
+    const breakdown = buildContextUsageBreakdown(messages, {
+      memory: null,
+      mcpServerCount: 0,
+      skillInventory: null,
+      usage,
+    })
+    // Anthropic 风格（input >= cache.read）：contextTokensFromUsage = 10000 + 100 = 10100；
+    // other = 10100 - known（不再把 5000+1000 缓存重复计入）。
+    const expectedTotal =
+      breakdown.messages +
+      breakdown.tools +
+      breakdown.skills +
+      breakdown.systemPrompt +
+      breakdown.memory +
+      breakdown.other
+    expect(expectedTotal).toBe(10_100)
     expect(breakdown.other).toBeLessThan(16_100)
   })
 
@@ -350,11 +399,24 @@ describe("buildContextUsageBreakdown", () => {
     const messages: ChatMessage[] = [
       { id: "m1", role: "user", createdAt: 1, parts: [{ kind: "text", partId: "p1", text: "x".repeat(40) }] },
     ]
-    const usage = { input: 10_000, output: 100, reasoning: 0, cache: { read: 5_000, write: 1_000 } }
-    const breakdown = buildContextUsageBreakdown(messages, { memory: null, mcpServerCount: 0, skillInventory: null, usage })
-    // usage 总量 = input + cache.read = 15000，各桶之和远小于此 → other 吸收差额
+    // DeepSeek 风格（cache.read > input）：input 是未命中部分，总量 = input + output + read + write。
+    const usage = { input: 5_000, output: 100, reasoning: 0, cache: { read: 10_000, write: 1_000 } }
+    const breakdown = buildContextUsageBreakdown(messages, {
+      memory: null,
+      mcpServerCount: 0,
+      skillInventory: null,
+      usage,
+    })
+    // usage 总量 = 5000 + 100 + 10000 + 1000 = 16100，各桶之和远小于此 → other 吸收差额
     expect(breakdown.other).toBeGreaterThan(10_000)
-    expect(breakdown.total).toBe(breakdown.messages + breakdown.tools + breakdown.skills + breakdown.systemPrompt + breakdown.memory + breakdown.other)
+    expect(breakdown.total).toBe(
+      breakdown.messages +
+        breakdown.tools +
+        breakdown.skills +
+        breakdown.systemPrompt +
+        breakdown.memory +
+        breakdown.other,
+    )
   })
 
   it("falls back to the heuristic estimate when provider usage is absent", () => {
@@ -387,19 +449,30 @@ describe("buildContextUsageBreakdown", () => {
       catalog,
       { memory: null, mcpServerCount: 0, skillInventory: null },
     )
-    expect(bigUsage?.usedTokens).toBe(61_000)
+    // Anthropic 风格（input >= cache.read）：总量 = 50000 + 1000 = 51000，缓存不重复计入。
+    expect(bigUsage?.usedTokens).toBe(51_000)
   })
 
   it("keeps the breakdown total aligned with the estimate fallback", () => {
     const messages: ChatMessage[] = [
       { id: "m1", role: "user", createdAt: 1, parts: [{ kind: "text", partId: "p1", text: "x".repeat(40) }] },
     ]
-    const breakdown = buildContextUsageBreakdown(messages, { memory: null, mcpServerCount: 0, skillInventory: null, usage: undefined })
+    const breakdown = buildContextUsageBreakdown(messages, {
+      memory: null,
+      mcpServerCount: 0,
+      skillInventory: null,
+      usage: undefined,
+    })
     // 无 usage → total = known（估算兜底），other = 0
     expect(breakdown.other).toBe(0)
     expect(breakdown.total).toBeGreaterThan(3000)
     expect(breakdown.total).toBe(
-      breakdown.messages + breakdown.tools + breakdown.skills + breakdown.systemPrompt + breakdown.memory + breakdown.other,
+      breakdown.messages +
+        breakdown.tools +
+        breakdown.skills +
+        breakdown.systemPrompt +
+        breakdown.memory +
+        breakdown.other,
     )
   })
 })

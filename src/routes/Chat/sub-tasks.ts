@@ -19,11 +19,7 @@ export function subTasksFromMessages(messages: ChatMessage[]): SubTask[] {
       }
       const input = part.input ?? {}
       const description =
-        typeof input.description === "string"
-          ? input.description
-          : typeof input.prompt === "string"
-            ? input.prompt
-            : "子任务"
+        typeof input.description === "string" ? input.description : typeof input.prompt === "string" ? input.prompt : ""
       tasks.push({
         partId: part.partId,
         description,

@@ -57,22 +57,24 @@ function stripQuestionWords(value: string): string {
     .trim()
 }
 
+/** 字段标签（稳定语义标识，不随界面语言变化）：recipient / email / subject / body，或问题原文截断。
+ * 显示翻译由渲染层按 label 映射 i18n key（见 QuestionPromptCard），答案回传前缀用本标识。 */
 function inferFieldLabel(prompt: string, header?: string): string {
   const compact = stripQuestionWords(header ?? "") || stripQuestionWords(prompt)
   const lower = compact.toLowerCase()
   if (/收件人|recipient/.test(lower)) {
-    return "收件人"
+    return "recipient"
   }
   if (/邮箱|email|mail address/.test(lower)) {
-    return "邮箱地址"
+    return "email"
   }
   if (/主题|subject/.test(lower)) {
-    return "主题"
+    return "subject"
   }
   if (/正文|邮件内容|生成内容|内容|message|body/.test(lower)) {
-    return "正文"
+    return "body"
   }
-  return compact || "回答"
+  return compact || "answer"
 }
 
 function inferFieldKind(label: string, prompt: string): QuestionFieldKind {
@@ -195,7 +197,9 @@ function fieldsForQuestion(requestId: string, question: ChatQuestionInfo, questi
   const fallbackOptions = usefulOptions(fallback.kind, question)
   const optionPrompts = fallbackOptions.length > 0 ? [] : extractOptionFieldPrompts(question.options)
   const fields =
-    prompts.length > 0 ? prompts.map((prompt) => createField(requestId, questionIndex, prompt, [], "", undefined, question.multiple)) : []
+    prompts.length > 0
+      ? prompts.map((prompt) => createField(requestId, questionIndex, prompt, [], "", undefined, question.multiple))
+      : []
   const knownBody = extractKnownBody(question.question)
 
   if (knownBody && !fields.some((field) => field.kind === "textarea")) {
@@ -207,7 +211,11 @@ function fieldsForQuestion(requestId: string, question: ChatQuestionInfo, questi
   }
 
   if (optionPrompts.length > 0) {
-    return dedupeFields(optionPrompts.map((prompt) => createField(requestId, questionIndex, prompt, [], "", undefined, question.multiple)))
+    return dedupeFields(
+      optionPrompts.map((prompt) =>
+        createField(requestId, questionIndex, prompt, [], "", undefined, question.multiple),
+      ),
+    )
   }
 
   return [{ ...fallback, options: fallbackOptions }]
@@ -217,10 +225,10 @@ export function deriveQuestionFields(request: ChatQuestionRequest): QuestionFiel
   return request.questions.flatMap((question, index) => fieldsForQuestion(request.id, question, index))
 }
 
-export function questionStepLabel(field: QuestionField, fallback: string): string {
-  const label = field.label.trim()
-  const maximumLength = /[\u3400-\u9fff]/.test(label) ? 10 : 32
-  return label && Array.from(label).length <= maximumLength ? label : fallback
+export function questionStepLabel(label: string, fallback: string): string {
+  const trimmed = label.trim()
+  const maximumLength = /[\u3400-\u9fff]/.test(trimmed) ? 10 : 32
+  return trimmed && Array.from(trimmed).length <= maximumLength ? trimmed : fallback
 }
 
 function dedupeFields(fields: QuestionField[]): QuestionField[] {
@@ -273,7 +281,9 @@ export function fieldDraftValue(field: QuestionField, draft: QuestionFieldDraft)
 }
 
 export function canSubmitFieldAnswers(fields: QuestionField[], drafts: QuestionFieldDraft[]): boolean {
-  return fields.every((field, index) => fieldDraftValues(field, drafts[index] ?? { value: "", selected: [] }).length > 0)
+  return fields.every(
+    (field, index) => fieldDraftValues(field, drafts[index] ?? { value: "", selected: [] }).length > 0,
+  )
 }
 
 /** 字段答案值列表：多选时返回每个选中选项的值；单选/手动输入返回单值。 */
