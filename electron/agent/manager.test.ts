@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises"
+import { mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -6,7 +6,6 @@ import {
   AgentManager,
   buildAgentSidecarEnv,
   buildArtifactSystem,
-  buildWorkspaceIdentitySystem,
   isUserVisibleSession,
   turnArtifactMarkerPath,
 } from "./manager.ts"
@@ -17,14 +16,6 @@ afterEach(() => {
 })
 
 describe("AgentManager", () => {
-  it("pins raw connector CLI guidance to the current team", () => {
-    const system = buildWorkspaceIdentitySystem('team "quoted"')
-    expect(system).toContain('team "team \\"quoted\\""')
-    expect(system).toContain('--organization "team \\"quoted\\""')
-
-    expect(() => buildWorkspaceIdentitySystem(undefined)).toThrow("Team workspace identity is unavailable")
-  })
-
   it("hides OpenCode subagent sessions from the user task list", () => {
     expect(isUserVisibleSession({ id: "root", title: "Root" })).toBe(true)
     expect(isUserVisibleSession({ id: "child", parentID: "root", title: "Child" })).toBe(false)
@@ -32,125 +23,9 @@ describe("AgentManager", () => {
     expect(isUserVisibleSession({ id: "child", parent_id: "root", title: "Child" })).toBe(false)
   })
 
-  it("frames connected providers as authorization awareness only", async () => {
-    const rootDir = await mkdtemp(path.join(tmpdir(), "dweis-agent-"))
-    try {
-      const manager = new AgentManager({
-        linkRuntime: { kind: "oomol", sessionToken: "test" },
-        modelAccess: { kind: "oomol", sessionToken: "test" },
-        opencodeBinPath: "/tmp/opencode",
-        ooBinPath: "/tmp/oo",
-        rootDir,
-      })
-      manager.listAuthorizedServices = async () => ["gmail", "slack"]
-
-      const system = await manager.buildAuthorizedSystem()
-
-      expect(system).toContain("Some Link providers are already authorized")
-      expect(system).toContain("availability awareness only")
-      expect(system).toContain("not a recommendation to use Link tools")
-      expect(system).toContain("For questions about which providers are connected, use list_apps")
-      expect(system).toContain("search results include whether a provider is authenticated")
-      expect(system).toContain("concrete URLs")
-      expect(system).not.toContain("gmail")
-      expect(system).not.toContain("slack")
-    } finally {
-      await rm(rootDir, { force: true, recursive: true })
-    }
-  })
-
-  it("never injects Connector authorization guidance into a local runtime", async () => {
-    const rootDir = await mkdtemp(path.join(tmpdir(), "dweis-agent-"))
-    try {
-      const manager = new AgentManager({
-        linkRuntime: null,
-        modelAccess: { kind: "local" },
-        customModels: [
-          {
-            id: "local-model",
-            providerId: "custom",
-            providerName: "Local",
-            baseUrl: "http://127.0.0.1:11434/v1",
-            apiKey: "local-key",
-            apiKeyConfigured: true,
-            modelName: "local-model",
-          },
-        ],
-        opencodeBinPath: "/tmp/opencode",
-        rootDir,
-      })
-      manager.listAuthorizedServices = async () => ["gmail"]
-
-      await expect(manager.buildAuthorizedSystem()).resolves.toBeUndefined()
-    } finally {
-      await rm(rootDir, { force: true, recursive: true })
-    }
-  })
-
-  it("never queries Connector authorization in the local runtime", async () => {
-    const manager = new AgentManager({
-      linkRuntime: null,
-      modelAccess: { kind: "local" },
-      customModels: [
-        {
-          id: "local",
-          providerId: "custom",
-          providerName: "Local",
-          baseUrl: "http://127.0.0.1:11434/v1",
-          apiKey: "local-key",
-          apiKeyConfigured: true,
-          modelName: "local-model",
-        },
-      ],
-      defaultModel: { kind: "custom", id: "local" },
-      opencodeBinPath: "/tmp/opencode",
-      rootDir: "/tmp/dweis-agent",
-    })
-    const fetchMock = vi.fn()
-    vi.stubGlobal("fetch", fetchMock)
-    ;(manager as unknown as { started: boolean }).started = true
-
-    await expect(manager.listAuthorizedServices("acme")).resolves.toEqual([])
-    expect(fetchMock).not.toHaveBeenCalled()
-  })
-
-  it("loads OpenConnector authorization from the main-process inventory", async () => {
-    const inventory = vi.fn(async () => ["slack"])
-    const manager = new AgentManager({
-      customModels: [
-        {
-          id: "local",
-          providerId: "custom",
-          providerName: "Local",
-          baseUrl: "http://127.0.0.1:11434/v1",
-          apiKey: "local-key",
-          apiKeyConfigured: true,
-          modelName: "local-model",
-        },
-      ],
-      defaultModel: { kind: "custom", id: "local" },
-      linkRuntime: {
-        baseUrl: "http://127.0.0.1:3000",
-        consoleUrl: "http://127.0.0.1:5173",
-        kind: "openconnector",
-      },
-      listOpenConnectorAuthorizedServices: inventory,
-      modelAccess: { kind: "local" },
-      opencodeBinPath: "/tmp/opencode",
-      ooBinPath: "/tmp/oo",
-      rootDir: "/tmp/dweis-agent",
-    })
-    ;(manager as unknown as { started: boolean }).started = true
-
-    await expect(manager.listAuthorizedServices()).resolves.toEqual(["slack"])
-    await expect(manager.buildAuthorizedSystem()).resolves.toContain("Some Link providers are already authorized")
-    expect(inventory).toHaveBeenCalledTimes(2)
-  })
-
   it("does not expose DWeis WikiGraph control variables to the sidecar", () => {
     const env = buildAgentSidecarEnv({
       commandPath: "/usr/bin:/bin",
-      linkRuntime: null,
       storeDir: "/tmp/dweis-agent/oo-store",
       teamScopePath: "/tmp/dweis-agent/team-scope.json",
     })
@@ -168,7 +43,6 @@ describe("AgentManager", () => {
   it("points generate_image at the per-agent turn artifact marker", () => {
     const env = buildAgentSidecarEnv({
       commandPath: "/usr/bin:/bin",
-      linkRuntime: null,
       storeDir: "/tmp/dweis-agent/oo-store",
       teamScopePath: "/tmp/dweis-agent/team-scope.json",
     })
@@ -179,120 +53,11 @@ describe("AgentManager", () => {
     )
   })
 
-  it("exposes OOMOL authentication and the managed Node runtime to Skill commands", () => {
-    const env = buildAgentSidecarEnv({
-      commandPath: "/usr/bin:/bin",
-      linkRuntime: { kind: "oomol", sessionToken: "session-token" },
-      ooBinPath: "/tmp/oo",
-      storeDir: "/tmp/dweis-agent/oo-store",
-      teamScopePath: "/tmp/dweis-agent/team-scope.json",
-    })
-
-    expect(env).toMatchObject({
-      ELECTRON_RUN_AS_NODE: "1",
-      OO_API_KEY: "session-token",
-      PATH: "/usr/bin:/bin",
-      DWEIS_NODE_BIN: process.execPath,
-      DWEIS_OO_BIN: "/tmp/oo",
-    })
-    expect(env.OO_ENDPOINT).toBeTruthy()
-  })
-
-  it("reuses authorized provider awareness within the prompt cache window", async () => {
-    const manager = new AgentManager({
-      linkRuntime: { kind: "oomol", sessionToken: "test" },
-      modelAccess: { kind: "oomol", sessionToken: "test" },
-      opencodeBinPath: "/tmp/opencode",
-      ooBinPath: "/tmp/oo",
-      rootDir: "/tmp/dweis-agent",
-    })
-    const lookup = vi.fn(async () => ["gmail"])
-    manager.listAuthorizedServices = lookup
-
-    await manager.buildAuthorizedSystem("acme")
-    await manager.buildAuthorizedSystem("acme")
-
-    expect(lookup).toHaveBeenCalledOnce()
-  })
-
-  it("keeps a shared authorized provider lookup alive when its first caller is cancelled", async () => {
-    const manager = new AgentManager({
-      linkRuntime: { kind: "oomol", sessionToken: "test" },
-      modelAccess: { kind: "oomol", sessionToken: "test" },
-      opencodeBinPath: "/tmp/opencode",
-      ooBinPath: "/tmp/oo",
-      rootDir: "/tmp/dweis-agent",
-    })
-    let resolveLookup: (services: string[]) => void = () => undefined
-    let sharedSignal: AbortSignal | undefined
-    const lookup = vi.fn((_teamName?: string, signal?: AbortSignal) => {
-      sharedSignal = signal
-      return new Promise<string[]>((resolve) => {
-        resolveLookup = resolve
-      })
-    })
-    manager.listAuthorizedServices = lookup
-    const firstCaller = new AbortController()
-
-    const first = manager.buildAuthorizedSystem("acme", firstCaller.signal)
-    await vi.waitFor(() => expect(lookup).toHaveBeenCalledOnce())
-    firstCaller.abort(new Error("Prompt was cancelled."))
-
-    await expect(first).resolves.toBeUndefined()
-    expect(sharedSignal?.aborted).toBe(false)
-
-    const second = manager.buildAuthorizedSystem("acme")
-    resolveLookup(["gmail"])
-    await expect(second).resolves.toContain("Some Link providers are already authorized")
-    await manager.buildAuthorizedSystem("acme")
-    expect(lookup).toHaveBeenCalledOnce()
-  })
-
-  it("aborts authorized provider lookups and prevents cache refill after dispose", async () => {
-    const manager = new AgentManager({
-      linkRuntime: { kind: "oomol", sessionToken: "test" },
-      modelAccess: { kind: "oomol", sessionToken: "test" },
-      opencodeBinPath: "/tmp/opencode",
-      ooBinPath: "/tmp/oo",
-      rootDir: "/tmp/dweis-agent",
-    })
-    let resolveLookup: (services: string[]) => void = () => undefined
-    let sharedSignal: AbortSignal | undefined
-    const lookup = vi
-      .fn((_teamName?: string, signal?: AbortSignal) => {
-        sharedSignal = signal
-        return new Promise<string[]>((resolve) => {
-          resolveLookup = resolve
-        })
-      })
-      .mockImplementationOnce((_teamName?: string, signal?: AbortSignal) => {
-        sharedSignal = signal
-        return new Promise<string[]>((resolve) => {
-          resolveLookup = resolve
-        })
-      })
-      .mockResolvedValueOnce(["slack"])
-    manager.listAuthorizedServices = lookup
-
-    const pending = manager.buildAuthorizedSystem("acme")
-    await vi.waitFor(() => expect(lookup).toHaveBeenCalledOnce())
-    await manager.dispose()
-    expect(sharedSignal?.aborted).toBe(true)
-
-    resolveLookup(["gmail"])
-    await pending
-    await expect(manager.buildAuthorizedSystem("acme")).resolves.toContain("Some Link providers are already authorized")
-    expect(lookup).toHaveBeenCalledTimes(2)
-  })
-
   it("keeps artifact directories inside the artifacts root", async () => {
     const rootDir = await mkdtemp(path.join(tmpdir(), "dweis-agent-"))
     try {
       const manager = new AgentManager({
-        linkRuntime: { kind: "oomol", sessionToken: "test" },
-        modelAccess: { kind: "oomol", sessionToken: "test" },
         opencodeBinPath: "/tmp/opencode",
-        ooBinPath: "/tmp/oo",
         rootDir,
       })
 
@@ -313,10 +78,7 @@ describe("AgentManager", () => {
     const projectRoot = await mkdtemp(path.join(tmpdir(), "dweis-project-"))
     try {
       const manager = new AgentManager({
-        linkRuntime: { kind: "oomol", sessionToken: "test" },
-        modelAccess: { kind: "oomol", sessionToken: "test" },
         opencodeBinPath: "/tmp/opencode",
-        ooBinPath: "/tmp/oo",
         rootDir,
       })
 
@@ -343,10 +105,7 @@ describe("AgentManager", () => {
     const outsideRoot = await mkdtemp(path.join(tmpdir(), "dweis-outside-"))
     try {
       const manager = new AgentManager({
-        linkRuntime: { kind: "oomol", sessionToken: "test" },
-        modelAccess: { kind: "oomol", sessionToken: "test" },
         opencodeBinPath: "/tmp/opencode",
-        ooBinPath: "/tmp/oo",
         rootDir,
       })
       await symlink(outsideRoot, path.join(projectRoot, ".dweis"), "dir")
@@ -369,10 +128,7 @@ describe("AgentManager", () => {
     const linkedProjectRoot = path.join(tmpdir(), `dweis-project-link-${Date.now()}`)
     try {
       const manager = new AgentManager({
-        linkRuntime: { kind: "oomol", sessionToken: "test" },
-        modelAccess: { kind: "oomol", sessionToken: "test" },
         opencodeBinPath: "/tmp/opencode",
-        ooBinPath: "/tmp/oo",
         rootDir,
       })
       await symlink(projectRoot, linkedProjectRoot, "dir")
@@ -409,165 +165,34 @@ describe("AgentManager", () => {
     expect(system).toContain("Do not present the managed artifact path as the final project location")
   })
 
-  it("syncs the oo CLI default identity with the active team", async () => {
+  it("persists per-session knowledge base scope in team-scope.json", async () => {
     const rootDir = await mkdtemp(path.join(tmpdir(), "dweis-agent-"))
     try {
       const manager = new AgentManager({
-        linkRuntime: { kind: "oomol", sessionToken: "test" },
-        modelAccess: { kind: "oomol", sessionToken: "test" },
         opencodeBinPath: "/tmp/opencode",
-        ooBinPath: "/tmp/oo",
-        rootDir,
-      })
-      const settingsPath = path.join(rootDir, "oo-store", "config", "settings.toml")
-
-      await manager.setTeamName("acme-corp")
-      await expect(readFile(settingsPath, "utf8")).resolves.toContain('organization = "acme-corp"')
-
-      await manager.setTeamName(undefined)
-      await expect(readFile(settingsPath, "utf8")).resolves.not.toContain("organization =")
-    } finally {
-      await rm(rootDir, { force: true, recursive: true })
-    }
-  })
-
-  it("writes per-session team scopes without replacing the default identity", async () => {
-    const rootDir = await mkdtemp(path.join(tmpdir(), "dweis-agent-"))
-    try {
-      const manager = new AgentManager({
-        linkRuntime: { kind: "oomol", sessionToken: "test" },
-        modelAccess: { kind: "oomol", sessionToken: "test" },
-        opencodeBinPath: "/tmp/opencode",
-        ooBinPath: "/tmp/oo",
         rootDir,
       })
       const scopePath = path.join(rootDir, "team-scope.json")
       ;(manager as unknown as { teamScopePath: string }).teamScopePath = scopePath
 
-      await manager.setTeamName("workspace-default")
-      await manager.setSessionTeamName("session-a", "team-a")
-      await manager.setSessionTeamName("session-b", undefined)
       await manager.setSessionKnowledgeBaseIds("session-a", [" knowledge-a ", "knowledge-a", "knowledge-b"])
       await manager.inheritSessionKnowledgeBaseIds("session-a", "session-child")
 
       await expect(readFile(scopePath, "utf8").then((content) => JSON.parse(content))).resolves.toEqual({
-        teamName: "workspace-default",
         sessionKnowledgeBaseIds: {
           "session-a": ["knowledge-a", "knowledge-b"],
           "session-child": ["knowledge-a", "knowledge-b"],
         },
-        sessionTeams: {
-          "session-a": "team-a",
-          "session-b": "",
-        },
       })
 
-      await manager.clearSessionTeamName("session-a")
       await manager.removeKnowledgeBaseAccess("knowledge-a")
+      await manager.clearSessionKnowledgeBaseIds("session-child")
 
       await expect(readFile(scopePath, "utf8").then((content) => JSON.parse(content))).resolves.toEqual({
-        teamName: "workspace-default",
         sessionKnowledgeBaseIds: {
           "session-a": ["knowledge-b"],
-          "session-child": ["knowledge-b"],
-        },
-        sessionTeams: {
-          "session-b": "",
         },
       })
-    } finally {
-      await rm(rootDir, { force: true, recursive: true })
-    }
-  })
-
-  it("restores the default identity when scope persistence fails", async () => {
-    const manager = new AgentManager({
-      linkRuntime: { kind: "oomol", sessionToken: "test" },
-      modelAccess: { kind: "oomol", sessionToken: "test" },
-      opencodeBinPath: "/tmp/opencode",
-      ooBinPath: "/tmp/oo",
-      rootDir: "/tmp/dweis-agent",
-    })
-    const writes: string[] = []
-    const internals = manager as unknown as {
-      teamName: string | undefined
-      writeOoIdentity: (teamName: string | undefined) => Promise<void>
-      writeTeamScope: (teamName: string | undefined) => Promise<void>
-      writeTeamState: (teamName: string | undefined) => Promise<void>
-    }
-    internals.teamName = "old-team"
-    internals.writeOoIdentity = async (teamName) => {
-      writes.push(`identity:${teamName ?? ""}`)
-    }
-    internals.writeTeamScope = async (teamName) => {
-      writes.push(`scope:${teamName ?? ""}`)
-      if (teamName === "new-team") {
-        throw new Error("scope failed")
-      }
-    }
-
-    await expect(internals.writeTeamState("new-team")).rejects.toThrow("scope failed")
-
-    expect(writes).toEqual(["identity:new-team", "scope:new-team", "identity:old-team"])
-  })
-
-  it("preserves the scope write failure when identity rollback also fails", async () => {
-    const manager = new AgentManager({
-      linkRuntime: { kind: "oomol", sessionToken: "test" },
-      modelAccess: { kind: "oomol", sessionToken: "test" },
-      opencodeBinPath: "/tmp/opencode",
-      ooBinPath: "/tmp/oo",
-      rootDir: "/tmp/dweis-agent",
-    })
-    const scopeFailure = new Error("scope failed")
-    const rollbackFailure = new Error("rollback failed")
-    const internals = manager as unknown as {
-      teamName: string | undefined
-      writeOoIdentity: (teamName: string | undefined) => Promise<void>
-      writeTeamScope: (teamName: string | undefined) => Promise<void>
-      writeTeamState: (teamName: string | undefined) => Promise<void>
-    }
-    internals.teamName = "old-team"
-    internals.writeOoIdentity = async (teamName) => {
-      if (teamName === "old-team") {
-        throw rollbackFailure
-      }
-    }
-    internals.writeTeamScope = async () => {
-      throw scopeFailure
-    }
-
-    await expect(internals.writeTeamState("new-team")).rejects.toMatchObject({
-      errors: [scopeFailure, rollbackFailure],
-    })
-  })
-
-  it("preserves existing oo settings when updating the default team", async () => {
-    const rootDir = await mkdtemp(path.join(tmpdir(), "dweis-agent-"))
-    try {
-      const manager = new AgentManager({
-        linkRuntime: { kind: "oomol", sessionToken: "test" },
-        modelAccess: { kind: "oomol", sessionToken: "test" },
-        opencodeBinPath: "/tmp/opencode",
-        ooBinPath: "/tmp/oo",
-        rootDir,
-      })
-      const settingsPath = path.join(rootDir, "oo-store", "config", "settings.toml")
-      await mkdir(path.dirname(settingsPath), { recursive: true })
-      await writeFile(
-        settingsPath,
-        ["[skills.recommend]", "muted = true", "", "[identity]", 'organization = "old"', 'note = "keep"'].join("\n"),
-        "utf8",
-      )
-
-      await manager.setTeamName('team "quoted"')
-
-      const settings = await readFile(settingsPath, "utf8")
-      expect(settings).toContain("[skills.recommend]")
-      expect(settings).toContain("muted = true")
-      expect(settings).toContain("[identity]")
-      expect(settings).toContain('organization = "team \\"quoted\\""')
-      expect(settings).toContain('note = "keep"')
     } finally {
       await rm(rootDir, { force: true, recursive: true })
     }
@@ -576,25 +201,30 @@ describe("AgentManager", () => {
   it("passes OpenCode agent names and reasoning variants to promptAsync", async () => {
     const promptAsync = vi.fn(async () => ({ data: true }))
     const manager = new AgentManager({
-      linkRuntime: { kind: "oomol", sessionToken: "test" },
-      modelAccess: { kind: "oomol", sessionToken: "test" },
+      customModels: [
+        {
+          id: "local-model",
+          providerId: "custom",
+          providerName: "Local",
+          baseUrl: "http://127.0.0.1:11434/v1",
+          apiKey: "local-key",
+          apiKeyConfigured: true,
+          modelName: "local-model",
+        },
+      ],
+      defaultModel: { kind: "custom", id: "local-model" },
       opencodeBinPath: "/tmp/opencode",
-      ooBinPath: "/tmp/oo",
       rootDir: "/tmp/dweis-agent",
     })
     ;(manager as unknown as { sidecar: unknown }).sidecar = { client: { session: { promptAsync } } }
-    manager.buildAuthorizedSystem = async () => undefined
     await manager.promptStreaming("session-1", "plan it", {
       mode: "plan",
-      teamName: "acme",
       reasoningLevel: "high",
     })
     await manager.promptStreaming("session-1", "build it", {
-      teamName: "acme",
       reasoningLevel: "medium",
     })
     await manager.promptStreaming("session-1", "default reasoning", {
-      teamName: "acme",
       reasoningLevel: "default",
     })
 
@@ -612,14 +242,22 @@ describe("AgentManager", () => {
     await writeFile(workbookPath, "test workbook")
     const promptAsync = vi.fn(async () => ({ data: true }))
     const manager = new AgentManager({
-      linkRuntime: { kind: "oomol", sessionToken: "test" },
-      modelAccess: { kind: "oomol", sessionToken: "test" },
+      customModels: [
+        {
+          id: "local-model",
+          providerId: "custom",
+          providerName: "Local",
+          baseUrl: "http://127.0.0.1:11434/v1",
+          apiKey: "local-key",
+          apiKeyConfigured: true,
+          modelName: "local-model",
+        },
+      ],
+      defaultModel: { kind: "custom", id: "local-model" },
       opencodeBinPath: "/tmp/opencode",
-      ooBinPath: "/tmp/oo",
       rootDir: "/tmp/dweis-agent",
     })
     ;(manager as unknown as { sidecar: unknown }).sidecar = { client: { session: { promptAsync } } }
-    manager.buildAuthorizedSystem = async () => undefined
 
     try {
       await manager.promptStreaming("session-1", "整理表格", {
@@ -632,7 +270,6 @@ describe("AgentManager", () => {
             size: 1024,
           },
         ],
-        teamName: "acme",
       })
 
       const calls = promptAsync.mock.calls as unknown as Array<
@@ -686,15 +323,22 @@ describe("AgentManager", () => {
           modelName: "deepseek-v4-flash",
           supportsImages: false,
         },
+        {
+          id: "deepseek-vision",
+          providerId: "deepseek",
+          providerName: "DeepSeek",
+          baseUrl: "https://api.deepseek.test/v1",
+          apiKey: "custom-key",
+          apiKeyConfigured: true,
+          modelName: "deepseek-vision",
+          supportsImages: true,
+        },
       ],
-      linkRuntime: { kind: "oomol", sessionToken: "test" },
-      modelAccess: { kind: "oomol", sessionToken: "test" },
+      defaultModel: { kind: "custom", id: "deepseek-byok" },
       opencodeBinPath: "/tmp/opencode",
-      ooBinPath: "/tmp/oo",
       rootDir: "/tmp/dweis-agent",
     })
     ;(manager as unknown as { sidecar: unknown }).sidecar = { client: { session: { promptAsync } } }
-    manager.buildAuthorizedSystem = async () => undefined
     const json = {
       id: "json-1",
       mime: "application/json",
@@ -714,12 +358,10 @@ describe("AgentManager", () => {
       await manager.promptStreaming("session-1", "analyze", {
         attachments: [json, image],
         model: { kind: "custom", id: "deepseek-byok" },
-        teamName: "acme",
       })
       await manager.promptStreaming("session-1", "analyze", {
         attachments: [image],
-        model: { kind: "builtin", id: "oopilot" },
-        teamName: "acme",
+        model: { kind: "custom", id: "deepseek-vision" },
       })
 
       const calls = promptAsync.mock.calls as unknown as Array<
@@ -748,14 +390,12 @@ describe("AgentManager", () => {
     }
   })
 
-  it("uses the local default custom model for stale builtin prompt choices and capability checks", async () => {
+  it("uses the local default custom model for prompt choices and capability checks without an explicit model", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "dweis-local-model-manager-"))
     const imagePath = path.join(directory, "photo.png")
     await writeFile(imagePath, "test image")
     const promptAsync = vi.fn(async (_parameters: unknown) => ({ data: true }))
     const manager = new AgentManager({
-      linkRuntime: null,
-      modelAccess: { kind: "local" },
       customModels: [
         {
           apiKey: "local-secret",
@@ -778,7 +418,6 @@ describe("AgentManager", () => {
     try {
       await manager.promptStreaming("session-1", "analyze", {
         attachments: [{ id: "image-1", mime: "image/png", name: "photo.png", path: imagePath, size: 100 }],
-        model: { kind: "builtin", id: "oopilot" },
         reasoningLevel: "high",
       })
 
@@ -819,10 +458,7 @@ describe("AgentManager", () => {
         })(),
       })
     const manager = new AgentManager({
-      linkRuntime: { kind: "oomol", sessionToken: "test" },
-      modelAccess: { kind: "oomol", sessionToken: "test" },
       opencodeBinPath: "/tmp/opencode",
-      ooBinPath: "/tmp/oo",
       rootDir: "/tmp/dweis-agent",
     })
     ;(manager as unknown as { sidecar: unknown; started: boolean }).sidecar = {
@@ -856,10 +492,7 @@ describe("AgentManager", () => {
     vi.useFakeTimers()
     const subscribe = vi.fn().mockRejectedValue(new Error("stream disconnected"))
     const manager = new AgentManager({
-      linkRuntime: { kind: "oomol", sessionToken: "test" },
-      modelAccess: { kind: "oomol", sessionToken: "test" },
       opencodeBinPath: "/tmp/opencode",
-      ooBinPath: "/tmp/oo",
       rootDir: "/tmp/dweis-agent",
     })
     ;(manager as unknown as { sidecar: unknown; started: boolean }).sidecar = {
@@ -913,10 +546,7 @@ describe("AgentManager", () => {
     const reply = vi.fn(async () => ({ data: true }))
     const reject = vi.fn(async () => ({ data: true }))
     const manager = new AgentManager({
-      linkRuntime: { kind: "oomol", sessionToken: "test" },
-      modelAccess: { kind: "oomol", sessionToken: "test" },
       opencodeBinPath: "/tmp/opencode",
-      ooBinPath: "/tmp/oo",
       rootDir: "/tmp/dweis-agent",
     })
     ;(manager as unknown as { sidecar: unknown; started: boolean }).sidecar = {
@@ -946,10 +576,7 @@ describe("AgentManager", () => {
   it("turns OpenCode SDK error results into rejected operations", async () => {
     const failure = async () => ({ error: { message: "runtime unavailable" } })
     const manager = new AgentManager({
-      linkRuntime: { kind: "oomol", sessionToken: "test" },
-      modelAccess: { kind: "oomol", sessionToken: "test" },
       opencodeBinPath: "/tmp/opencode",
-      ooBinPath: "/tmp/oo",
       rootDir: "/tmp/dweis-agent",
     })
     ;(manager as unknown as { sidecar: unknown; started: boolean }).sidecar = {
@@ -983,44 +610,6 @@ describe("AgentManager", () => {
     )
   })
 
-  it("uses the selected builtin model to generate a session title", async () => {
-    const fetchMock = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) => {
-      return new Response(
-        JSON.stringify({
-          choices: [
-            {
-              message: {
-                content: '{"title":"PostHog 注册来源"}',
-              },
-            },
-          ],
-        }),
-        { status: 200 },
-      )
-    })
-    vi.stubGlobal("fetch", fetchMock)
-
-    const manager = new AgentManager({
-      linkRuntime: { kind: "oomol", sessionToken: "test" },
-      modelAccess: { kind: "oomol", sessionToken: "test" },
-      opencodeBinPath: "/tmp/opencode",
-      ooBinPath: "/tmp/oo",
-      rootDir: "/tmp/dweis-agent",
-    })
-
-    const title = await manager.generateSessionTitle({
-      model: { kind: "builtin", id: "gpt-5.6-sol" },
-      text: "你 PostHog 看一下近三天的数据，帮我看一下他们注册主要是来自于哪里？",
-    })
-
-    expect(title).toEqual({ generated: true, title: "PostHog 注册来源" })
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    const request = fetchMock.mock.calls[0]?.[1]
-    expect(request).toBeDefined()
-    expect(JSON.parse(String(request?.body))).toMatchObject({ max_tokens: 512, model: "gpt-5.6-sol" })
-    expect(request?.headers).toMatchObject({ Authorization: "Bearer test" })
-  })
-
   it("uses the selected custom model endpoint and credential to generate a session title", async () => {
     const fetchMock = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) => {
       return new Response(JSON.stringify({ choices: [{ message: { content: '{"title":"自定义模型标题"}' } }] }), {
@@ -1030,8 +619,6 @@ describe("AgentManager", () => {
     vi.stubGlobal("fetch", fetchMock)
 
     const manager = new AgentManager({
-      linkRuntime: { kind: "oomol", sessionToken: "test" },
-      modelAccess: { kind: "oomol", sessionToken: "test" },
       customModels: [
         {
           apiKey: "custom-secret",
@@ -1044,7 +631,6 @@ describe("AgentManager", () => {
         },
       ],
       opencodeBinPath: "/tmp/opencode",
-      ooBinPath: "/tmp/oo",
       rootDir: "/tmp/dweis-agent",
     })
 
@@ -1061,7 +647,7 @@ describe("AgentManager", () => {
     expect(JSON.parse(String(request?.body))).toMatchObject({ model: "custom-model" })
   })
 
-  it("uses the local default custom model for a stale builtin title choice", async () => {
+  it("uses the local default custom model for a title without an explicit model", async () => {
     const fetchMock = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) => {
       return new Response(JSON.stringify({ choices: [{ message: { content: '{"title":"本地模型标题"}' } }] }), {
         status: 200,
@@ -1070,8 +656,6 @@ describe("AgentManager", () => {
     vi.stubGlobal("fetch", fetchMock)
 
     const manager = new AgentManager({
-      linkRuntime: null,
-      modelAccess: { kind: "local" },
       customModels: [
         {
           apiKey: "local-secret",
@@ -1089,7 +673,6 @@ describe("AgentManager", () => {
     })
 
     const title = await manager.generateSessionTitle({
-      model: { kind: "builtin", id: "oopilot" },
       text: "生成标题",
     })
 
@@ -1116,12 +699,15 @@ describe("AgentManager.updateCustomModels", () => {
         supportsImages: false,
         supportsToolCalls: true,
       }
-      const newModel = { ...oldModel, id: "new-1", baseUrl: "https://new.example.com/v1", apiKey: "sk-new", modelName: "new-model" }
+      const newModel = {
+        ...oldModel,
+        id: "new-1",
+        baseUrl: "https://new.example.com/v1",
+        apiKey: "sk-new",
+        modelName: "new-model",
+      }
       const manager = new AgentManager({
-        linkRuntime: null,
-        modelAccess: { kind: "local" },
         opencodeBinPath: "/tmp/opencode",
-        ooBinPath: "/tmp/oo",
         rootDir,
         customModels: [oldModel],
       })
@@ -1134,7 +720,10 @@ describe("AgentManager.updateCustomModels", () => {
       expect(() => resolve({ kind: "custom", id: "new-1" })).toThrow("Selected custom model is no longer available")
 
       manager.updateCustomModels([oldModel, newModel])
-      expect(resolve({ kind: "custom", id: "new-1" })).toEqual({ providerID: "dweis-custom-new-1", modelID: "new-model" })
+      expect(resolve({ kind: "custom", id: "new-1" })).toEqual({
+        providerID: "dweis-custom-new-1",
+        modelID: "new-model",
+      })
     } finally {
       await rm(rootDir, { force: true, recursive: true })
     }

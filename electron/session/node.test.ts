@@ -1637,15 +1637,19 @@ test("lists sessions filtered by the current persona", async () => {
     { metadataStore: persistedMetadata, getPersona: () => persona },
   )
 
-  assert.deepEqual((await service.list({ scope: testTeamScope })).map((s) => s.id), ["work-session"])
+  assert.deepEqual(
+    (await service.list({ scope: testTeamScope })).map((s) => s.id),
+    ["work-session"],
+  )
   persona = "code"
-  assert.deepEqual((await service.list({ scope: testTeamScope })).map((s) => s.id), ["code-session"])
+  assert.deepEqual(
+    (await service.list({ scope: testTeamScope })).map((s) => s.id),
+    ["code-session"],
+  )
 })
 
 test("assignSessionProject refuses projects of another persona once the session is owned", async () => {
-  const persistedMetadata = metadataStore(
-    new Map([["session", { scope: testTeamScope, persona: "work" as const }]]),
-  )
+  const persistedMetadata = metadataStore(new Map([["session", { scope: testTeamScope, persona: "work" as const }]]))
   const codeProject: SessionProject = {
     id: "code-project",
     name: "Code",

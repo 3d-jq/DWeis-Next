@@ -64,14 +64,11 @@ export function useAppShellSessionSelection({
   const activeSession = selectedSessionMatchesScope ? (selectedSession ?? undefined) : undefined
   const activeKnowledgeBaseIds = activeSession?.knowledgeBaseIds ?? draftKnowledgeBaseIds
 
-  const selectSession = React.useCallback(
-    (session: SessionInfo): void => {
-      setSelectedSessionId(session.id)
-      setIsDraftSession(false)
-      setPendingChatTransition(null)
-    },
-    [],
-  )
+  const selectSession = React.useCallback((session: SessionInfo): void => {
+    setSelectedSessionId(session.id)
+    setIsDraftSession(false)
+    setPendingChatTransition(null)
+  }, [])
 
   return {
     activeChatSessionId,

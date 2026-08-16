@@ -47,11 +47,7 @@ export async function atomicWriteText(
   }
 }
 
-async function writeAtomicFile(
-  filePath: string,
-  content: string,
-  options: AtomicWriteTextOptions,
-): Promise<void> {
+async function writeAtomicFile(filePath: string, content: string, options: AtomicWriteTextOptions): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true })
   const temporaryPath = `${filePath}.tmp-${process.pid}-${randomUUID()}`
   try {

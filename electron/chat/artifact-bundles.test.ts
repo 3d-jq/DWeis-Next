@@ -845,7 +845,13 @@ test("ArtifactBundleStore read deduplicates persisted twin entries", async () =>
       display: "gallery",
       items: [
         { ...baseItem, id: "i1", origin: "assistant_preview" },
-        { ...baseItem, id: "i2", path: path.join(root, "wusong_tiger-2.png"), name: "wusong_tiger-2.png", origin: "recovered_output" },
+        {
+          ...baseItem,
+          id: "i2",
+          path: path.join(root, "wusong_tiger-2.png"),
+          name: "wusong_tiger-2.png",
+          origin: "recovered_output",
+        },
       ],
       totalItems: 2,
       truncated: false,

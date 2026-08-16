@@ -1,50 +1,25 @@
 import type { ModelChoice } from "../models/common.ts"
 import type { RuntimeCustomModel } from "../models/store.ts"
 
-import { createHash } from "node:crypto"
-import { defaultModelChoice } from "../models/store.ts"
-
-export type ModelAccess = { kind: "local" } | { kind: "oomol"; sessionToken: string }
-
-export type LinkRuntime =
-  | { kind: "oomol"; sessionToken: string; teamName?: string }
-  | { kind: "openconnector"; baseUrl: string; consoleUrl: string; runtimeToken?: string }
-
-export interface RuntimeAccountInput {
-  id: string
-  sessionToken: string
-}
+export type ModelAccess = { kind: "local" }
 
 export interface AgentRuntimeResolution {
-  defaultModel: ModelChoice
+  defaultModel: ModelChoice | undefined
   key: string
   modelAccess: ModelAccess
-  mode: "local" | "oomol"
+  mode: "local"
 }
 
+/** 纯本地 self-managed：模型只能来自自定义模型配置。 */
 export function resolveAgentRuntime(
-  account: RuntimeAccountInput | null,
-  selected: ModelChoice,
+  selected: ModelChoice | undefined,
   customModels: readonly RuntimeCustomModel[],
 ): AgentRuntimeResolution | null {
   const availableCustomModels = customModels.filter(
     (model) => model.id.trim() && model.baseUrl.trim() && model.apiKey.trim() && model.modelName.trim(),
   )
-  const sessionToken = account?.sessionToken.trim()
-  if (account && sessionToken) {
-    const defaultModel =
-      selected.kind === "custom" && !availableCustomModels.some((model) => model.id === selected.id)
-        ? defaultModelChoice()
-        : selected
-    return {
-      defaultModel,
-      key: `oomol:${account.id}:${credentialRevision(sessionToken)}`,
-      modelAccess: { kind: "oomol", sessionToken },
-      mode: "oomol",
-    }
-  }
   const selectedCustom =
-    selected.kind === "custom" ? availableCustomModels.find((model) => model.id === selected.id) : undefined
+    selected?.kind === "custom" ? availableCustomModels.find((model) => model.id === selected.id) : undefined
   const customModel = selectedCustom ?? availableCustomModels[0]
   if (!customModel) return null
   return {
@@ -53,8 +28,4 @@ export function resolveAgentRuntime(
     modelAccess: { kind: "local" },
     mode: "local",
   }
-}
-
-function credentialRevision(token: string): string {
-  return createHash("sha256").update(token).digest("hex").slice(0, 16)
 }

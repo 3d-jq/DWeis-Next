@@ -3,7 +3,7 @@ import { access, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "
 import os from "node:os"
 import path from "node:path"
 import { expect, test } from "vitest"
-import { AGENT_TOOL_FILES, agentToolFiles, BROWSER_AGENT_TOOL_FILES } from "./tool-sources.ts"
+import { agentToolFiles, BROWSER_AGENT_TOOL_FILES } from "./tool-sources.ts"
 import { ensureAgentWorkspace } from "./workspace.ts"
 
 async function exists(pathname: string): Promise<boolean> {
@@ -34,13 +34,13 @@ test("ensureAgentWorkspace writes tool sources and copies bundled skills into .o
     const workspaceDir = path.join(base, "workspace")
     const bundledSkillsDir = path.join(base, "bundled-skills")
     const bundledToolRuntimePath = await writeToolRuntime(base)
-    await writeSkill(bundledSkillsDir, "oo")
-    await writeSkill(bundledSkillsDir, "oo-find-skills")
+    await writeSkill(bundledSkillsDir, "browser")
     await writeSkill(bundledSkillsDir, "skill-creator")
+    await writeSkill(bundledSkillsDir, "pptx-generator")
     const result = await ensureAgentWorkspace(workspaceDir, bundledSkillsDir, bundledToolRuntimePath)
     assert.equal(result, workspaceDir)
 
-    for (const toolName of Object.keys(agentToolFiles(true))) {
+    for (const toolName of Object.keys(agentToolFiles())) {
       assert.ok(await exists(path.join(workspaceDir, ".opencode", "tools", toolName)), `tool ${toolName} written`)
     }
     assert.equal(
@@ -49,9 +49,9 @@ test("ensureAgentWorkspace writes tool sources and copies bundled skills into .o
     )
 
     const skillRoot = path.join(workspaceDir, ".opencode", "skill")
-    assert.ok(await exists(path.join(skillRoot, "oo", "SKILL.md")), "oo SKILL.md copied")
-    assert.ok(await exists(path.join(skillRoot, "oo", "references", "extra.md")), "oo references copied")
-    assert.ok(await exists(path.join(skillRoot, "oo-find-skills", "SKILL.md")), "oo-find-skills SKILL.md copied")
+    assert.ok(await exists(path.join(skillRoot, "browser", "SKILL.md")), "browser SKILL.md copied")
+    assert.ok(await exists(path.join(skillRoot, "browser", "references", "extra.md")), "browser references copied")
+    assert.ok(await exists(path.join(skillRoot, "pptx-generator", "SKILL.md")), "pptx-generator SKILL.md copied")
     // 始终可用的内置技能同时镜像到共享技能根（.opencode/skills，技能管理页数据源）。
     assert.ok(
       await exists(path.join(workspaceDir, ".opencode", "skills", "skill-creator", "SKILL.md")),
@@ -73,18 +73,18 @@ test("ensureAgentWorkspace rebuilds .opencode/skill so removed bundled skills do
     const workspaceDir = path.join(base, "workspace")
     const bundledSkillsDir = path.join(base, "bundled-skills")
     const bundledToolRuntimePath = await writeToolRuntime(base)
-    await writeSkill(bundledSkillsDir, "oo")
-    await writeSkill(bundledSkillsDir, "stale-skill")
+    await writeSkill(bundledSkillsDir, "browser")
+    await writeSkill(bundledSkillsDir, "pptx-generator")
     await ensureAgentWorkspace(workspaceDir, bundledSkillsDir, bundledToolRuntimePath)
-    assert.ok(await exists(path.join(workspaceDir, ".opencode", "skill", "stale-skill", "SKILL.md")))
+    assert.ok(await exists(path.join(workspaceDir, ".opencode", "skill", "pptx-generator", "SKILL.md")))
 
-    // 第二次：bundled 源里移除 stale-skill，workspace 应同步清除。
-    await rm(path.join(bundledSkillsDir, "stale-skill"), { force: true, recursive: true })
+    // 第二次：bundled 源里移除 pptx-generator，workspace 应同步清除。
+    await rm(path.join(bundledSkillsDir, "pptx-generator"), { force: true, recursive: true })
     await ensureAgentWorkspace(workspaceDir, bundledSkillsDir, bundledToolRuntimePath)
 
-    assert.ok(await exists(path.join(workspaceDir, ".opencode", "skill", "oo", "SKILL.md")), "kept skill remains")
+    assert.ok(await exists(path.join(workspaceDir, ".opencode", "skill", "browser", "SKILL.md")), "kept skill remains")
     assert.equal(
-      await exists(path.join(workspaceDir, ".opencode", "skill", "stale-skill")),
+      await exists(path.join(workspaceDir, ".opencode", "skill", "pptx-generator")),
       false,
       "removed skill cleared",
     )
@@ -107,7 +107,7 @@ test("ensureAgentWorkspace rebuilds .opencode/tools so removed tool sources do n
     await ensureAgentWorkspace(workspaceDir, undefined, bundledToolRuntimePath)
 
     assert.equal(await exists(staleToolPath), false, "removed tool cleared")
-    for (const toolName of Object.keys(agentToolFiles(true))) {
+    for (const toolName of Object.keys(agentToolFiles())) {
       assert.ok(await exists(path.join(workspaceDir, ".opencode", "tools", toolName)), `tool ${toolName} remains`)
     }
   } finally {
@@ -115,56 +115,24 @@ test("ensureAgentWorkspace rebuilds .opencode/tools so removed tool sources do n
   }
 })
 
-test("ensureAgentWorkspace keeps Browser for local runtimes and removes OOMOL-only bundled skills", async () => {
+test("ensureAgentWorkspace copies only the always-available bundled skills, never OOMOL-only skills", async () => {
   const base = await mkdtemp(path.join(os.tmpdir(), "dweis-workspace-"))
   try {
     const workspaceDir = path.join(base, "workspace")
     const bundledSkillsDir = path.join(base, "bundled-skills")
     const bundledToolRuntimePath = await writeToolRuntime(base)
     await writeSkill(bundledSkillsDir, "browser")
+    await writeSkill(bundledSkillsDir, "skill-creator")
     await writeSkill(bundledSkillsDir, "oo")
     await ensureAgentWorkspace(workspaceDir, bundledSkillsDir, bundledToolRuntimePath)
-    assert.ok(await exists(path.join(workspaceDir, ".opencode", "skill", "browser", "SKILL.md")))
-    assert.ok(await exists(path.join(workspaceDir, ".opencode", "skill", "oo", "SKILL.md")))
 
-    await ensureAgentWorkspace(workspaceDir, bundledSkillsDir, bundledToolRuntimePath, {
-      bundledOoSkills: false,
-      connectors: false,
-    })
-
-    for (const toolName of Object.keys(AGENT_TOOL_FILES)) {
-      assert.equal(await exists(path.join(workspaceDir, ".opencode", "tools", toolName)), false)
-    }
     for (const toolName of Object.keys(BROWSER_AGENT_TOOL_FILES)) {
       assert.ok(await exists(path.join(workspaceDir, ".opencode", "tools", toolName)))
     }
     assert.ok(await exists(path.join(workspaceDir, ".opencode", "skill", "browser", "SKILL.md")))
+    assert.ok(await exists(path.join(workspaceDir, ".opencode", "skill", "skill-creator", "SKILL.md")))
     assert.equal(await exists(path.join(workspaceDir, ".opencode", "skill", "oo")), false)
     assert.ok(await exists(path.join(workspaceDir, ".opencode", "skills")))
-  } finally {
-    await rm(base, { force: true, recursive: true })
-  }
-})
-
-test("ensureAgentWorkspace gives OpenConnector Browser and typed tools without OOMOL-only skills", async () => {
-  const base = await mkdtemp(path.join(os.tmpdir(), "dweis-workspace-"))
-  try {
-    const workspaceDir = path.join(base, "workspace")
-    const bundledSkillsDir = path.join(base, "bundled-skills")
-    const bundledToolRuntimePath = await writeToolRuntime(base)
-    await writeSkill(bundledSkillsDir, "browser")
-    await writeSkill(bundledSkillsDir, "oo")
-
-    await ensureAgentWorkspace(workspaceDir, bundledSkillsDir, bundledToolRuntimePath, {
-      bundledOoSkills: false,
-      connectors: true,
-    })
-
-    for (const toolName of Object.keys(agentToolFiles(true))) {
-      assert.ok(await exists(path.join(workspaceDir, ".opencode", "tools", toolName)))
-    }
-    assert.ok(await exists(path.join(workspaceDir, ".opencode", "skill", "browser", "SKILL.md")))
-    assert.equal(await exists(path.join(workspaceDir, ".opencode", "skill", "oo")), false)
   } finally {
     await rm(base, { force: true, recursive: true })
   }

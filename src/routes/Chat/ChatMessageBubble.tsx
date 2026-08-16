@@ -1,7 +1,4 @@
-import type {
-  ChatAttachment,
-  ChatMessage,
-} from "../../../electron/chat/common.ts"
+import type { ChatAttachment, ChatMessage } from "../../../electron/chat/common.ts"
 import type { ChatErrorKind } from "../../../electron/chat/error.ts"
 import type { AssistantTimelineBlock } from "./assistant-timeline.ts"
 
@@ -22,19 +19,15 @@ import { useT } from "@/i18n/i18n"
 import { cn } from "@/lib/utils"
 
 export function MessageBubble({
-  billingCacheScope,
   message,
   smoothText,
-  onViewBilling,
   assistantActionsText,
   onRecover,
   onRetryFresh,
   liveTools = false,
 }: {
-  billingCacheScope: string
   message: ChatMessage
   smoothText: boolean
-  onViewBilling?: () => void
   assistantActionsText: string | null
   onRecover?: (kind: ChatErrorKind) => Promise<void> | void
   onRetryFresh?: () => Promise<void> | void
@@ -117,12 +110,10 @@ export function MessageBubble({
             key={block.kind === "tools" ? block.key : block.part.partId}
             block={block}
             blockClassName={assistantBlockClassName(blocks, index)}
-            billingCacheScope={billingCacheScope}
             smoothText={smoothText}
             liveTools={liveTools}
             onRecover={onRecover}
             onRetryFresh={onRetryFresh}
-            onViewBilling={onViewBilling}
           />
         ))}
       </MessageContent>
@@ -135,7 +126,6 @@ export function MessageBubble({
 
 export function AssistantTimelineMessage({
   blocks,
-  billingCacheScope,
   smoothAssistantMessageId,
   assistantActionsText,
   assistantCancelled,
@@ -143,10 +133,8 @@ export function AssistantTimelineMessage({
   artifactsSlot,
   onRecover,
   onRetryFresh,
-  onViewBilling,
 }: {
   blocks: AssistantTimelineBlock[]
-  billingCacheScope: string
   smoothAssistantMessageId?: string
   assistantActionsText: string | null
   assistantCancelled: boolean
@@ -155,7 +143,6 @@ export function AssistantTimelineMessage({
   artifactsSlot?: React.ReactNode
   onRecover?: (kind: ChatErrorKind) => Promise<void> | void
   onRetryFresh?: () => Promise<void> | void
-  onViewBilling?: () => void
 }) {
   const renderBlocks = blocks.map((item) => item.block)
 
@@ -171,12 +158,10 @@ export function AssistantTimelineMessage({
             key={`${message.id}:${block.kind === "tools" ? block.key : block.part.partId}`}
             block={block}
             blockClassName={assistantBlockClassName(renderBlocks, index)}
-            billingCacheScope={billingCacheScope}
             smoothText={message.id === smoothAssistantMessageId}
             liveTools={message.id === activeAssistantMessageId}
             onRecover={onRecover}
             onRetryFresh={onRetryFresh}
-            onViewBilling={onViewBilling}
           />
         ))}
       </MessageContent>

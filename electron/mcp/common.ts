@@ -203,7 +203,11 @@ function parseSingleMcpConfig(name: string, config: unknown): McpServerEntry | n
     if (Array.isArray(record.args)) {
       args = [...args, ...record.args.filter((part): part is string => typeof part === "string")]
     }
-    const environment = isStringRecord(record.env) ? record.env : isStringRecord(record.environment) ? record.environment : undefined
+    const environment = isStringRecord(record.env)
+      ? record.env
+      : isStringRecord(record.environment)
+        ? record.environment
+        : undefined
     return {
       id: newMcpId(),
       name,

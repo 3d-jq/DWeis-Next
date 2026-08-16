@@ -23,9 +23,6 @@ function hasModelChoice(catalog: ModelCatalog | null, choice: ModelChoice): bool
   if (!catalog) {
     return false
   }
-  if (choice.kind === "builtin") {
-    return catalog.builtins.some((model) => model.id === choice.id)
-  }
   return catalog.customModels.some((model) => model.id === choice.id)
 }
 
@@ -39,10 +36,10 @@ function withSelectedModel(catalog: ModelCatalog | null, choice: ModelChoice): M
   return { ...catalog, selected: choice }
 }
 
-export function modelCatalogForRuntime(catalog: ModelCatalog | null, cloudModelsEnabled: boolean): ModelCatalog | null {
-  if (!catalog || cloudModelsEnabled) return catalog
+export function modelCatalogForRuntime(catalog: ModelCatalog | null): ModelCatalog | null {
+  if (!catalog) return catalog
   const selectedCustom = catalog.customModels.find((model) =>
-    catalog.selected.kind === "custom" ? model.id === catalog.selected.id : false,
+    catalog.selected?.kind === "custom" ? model.id === catalog.selected.id : false,
   )
   const fallback = selectedCustom ?? catalog.customModels[0]
   return {

@@ -1,7 +1,8 @@
+import type { PersistedSettings } from "./settings/store.ts"
+
 import { app } from "electron"
 import { copyFileSync, existsSync, mkdirSync, readdirSync } from "node:fs"
 import path from "node:path"
-import type { PersistedSettings } from "./settings/store.ts"
 import { SettingsStore } from "./settings/store.ts"
 
 /**

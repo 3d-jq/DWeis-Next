@@ -191,7 +191,7 @@ export function ComposerContextUsageIndicator({ usage }: { usage: ContextUsageIn
             ) : null}
           </div>
           <div className="mt-2.5 flex items-end gap-2">
-            <span className="text-3xl leading-none font-semibold tabular-nums text-foreground">
+            <span className="text-3xl leading-none font-semibold text-foreground tabular-nums">
               {usage.percent !== undefined ? `${usage.percent}%` : "—"}
             </span>
             <span className="oo-text-caption mb-0.5 leading-none text-muted-foreground">
@@ -288,7 +288,7 @@ function ContextUsageBreakdownView({ breakdown }: { breakdown: ContextUsageBreak
                   style={{ width: `${Math.max(2, Math.min(100, share))}%` }}
                 />
               </div>
-              <span className="oo-text-micro w-16 text-right tabular-nums text-muted-foreground">
+              <span className="oo-text-micro w-16 text-right text-muted-foreground tabular-nums">
                 {formatTokenCount(row.value)}
               </span>
             </div>

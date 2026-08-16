@@ -1,11 +1,11 @@
 import type { KnowledgeBaseSummary } from "../../../electron/knowledge/common.ts"
-import type { UseKnowledgeBases } from "@/hooks/useKnowledgeBases"
 import type { AppShellRoute as Route } from "./app-shell-types.ts"
+import type { UseKnowledgeBases } from "@/hooks/useKnowledgeBases"
 
 import * as React from "react"
 import { KNOWLEDGE_LIBRARY_CONTEXT_ID } from "../../../electron/knowledge/common.ts"
-import { useT } from "@/i18n/i18n"
 import { KnowledgeContextBar } from "./KnowledgeContextBar.tsx"
+import { useT } from "@/i18n/i18n"
 
 interface KnowledgeMention {
   id: string

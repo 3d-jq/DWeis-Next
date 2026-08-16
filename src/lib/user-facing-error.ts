@@ -143,14 +143,13 @@ export function resolveUserFacingError(
   }
 
   if (status === 401 || includesAny(normalized, ["unauthorized", "sign in", "login required", "fresh sign-in"])) {
-    // 账单请求也使用全应用唯一的会话 token。401 会触发全局会话过期；billing 作用域只保留更具体的恢复文案。
-    const isBilling = area === "billing"
+    // 纯本地模式无会话过期概念：401 一律按模型凭据问题提示（本地 provider 的 key 失效等）。
     return buildError(
       area,
       "auth_required",
       "info",
-      isBilling ? "error.billingSessionExpired.title" : "error.authRequired.title",
-      isBilling ? "error.billingSessionExpired.description" : "error.authRequired.description",
+      "chatError.modelAuthRequired.title",
+      "chatError.modelAuthRequired.description",
       diagnostics,
       preserveMessage,
       message,

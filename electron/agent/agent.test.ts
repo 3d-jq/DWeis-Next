@@ -4,30 +4,21 @@ import os from "node:os"
 import path from "node:path"
 import { test } from "vitest"
 import { branding } from "../branding.ts"
-import { llmBaseUrl, ooEndpoint } from "../domain.ts"
-import { BUILTIN_MODEL_DEFINITIONS, BUILTIN_PROVIDER_DEFINITIONS, resolveBuiltinModel } from "../models/builtin.ts"
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../models/limits.ts"
-import { buildOpencodeConfig, customProviderId, DWEIS_MODEL_ID, DWEIS_PROVIDER_ID } from "./config.ts"
-import { AgentManager, buildManagedSkillRuntimeEnv, buildMemorySystem, persistTeamScopeUpdate } from "./manager.ts"
+import { buildOpencodeConfig, customProviderId } from "./config.ts"
+import { AgentManager, buildManagedSkillRuntimeEnv, buildMemorySystem } from "./manager.ts"
 import { DWEIS_BUILD_AGENT_NAME, DWEIS_GENERAL_SUBAGENT_NAME, DWEIS_PLAN_AGENT_NAME } from "./mode.ts"
-import { OO_CLI_BASH_PERMISSION } from "./oo-command-permission.ts"
-import { AUTH_BLOCKING_ERROR_CODES, buildAgentLinkEnv, isAuthBlocking, parseConnectorErrorCode } from "./oo.ts"
 import {
   DWEIS_LOCAL_PLAN_SYSTEM_PROMPT,
   DWEIS_LOCAL_SYSTEM_PROMPT,
-  DWEIS_PLAN_SYSTEM_PROMPT,
   DWEIS_GENERAL_SUBAGENT_SYSTEM_PROMPT,
   DWEIS_SYSTEM_PROMPT,
   buildDWeisPersonaSystem,
 } from "./system-prompt.ts"
-import { AGENT_TOOL_FILES, MEMORY_TOOL_FILES, agentToolFiles } from "./tool-sources.ts"
+import { BROWSER_AGENT_TOOL_FILES, MEMORY_TOOL_FILES, USER_TOOL_FILES, agentToolFiles } from "./tool-sources.ts"
 
 function modelVariantKeys(model: unknown): string[] {
   return Object.keys(((model as { variants?: Record<string, unknown> }).variants ?? {}) as Record<string, unknown>)
-}
-
-function modelVariantReasoningEffort(model: unknown, variant: string): string | undefined {
-  return (model as { variants?: Record<string, { reasoningEffort?: string }> }).variants?.[variant]?.reasoningEffort
 }
 
 function modelVariantEnableThinking(model: unknown, variant: string): boolean | undefined {
@@ -38,47 +29,18 @@ function modelLimit(model: unknown): { context?: number; input?: number; output?
   return (model as { limit?: { context?: number; input?: number; output?: number } }).limit
 }
 
-function assertPositiveLimit(model: unknown, label: string): void {
-  const limit = modelLimit(model)
-  if (!limit) {
-    return
-  }
-  assert.ok(limit.context && limit.context > 0, `${label} context limit should be positive`)
-  assert.ok(limit.output && limit.output > 0, `${label} output limit should be positive`)
-  if (limit.input !== undefined) {
-    assert.ok(limit.input > 0, `${label} input limit should be positive`)
-  }
+/** 本地 self-managed runtime 的常规自定义模型夹具：buildOpencodeConfig 必须能解析一个默认模型。 */
+const localCustomModel = {
+  id: "local-model",
+  providerId: "custom",
+  providerName: "Local",
+  baseUrl: "http://127.0.0.1:11434/v1",
+  apiKey: "local-key",
+  modelName: "local-model",
 }
-
-test("buildOpencodeConfig wires the default Auto OOMOL compatible model", () => {
-  const config = buildOpencodeConfig({
-    linkRuntime: { kind: "oomol", sessionToken: "api-test" },
-    modelAccess: { kind: "oomol", sessionToken: "api-test" },
-  })
-  assert.equal(config.model, `${DWEIS_PROVIDER_ID}/${DWEIS_MODEL_ID}`)
-  assert.equal(config.model, "oomol/oopilot")
-  const provider = config.provider?.[DWEIS_PROVIDER_ID]
-  assert.ok(provider)
-  assert.equal(provider.npm, "@ai-sdk/openai-compatible")
-  assert.equal(provider.options?.baseURL, `https://llm.${ooEndpoint}/v1`)
-  assert.equal(provider.options?.apiKey, "api-test")
-  const model = provider.models?.[DWEIS_MODEL_ID]
-  assert.ok(model)
-  assert.equal(model.reasoning, true)
-  assert.deepEqual(modelVariantKeys(model), ["low", "medium", "high", "max"])
-  assert.equal(modelVariantReasoningEffort(model, "max"), "max")
-  assert.deepEqual(modelLimit(model), {
-    context: 400_000,
-    output: DEFAULT_MAX_OUTPUT_TOKENS,
-  })
-  assert.equal(model.attachment, true)
-  assert.deepEqual(model.modalities, { input: ["text", "image"], output: ["text"] })
-})
 
 test("buildOpencodeConfig creates a token-free local runtime with only custom providers", () => {
   const config = buildOpencodeConfig({
-    linkRuntime: null,
-    modelAccess: { kind: "local" },
     customModels: [
       {
         id: "local-model",
@@ -100,126 +62,11 @@ test("buildOpencodeConfig creates a token-free local runtime with only custom pr
 })
 
 test("buildOpencodeConfig refuses to create a local runtime without a custom model", () => {
-  assert.throws(
-    () => buildOpencodeConfig({ linkRuntime: null, modelAccess: { kind: "local" } }),
-    /custom model is required/,
-  )
+  assert.throws(() => buildOpencodeConfig({}), /custom model is required/)
 })
 
-test("buildOpencodeConfig wires the oomol openai-compatible provider", () => {
+test("buildOpencodeConfig wires text-only custom openai-compatible providers and falls back to the first custom model as the default", () => {
   const config = buildOpencodeConfig({
-    linkRuntime: { kind: "oomol", sessionToken: "api-test" },
-    modelAccess: { kind: "oomol", sessionToken: "api-test" },
-  })
-  const auto = resolveBuiltinModel("oopilot")
-  const provider = config.provider?.[auto.runtime.providerID]
-  assert.ok(provider)
-  assert.equal(provider.npm, "@ai-sdk/openai-compatible")
-  assert.equal(provider.options?.baseURL, `https://llm.${ooEndpoint}/v1`)
-  assert.equal(provider.options?.apiKey, "api-test")
-  const model = provider.models?.[auto.runtime.modelID]
-  assert.ok(model)
-  assert.equal(model.reasoning, true)
-  assert.deepEqual(modelVariantKeys(model), ["low", "medium", "high", "max"])
-  assert.equal(model.attachment, true)
-  assert.deepEqual(model.modalities, { input: ["text", "image"], output: ["text"] })
-})
-
-test("buildOpencodeConfig covers every registered built-in model runtime", () => {
-  const config = buildOpencodeConfig({
-    linkRuntime: { kind: "oomol", sessionToken: "api-test" },
-    modelAccess: { kind: "oomol", sessionToken: "api-test" },
-  })
-
-  for (const providerDefinition of BUILTIN_PROVIDER_DEFINITIONS) {
-    const provider = config.provider?.[providerDefinition.id]
-    assert.ok(provider, `missing built-in provider ${providerDefinition.id}`)
-    assert.equal(provider.name, providerDefinition.displayName)
-    assert.equal(provider.options?.baseURL, `https://llm.${ooEndpoint}/v1`)
-    assert.equal(provider.options?.apiKey, "api-test")
-    assert.equal(provider.npm, providerDefinition.npm)
-  }
-
-  for (const definition of BUILTIN_MODEL_DEFINITIONS) {
-    const provider = config.provider?.[definition.runtime.providerID]
-    const model = provider?.models?.[definition.runtime.modelID]
-    assert.ok(model, `missing built-in model ${definition.runtime.providerID}/${definition.runtime.modelID}`)
-    assert.equal(model.name, definition.displayName)
-    const expectedVariantKeys = [...(definition.capabilities.reasoningVariants ?? [])]
-    assert.equal(model.reasoning, expectedVariantKeys.length > 0 ? true : undefined)
-    assert.deepEqual(modelVariantKeys(model), expectedVariantKeys)
-    assert.equal(model.tool_call, definition.capabilities.toolCall)
-    assert.equal(model.attachment, definition.capabilities.supportsImages ? true : undefined)
-    if (definition.contextWindow || definition.inputTokenLimit) {
-      assert.deepEqual(modelLimit(model), {
-        context: definition.contextWindow ?? definition.inputTokenLimit,
-        ...(definition.inputTokenLimit ? { input: definition.inputTokenLimit } : {}),
-        output: definition.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
-      })
-    }
-    assertPositiveLimit(model, `${definition.runtime.providerID}/${definition.runtime.modelID}`)
-  }
-})
-
-test("GPT models resolve through the OpenAI provider for Responses API semantics", () => {
-  const config = buildOpencodeConfig({
-    linkRuntime: { kind: "oomol", sessionToken: "api-test" },
-    modelAccess: { kind: "oomol", sessionToken: "api-test" },
-  })
-
-  const expectedModels = [
-    { id: "gpt-5.6-sol", displayName: "GPT 5.6 Sol" },
-    { id: "gpt-5.6-terra", displayName: "GPT 5.6 Terra" },
-    { id: "gpt-5.6-luna", displayName: "GPT 5.6 Luna" },
-  ] as const
-
-  const provider = config.provider?.openai
-  assert.ok(provider)
-  assert.equal(provider.npm, undefined)
-  assert.equal(provider.options?.baseURL, `https://llm.${ooEndpoint}/v1`)
-  assert.equal(provider.options?.apiKey, "api-test")
-
-  for (const expected of expectedModels) {
-    const definition = resolveBuiltinModel(expected.id)
-    assert.deepEqual(definition.runtime, { providerID: "openai", modelID: expected.id })
-    const configuredModel:
-      | {
-          name?: string
-          reasoning?: boolean
-          attachment?: boolean
-          modalities?: unknown
-        }
-      | undefined = provider.models?.[expected.id]
-    assert.ok(configuredModel)
-    assert.equal(configuredModel.name, expected.displayName)
-    assert.deepEqual(modelLimit(configuredModel), { context: 400_000, output: DEFAULT_MAX_OUTPUT_TOKENS })
-    assert.equal(configuredModel.reasoning, true)
-    assert.equal(modelVariantReasoningEffort(configuredModel, "max"), "xhigh")
-    assert.equal(configuredModel.attachment, true)
-    assert.deepEqual(configuredModel.modalities, { input: ["text", "image"], output: ["text"] })
-  }
-})
-
-test("Qwen 3.7 models retain a 1M context window and compact within the 256K pricing tier", () => {
-  const config = buildOpencodeConfig({
-    linkRuntime: { kind: "oomol", sessionToken: "api-test" },
-    modelAccess: { kind: "oomol", sessionToken: "api-test" },
-  })
-
-  for (const modelID of ["qwen3.7-plus", "qwen3.7-max"] as const) {
-    const model = config.provider?.oomol?.models?.[modelID]
-    assert.ok(model)
-    assert.deepEqual(modelLimit(model), {
-      context: 1_000_000,
-      output: DEFAULT_MAX_OUTPUT_TOKENS,
-    })
-  }
-})
-
-test("buildOpencodeConfig wires text-only custom openai-compatible providers without changing the default model", () => {
-  const config = buildOpencodeConfig({
-    linkRuntime: { kind: "oomol", sessionToken: "api-test" },
-    modelAccess: { kind: "oomol", sessionToken: "api-test" },
     customModels: [
       {
         id: "custom-1",
@@ -233,7 +80,7 @@ test("buildOpencodeConfig wires text-only custom openai-compatible providers wit
       },
     ],
   })
-  assert.equal(config.model, `${DWEIS_PROVIDER_ID}/${DWEIS_MODEL_ID}`)
+  assert.equal(config.model, `${customProviderId("custom-1")}/deepseek-chat`)
   const provider = config.provider?.[customProviderId("custom-1")]
   assert.ok(provider)
   assert.equal(provider.npm, "@ai-sdk/openai-compatible")
@@ -250,13 +97,11 @@ test("buildOpencodeConfig wires text-only custom openai-compatible providers wit
 
 test("buildOpencodeConfig completes partial model limits with the default output limit", () => {
   const config = buildOpencodeConfig({
-    linkRuntime: { kind: "oomol", sessionToken: "api-test" },
-    modelAccess: { kind: "oomol", sessionToken: "api-test" },
     customModels: [
       {
         id: "custom-context-only",
         providerName: "ContextOnly",
-        baseUrl: llmBaseUrl,
+        baseUrl: "https://example.com/v1",
         apiKey: "sk-custom",
         modelName: "context-only-model",
         contextWindow: 128_000,
@@ -264,7 +109,7 @@ test("buildOpencodeConfig completes partial model limits with the default output
       {
         id: "custom-input-only",
         providerName: "InputOnly",
-        baseUrl: llmBaseUrl,
+        baseUrl: "https://example.com/v1",
         apiKey: "sk-custom",
         modelName: "input-only-model",
         inputTokenLimit: 96_000,
@@ -285,14 +130,12 @@ test("buildOpencodeConfig completes partial model limits with the default output
 
 test("buildOpencodeConfig maps Qwen custom reasoning variants to enable_thinking", () => {
   const config = buildOpencodeConfig({
-    linkRuntime: { kind: "oomol", sessionToken: "api-test" },
-    modelAccess: { kind: "oomol", sessionToken: "api-test" },
     customModels: [
       {
         id: "custom-qwen",
         providerId: "qwen",
         providerName: "Qwen",
-        baseUrl: llmBaseUrl,
+        baseUrl: "https://example.com/v1",
         apiKey: "sk-custom",
         modelName: "qwen3.7-plus",
         reasoningVariants: ["low", "medium", "high", "max"],
@@ -310,8 +153,6 @@ test("buildOpencodeConfig maps Qwen custom reasoning variants to enable_thinking
 
 test("buildOpencodeConfig marks custom providers as image-capable only when requested", () => {
   const config = buildOpencodeConfig({
-    linkRuntime: { kind: "oomol", sessionToken: "api-test" },
-    modelAccess: { kind: "oomol", sessionToken: "api-test" },
     customModels: [
       {
         id: "custom-vision",
@@ -332,15 +173,16 @@ test("buildOpencodeConfig marks custom providers as image-capable only when requ
 
 test("build and plan agents enable DWeis prompt through OpenCode native modes", () => {
   const config = buildOpencodeConfig({
-    linkRuntime: { kind: "oomol", sessionToken: "k" },
-    modelAccess: { kind: "oomol", sessionToken: "k" },
+    customModels: [localCustomModel],
+    defaultModel: { kind: "custom", id: "local-model" },
   })
   const buildAgent = config.agent?.[DWEIS_BUILD_AGENT_NAME]
   const planAgent = config.agent?.[DWEIS_PLAN_AGENT_NAME]
   assert.ok(buildAgent)
   assert.ok(planAgent)
-  assert.equal(buildAgent.prompt, DWEIS_SYSTEM_PROMPT)
-  assert.equal(planAgent.prompt, DWEIS_PLAN_SYSTEM_PROMPT)
+  // 本地 self-managed 恒以 connectors: false 构建：Build/Plan 提示词即本地变体。
+  assert.equal(buildAgent.prompt, DWEIS_LOCAL_SYSTEM_PROMPT)
+  assert.equal(planAgent.prompt, DWEIS_LOCAL_PLAN_SYSTEM_PROMPT)
   assert.equal(buildAgent.mode, "primary")
   assert.equal(planAgent.mode, "primary")
   // 不再下发 tools 禁用表：所有内置工具（bash/edit/write/read/webfetch/…）默认启用。
@@ -348,16 +190,15 @@ test("build and plan agents enable DWeis prompt through OpenCode native modes", 
   for (const builtin of ["bash", "edit", "write", "read", "webfetch"]) {
     assert.notEqual(tools[builtin], false, `${builtin} should not be disabled`)
   }
-  // Build/Plan 的本地 ask 进入 ChatService 访问策略；Plan 仍显式禁止普通编辑，避免根级权限覆盖 OpenCode plan 语义。
-  // v2 的 PermissionConfig 是 "allow" | "deny" | {对象} 联合，断言对象字段前先按对象形态取出。
+  // 本地 runtime 无 oo CLI 快速路径：bash 一律走 ChatService 默认访问策略（"ask"）。
   const buildPermission = buildAgent.permission as unknown as Record<string, unknown> | undefined
   const planPermission = planAgent.permission as unknown as Record<string, unknown> | undefined
   const rootPermission = config.permission as unknown as Record<string, unknown> | undefined
-  assert.deepEqual(buildPermission?.bash, OO_CLI_BASH_PERMISSION)
+  assert.equal(buildPermission?.bash, "ask")
   assert.equal(buildPermission?.edit, "ask")
   assert.equal(buildPermission?.webfetch, "allow")
   assert.equal(buildPermission?.external_directory, "ask")
-  assert.deepEqual(planPermission?.bash, OO_CLI_BASH_PERMISSION)
+  assert.equal(planPermission?.bash, "ask")
   assert.deepEqual(planPermission?.edit, { "*": "deny", ".opencode/plans/*.md": "allow" })
   assert.equal(planPermission?.external_directory, "ask")
   assert.deepEqual(rootPermission?.bash, buildPermission?.bash)
@@ -367,8 +208,8 @@ test("build and plan agents enable DWeis prompt through OpenCode native modes", 
 
 test("general subagent preserves the delegated task language", () => {
   const config = buildOpencodeConfig({
-    linkRuntime: { kind: "oomol", sessionToken: "k" },
-    modelAccess: { kind: "oomol", sessionToken: "k" },
+    customModels: [localCustomModel],
+    defaultModel: { kind: "custom", id: "local-model" },
   })
   const generalAgent = config.agent?.[DWEIS_GENERAL_SUBAGENT_NAME]
   const permission = generalAgent?.permission as unknown as Record<string, unknown> | undefined
@@ -383,8 +224,6 @@ test("general subagent preserves the delegated task language", () => {
 
 test("local runtime config omits Connector guidance and oo command permission shortcuts", () => {
   const config = buildOpencodeConfig({
-    linkRuntime: null,
-    modelAccess: { kind: "local" },
     customModels: [
       {
         id: "local-model",
@@ -413,26 +252,6 @@ test("local runtime config omits Connector guidance and oo command permission sh
   assert.match(DWEIS_LOCAL_SYSTEM_PROMPT, /local web tools/)
   assert.doesNotMatch(DWEIS_LOCAL_SYSTEM_PROMPT, /## Link work|list_apps|search_actions|inspect_action|call_action/)
   assert.doesNotMatch(DWEIS_LOCAL_SYSTEM_PROMPT, /OOMOL|oo CLI|connected SaaS|Link side effects/)
-})
-
-test("OpenConnector enables typed Link guidance without the OOMOL oo command shortcut", () => {
-  const config = buildOpencodeConfig({
-    linkRuntime: {
-      baseUrl: "http://127.0.0.1:3000",
-      consoleUrl: "http://127.0.0.1:5173",
-      kind: "openconnector",
-    },
-    modelAccess: { kind: "oomol", sessionToken: "model-token" },
-  })
-  const buildAgent = config.agent?.[DWEIS_BUILD_AGENT_NAME]
-  const planAgent = config.agent?.[DWEIS_PLAN_AGENT_NAME]
-  const rootPermission = config.permission as unknown as Record<string, unknown> | undefined
-
-  assert.equal(buildAgent?.prompt, DWEIS_SYSTEM_PROMPT)
-  assert.equal(planAgent?.prompt, DWEIS_PLAN_SYSTEM_PROMPT)
-  assert.equal((buildAgent?.permission as unknown as Record<string, unknown>)?.bash, "ask")
-  assert.equal((planAgent?.permission as unknown as Record<string, unknown>)?.bash, "ask")
-  assert.equal(rootPermission?.bash, "ask")
 })
 
 test("system prompt treats Link as a contextual capability, not the default path", () => {
@@ -512,53 +331,6 @@ test("system prompt treats Link as a contextual capability, not the default path
   assert.doesNotMatch(DWEIS_SYSTEM_PROMPT, /Never modify a knowledge base unless the user explicitly asks/)
 })
 
-test("buildAgentLinkEnv injects the required OOMOL OO_* control vars (R3)", () => {
-  const env = buildAgentLinkEnv({
-    linkRuntime: { kind: "oomol", sessionToken: "api-x" },
-    teamName: "acme-corp",
-    teamScopePath: "/tmp/scope.json",
-    storeDir: "/tmp/store",
-    ooBinPath: "/usr/bin/oo",
-  })
-  assert.equal(env.OO_API_KEY, "api-x")
-  assert.equal(env.OO_ENDPOINT, ooEndpoint)
-  assert.equal(env.OO_SKILLS_SYNC_DISABLED, "1")
-  assert.equal(env.OO_NO_SELF_UPDATE, "1")
-  assert.equal(env.OO_TELEMETRY_DISABLED, "1")
-  assert.equal(env.OO_LOG_LEVEL, "warn")
-  assert.ok(env.OO_CONFIG_DIR.endsWith(path.join("store", "config")))
-  assert.ok(env.OO_DATA_DIR.endsWith(path.join("store", "data")))
-  assert.ok(env.OO_LOG_DIR.endsWith(path.join("store", "log")))
-  assert.equal(env.DWEIS_CONSOLE_URL, `https://console.${ooEndpoint}`)
-  assert.equal(env.DWEIS_OO_BIN, "/usr/bin/oo")
-  assert.equal(env.DWEIS_TEAM_NAME, "acme-corp")
-  assert.equal(env.DWEIS_TEAM_SCOPE_PATH, "/tmp/scope.json")
-})
-
-test("buildAgentLinkEnv keeps OpenConnector credentials out of OOMOL variables", () => {
-  const env = buildAgentLinkEnv({
-    linkRuntime: {
-      kind: "openconnector",
-      baseUrl: "http://127.0.0.1:3000",
-      consoleUrl: "http://127.0.0.1:5173",
-      runtimeToken: "runtime-token",
-    },
-    teamScopePath: "/tmp/scope.json",
-    storeDir: "/tmp/store",
-    ooBinPath: "/usr/bin/oo",
-  })
-
-  assert.equal(env.OO_CONNECTOR_URL, "http://127.0.0.1:3000")
-  assert.equal(env.OO_CONNECTOR_TOKEN, "runtime-token")
-  assert.equal(env.OO_API_KEY, undefined)
-  assert.equal(env.OO_ENDPOINT, undefined)
-  assert.equal(env.DWEIS_CONNECTOR_URL, "http://127.0.0.1:3000")
-  assert.equal(env.DWEIS_CONSOLE_URL, "http://127.0.0.1:5173")
-  assert.equal(env.DWEIS_LINK_RUNTIME, "openconnector")
-  assert.equal(env.DWEIS_TEAM_NAME, undefined)
-  assert.equal(env.DWEIS_TEAM_SCOPE_PATH, "/tmp/scope.json")
-})
-
 test("managed Skill runtime exposes DWeis's bundled Node executable", () => {
   const env = buildManagedSkillRuntimeEnv("/Applications/DWeis.app/Contents/MacOS/DWeis")
 
@@ -566,99 +338,21 @@ test("managed Skill runtime exposes DWeis's bundled Node executable", () => {
   assert.equal(env.DWEIS_NODE_BIN, "/Applications/DWeis.app/Contents/MacOS/DWeis")
 })
 
-test("persistTeamScopeUpdate restores the previous scope after write failure", async () => {
-  const writes: Array<string | undefined> = []
-  const failure = new Error("write failed")
-
-  await assert.rejects(
-    persistTeamScopeUpdate({
-      currentName: undefined,
-      nextName: "acme-corp",
-      writeScope: async (teamName) => {
-        writes.push(teamName)
-        if (teamName === "acme-corp") {
-          throw failure
-        }
-      },
-    }),
-    failure,
-  )
-
-  assert.deepEqual(writes, ["acme-corp", undefined])
-})
-
-test("persistTeamScopeUpdate reports rollback failures", async () => {
-  const failure = new Error("write failed")
-  const rollbackFailure = new Error("rollback failed")
-
-  await assert.rejects(
-    persistTeamScopeUpdate({
-      currentName: undefined,
-      nextName: "acme-corp",
-      writeScope: async (teamName) => {
-        if (teamName === "acme-corp") {
-          throw failure
-        }
-        throw rollbackFailure
-      },
-    }),
-    (error) =>
-      error instanceof AggregateError && error.errors.includes(failure) && error.errors.includes(rollbackFailure),
-  )
-})
-
-test("parseConnectorErrorCode extracts code in both en and zh (full-width parens) locales", () => {
-  assert.equal(parseConnectorErrorCode("Request failed (errorCode: app_not_found)"), "app_not_found")
-  assert.equal(parseConnectorErrorCode("执行失败（errorCode: scope_missing）"), "scope_missing")
-  assert.equal(parseConnectorErrorCode("HTTP 500 with no code"), null)
-})
-
-test("isAuthBlocking flags the upstream authorization-blocking codes", () => {
-  for (const code of AUTH_BLOCKING_ERROR_CODES) {
-    assert.equal(isAuthBlocking(code), true)
-  }
-  assert.equal(isAuthBlocking("rate_limited"), false)
-  assert.equal(isAuthBlocking(null), false)
-})
-
-test("agent tool sources are present and shaped", () => {
-  assert.ok(AGENT_TOOL_FILES["search_actions.ts"]?.includes("connector"))
-  for (const source of Object.values(AGENT_TOOL_FILES)) {
+test("local agent tool sources are present and shaped", () => {
+  // 本地 self-managed 只组装持久记忆 / 集成浏览器 / 用户可配置工具，不再携带 Link 连接器工具。
+  const files = agentToolFiles()
+  assert.deepEqual(Object.keys(files), [
+    ...Object.keys(MEMORY_TOOL_FILES),
+    ...Object.keys(BROWSER_AGENT_TOOL_FILES),
+    ...Object.keys(USER_TOOL_FILES),
+  ])
+  for (const source of Object.values(files)) {
     assert.ok(source.includes("../runtime/tool.js"))
     assert.ok(!source.includes("@opencode-ai/plugin"))
   }
-  assert.ok(AGENT_TOOL_FILES["search_actions.ts"]?.includes("private/account-specific SaaS data or actions"))
-  assert.ok(AGENT_TOOL_FILES["search_actions.ts"]?.includes("concrete URLs"))
-  assert.ok(AGENT_TOOL_FILES["search_actions.ts"]?.includes("On success, returns a JSON array"))
-  assert.ok(AGENT_TOOL_FILES["search_actions.ts"]?.includes("On failure, returns a JSON object"))
-  assert.ok(AGENT_TOOL_FILES["search_actions.ts"]?.includes('connector", "apps'))
-  assert.ok(AGENT_TOOL_FILES["search_actions.ts"]?.includes("DWEIS_CONNECTOR_URL"))
-  assert.ok(AGENT_TOOL_FILES["search_actions.ts"]?.includes("noAuthReady"))
-  assert.ok(AGENT_TOOL_FILES["search_actions.ts"]?.includes("--organization"))
-  assert.ok(!AGENT_TOOL_FILES["search_actions.ts"]?.includes("--personal"))
-  assert.match(AGENT_TOOL_FILES["search_actions.ts"] ?? "", /currentTeamName\(sessionID\)/)
-  assert.doesNotMatch(AGENT_TOOL_FILES["search_actions.ts"] ?? "", /--keywords|args\.keywords|keywords: tool\.schema/)
-  assert.ok(AGENT_TOOL_FILES["list_apps.ts"]?.includes("List connected Link provider apps"))
-  assert.ok(AGENT_TOOL_FILES["list_apps.ts"]?.includes('connector", "apps'))
-  assert.ok(AGENT_TOOL_FILES["list_apps.ts"]?.includes("--organization"))
-  assert.ok(!AGENT_TOOL_FILES["list_apps.ts"]?.includes("--personal"))
-  assert.ok(AGENT_TOOL_FILES["list_apps.ts"]?.includes("context.sessionID"))
-  assert.ok(AGENT_TOOL_FILES["inspect_action.ts"]?.includes("connector"))
-  assert.ok(AGENT_TOOL_FILES["inspect_action.ts"]?.includes("schema"))
-  assert.ok(AGENT_TOOL_FILES["inspect_action.ts"]?.includes("does not mean you must execute the action"))
-  assert.ok(AGENT_TOOL_FILES["call_action.ts"]?.includes("authorization_required"))
-  assert.ok(AGENT_TOOL_FILES["call_action.ts"]?.includes("authUrl"))
-  assert.ok(AGENT_TOOL_FILES["call_action.ts"]?.includes("config_missing"))
-  assert.ok(AGENT_TOOL_FILES["call_action.ts"]?.includes("/app-connections?provider="))
-  assert.ok(AGENT_TOOL_FILES["call_action.ts"]?.includes('"/providers/"'))
-  assert.ok(AGENT_TOOL_FILES["call_action.ts"]?.includes("Structured outcomes are authoritative"))
-  assert.ok(AGENT_TOOL_FILES["call_action.ts"]?.includes("other errors describe action or runtime failures"))
-  assert.ok(AGENT_TOOL_FILES["call_action.ts"]?.includes("connectionName: tool.schema.string().optional()"))
-  assert.ok(AGENT_TOOL_FILES["call_action.ts"]?.includes("--connection-name"))
-  assert.ok(AGENT_TOOL_FILES["call_action.ts"]?.includes("invalid_connection_name"))
-  assert.ok(AGENT_TOOL_FILES["call_action.ts"]?.includes("connection_inventory_unavailable"))
+  // 记忆工具总是可用：随 workspace 落盘。
+  assert.ok(files["memory.ts"])
   const memoryTool = MEMORY_TOOL_FILES["memory.ts"] ?? ""
-  assert.ok(memoryTool.includes("../runtime/tool.js"))
   assert.ok(memoryTool.includes("DWEIS_MEMORY_DIR"))
   assert.ok(memoryTool.includes("MEMORY.md"))
   assert.ok(memoryTool.includes("USER.md"))
@@ -666,15 +360,19 @@ test("agent tool sources are present and shaped", () => {
   assert.ok(memoryTool.includes("1375"))
   assert.ok(memoryTool.includes("Consolidate instead"))
   assert.ok(memoryTool.includes("ENOENT"))
-  // 记忆工具总是可用：连接器关闭时也随 workspace 落盘。
-  assert.ok(agentToolFiles(false)["memory.ts"])
-  assert.ok(agentToolFiles(true)["memory.ts"])
-  assert.ok(AGENT_TOOL_FILES["call_action.ts"]?.includes("MAX_PARALLEL_ACTION_CALLS = 2"))
-  assert.ok(AGENT_TOOL_FILES["call_action.ts"]?.includes('reason: "connection_blocked"'))
-  assert.ok(AGENT_TOOL_FILES["call_action.ts"]?.includes("--organization"))
-  assert.ok(!AGENT_TOOL_FILES["call_action.ts"]?.includes("--personal"))
-  assert.ok(AGENT_TOOL_FILES["call_action.ts"]?.includes("async execute(args, context)"))
-  assert.ok(AGENT_TOOL_FILES["call_action.ts"]?.includes("context.sessionID"))
+  // 集成浏览器工具共享运行时 env 契约。
+  for (const source of Object.values(BROWSER_AGENT_TOOL_FILES)) {
+    assert.ok(source.includes("DWEIS_BROWSER_CONTROL_URL"))
+    assert.ok(source.includes("DWEIS_BROWSER_CONTROL_TOKEN"))
+  }
+  // 用户可配置工具：配置文件路径热加入（工具源码每次调用读配置文件）。
+  assert.ok(USER_TOOL_FILES["generate_image.ts"]?.includes("DWEIS_TOOLS_CONFIG_PATH"))
+  assert.ok(USER_TOOL_FILES["generate_image.ts"]?.includes("DWEIS_TURN_ARTIFACT_PATH"))
+  assert.ok(USER_TOOL_FILES["dweis_websearch.ts"]?.includes("DWEIS_TOOLS_CONFIG_PATH"))
+  // 连接器工具已整体移除。
+  for (const connectorTool of ["search_actions.ts", "list_apps.ts", "inspect_action.ts", "call_action.ts"]) {
+    assert.equal((files as Record<string, unknown>)[connectorTool], undefined)
+  }
 })
 
 test("buildMemorySystem injects MEMORY.md and USER.md as a persistent memory block", async () => {
@@ -702,10 +400,7 @@ test("buildMemorySystem injects MEMORY.md and USER.md as a persistent memory blo
 test("createArtifactDir creates an isolated per-session turn directory", async () => {
   const rootDir = await mkdtemp(path.join(os.tmpdir(), "dweis-agent-artifacts-"))
   const manager = new AgentManager({
-    linkRuntime: { kind: "oomol", sessionToken: "api-test" },
-    modelAccess: { kind: "oomol", sessionToken: "api-test" },
     opencodeBinPath: "/bin/opencode",
-    ooBinPath: "/bin/oo",
     rootDir,
   })
 

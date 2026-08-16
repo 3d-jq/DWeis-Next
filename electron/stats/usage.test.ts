@@ -1,9 +1,8 @@
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
-
-import { afterEach, describe, expect, it } from "vitest"
 import { DatabaseSync } from "node:sqlite"
+import { afterEach, describe, expect, it } from "vitest"
 import { UsageServiceImpl } from "./node.ts"
 
 const dirs: string[] = []
@@ -45,9 +44,39 @@ function seedDatabase(dbPath: string): void {
     `INSERT INTO session (id, model, cost, tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write, time_created)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
-  insertSession.run("s1", JSON.stringify({ id: "deepseek-v4-flash", providerID: "p" }), 0.01, 1000, 500, 200, 300, 100, now - 2 * 24 * 3600 * 1000)
-  insertSession.run("s2", JSON.stringify({ id: "deepseek-v4-flash", providerID: "p" }), 0.02, 2000, 800, 0, 0, 0, now - 24 * 3600 * 1000)
-  insertSession.run("s3", JSON.stringify({ id: "other-model", providerID: "p" }), 0.005, 500, 100, 0, 0, 0, now - 3 * 24 * 3600 * 1000)
+  insertSession.run(
+    "s1",
+    JSON.stringify({ id: "deepseek-v4-flash", providerID: "p" }),
+    0.01,
+    1000,
+    500,
+    200,
+    300,
+    100,
+    now - 2 * 24 * 3600 * 1000,
+  )
+  insertSession.run(
+    "s2",
+    JSON.stringify({ id: "deepseek-v4-flash", providerID: "p" }),
+    0.02,
+    2000,
+    800,
+    0,
+    0,
+    0,
+    now - 24 * 3600 * 1000,
+  )
+  insertSession.run(
+    "s3",
+    JSON.stringify({ id: "other-model", providerID: "p" }),
+    0.005,
+    500,
+    100,
+    0,
+    0,
+    0,
+    now - 3 * 24 * 3600 * 1000,
+  )
   insertSession.run("s4", "", 0, 0, 0, 0, 0, 0, now) // 无模型名的会话不计入统计
 
   const insertMessage = db.prepare("INSERT INTO message (id, session_id, time_created) VALUES (?, ?, ?)")

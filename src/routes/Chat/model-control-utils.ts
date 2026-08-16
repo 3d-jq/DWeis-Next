@@ -5,7 +5,6 @@ import { useT } from "@/i18n/i18n"
 
 export const reasoningLevelOptions: readonly ReasoningLevel[] = DWEIS_REASONING_LEVELS
 
-
 export function clampNumber(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max)
 }

@@ -165,7 +165,7 @@ MCP, las sesiones, la UI de producto y la integración de escritorio.
 Los puntos de extensión más importantes son:
 
 | Área                                       | Empieza por                                                          |
-| ------------------------------------------ | ------------------------------------------------------------------- |
+| ------------------------------------------ | -------------------------------------------------------------------- |
 | Identidad del Agent y contrato operativo   | [`electron/agent/system-prompt.ts`](electron/agent/system-prompt.ts) |
 | Modos, modelos, herramientas y permisos    | [`electron/agent/config.ts`](electron/agent/config.ts)               |
 | Fuentes de herramientas, Skills y MCP      | [`electron/agent/tool-sources.ts`](electron/agent/tool-sources.ts)   |
@@ -234,14 +234,14 @@ Consulta [SECURITY.md](SECURITY.md) para la notificación privada de vulnerabili
 
 ## Mapa del proyecto
 
-| Ruta                                       | Propósito                                                            |
-| ------------------------------------------ | -------------------------------------------------------------------- |
+| Ruta                                       | Propósito                                                                           |
+| ------------------------------------------ | ----------------------------------------------------------------------------------- |
 | [`electron/`](electron/)                   | Proceso principal, preload, tiempo de ejecución del Agent y servicios de escritorio |
-| [`src/`](src/)                             | Renderer de React, rutas, hooks y componentes de UI                    |
-| [`scripts/`](scripts/)                     | Soporte de desarrollo, preparación de binarios, empaquetado y publicación |
-| [`resources/`](resources/)                 | Marca y recursos empaquetados con la aplicación                       |
-| [`docs/`](docs/)                           | Producto, arquitectura, desarrollo, convenciones y registros de decisión |
-| [`.github/workflows/`](.github/workflows/) | Automatización de pull requests y publicación                          |
+| [`src/`](src/)                             | Renderer de React, rutas, hooks y componentes de UI                                 |
+| [`scripts/`](scripts/)                     | Soporte de desarrollo, preparación de binarios, empaquetado y publicación           |
+| [`resources/`](resources/)                 | Marca y recursos empaquetados con la aplicación                                     |
+| [`docs/`](docs/)                           | Producto, arquitectura, desarrollo, convenciones y registros de decisión            |
+| [`.github/workflows/`](.github/workflows/) | Automatización de pull requests y publicación                                       |
 
 ## Documentación
 

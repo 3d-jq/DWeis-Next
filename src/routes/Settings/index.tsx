@@ -27,7 +27,6 @@ import { McpServersSettings } from "./mcp-servers-settings.tsx"
 import { MemorySettings } from "./memory-settings.tsx"
 import { ModelSettings, RuntimeProfileSummary, SubagentModelSettings } from "./model-settings.tsx"
 import { NotificationSettings } from "./notifications-settings.tsx"
-import { shouldShowSelfManagedRuntimeSettings } from "./settings-presentation.ts"
 import { SettingsItem, SettingsSection } from "./settings-section.tsx"
 import { StorageSettings } from "./storage-settings.tsx"
 import { ToolsSettings } from "./tools-settings.tsx"
@@ -36,7 +35,6 @@ import { PageRouteShell } from "@/components/PageRouteShell"
 import { useTheme } from "@/components/theme-context"
 import { useAppSettings } from "@/hooks/useAppSettings"
 import { useAttention } from "@/hooks/useAttention"
-import { useAuth } from "@/hooks/useAuth"
 import { useI18n } from "@/i18n/i18n"
 import { cn } from "@/lib/utils"
 import { useModelCatalog } from "@/routes/Chat/useModelCatalog"
@@ -56,11 +54,9 @@ export function SettingsRoute({
 }) {
   const { palette: preferencePalette, preference, setPalette: setPreferencePalette, setPreference } = useTheme()
   const { locale, setLocale, t } = useI18n()
-  const auth = useAuth()
   const appSettings = useAppSettings()
   const attention = useAttention()
   const models = useModelCatalog()
-  const showSelfManagedRuntimeSettings = shouldShowSelfManagedRuntimeSettings(auth.state?.status)
 
   const categories: Array<{
     key: SettingsCategory
@@ -72,24 +68,9 @@ export function SettingsRoute({
     { key: "browser", labelKey: "settings.categoryBrowser", icon: GlobeIcon, show: true },
     { key: "storage", labelKey: "settings.categoryStorage", icon: HardDriveIcon, show: true },
     { key: "notifications", labelKey: "settings.categoryNotifications", icon: BellRingIcon, show: true },
-    {
-      key: "models",
-      labelKey: "settings.categoryModels",
-      icon: CpuIcon,
-      show: showSelfManagedRuntimeSettings,
-    },
-    {
-      key: "subagent",
-      labelKey: "settings.categorySubagent",
-      icon: BotIcon,
-      show: showSelfManagedRuntimeSettings,
-    },
-    {
-      key: "mcp",
-      labelKey: "settings.categoryMCP",
-      icon: ServerIcon,
-      show: showSelfManagedRuntimeSettings,
-    },
+    { key: "models", labelKey: "settings.categoryModels", icon: CpuIcon, show: true },
+    { key: "subagent", labelKey: "settings.categorySubagent", icon: BotIcon, show: true },
+    { key: "mcp", labelKey: "settings.categoryMCP", icon: ServerIcon, show: true },
     { key: "memory", labelKey: "settings.categoryMemory", icon: BrainIcon, show: true },
     { key: "tools", labelKey: "settings.categoryTools", icon: WrenchIcon, show: true },
     { key: "usage", labelKey: "settings.categoryUsage", icon: BarChart3Icon, show: true },
@@ -132,20 +113,20 @@ export function SettingsRoute({
         </nav>
 
         <div className="min-w-0 flex-1 overflow-y-auto px-6 py-6 max-[760px]:px-4 max-[760px]:py-4">
-          {effectiveCategory === "models" && showSelfManagedRuntimeSettings ? (
+          {effectiveCategory === "models" ? (
             <SettingsSection title={t("settings.categoryModels")}>
               <RuntimeProfileSummary mode={appSettings.settings.operatingMode} />
-              <ModelSettings connectorsEnabled={false} models={models} />
+              <ModelSettings models={models} />
             </SettingsSection>
           ) : null}
 
-          {effectiveCategory === "subagent" && showSelfManagedRuntimeSettings ? (
+          {effectiveCategory === "subagent" ? (
             <SettingsSection title={t("settings.categorySubagent")}>
               <SubagentModelSettings models={models} />
             </SettingsSection>
           ) : null}
 
-          {effectiveCategory === "mcp" && showSelfManagedRuntimeSettings ? <McpServersSettings /> : null}
+          {effectiveCategory === "mcp" ? <McpServersSettings /> : null}
 
           {effectiveCategory === "memory" ? <MemorySettings /> : null}
 

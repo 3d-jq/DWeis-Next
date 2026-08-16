@@ -144,208 +144,211 @@ test("high risk command detection marks destructive commands for default access 
   )
 })
 
-test.skipIf(process.platform === "win32")("managed Python dependency installs are narrow enough for a task approval", () => {
-  const processRoot = "/tmp/dweis-process/task-1"
-  const command = `${processRoot}/.wanta-python/bin/python -m pip install openpyxl fpdf2`
-  const request = permission({ metadata: { command } })
+test.skipIf(process.platform === "win32")(
+  "managed Python dependency installs are narrow enough for a task approval",
+  () => {
+    const processRoot = "/tmp/dweis-process/task-1"
+    const command = `${processRoot}/.wanta-python/bin/python -m pip install openpyxl fpdf2`
+    const request = permission({ metadata: { command } })
 
-  assert.deepEqual(managedPythonDependencyInstall(request), { packages: ["openpyxl", "fpdf2"] })
-  assert.deepEqual(managedPythonDependencyInstall(request, processRoot), { packages: ["openpyxl", "fpdf2"] })
-  assert.deepEqual(
-    managedPythonDependencyInstall(
-      permission({
-        metadata: {
-          command: `${processRoot}/.wanta-python/bin/python -m pip install --compile --use-feature=fast-deps --upgrade 'pandas>=2,<3' 'markitdown[pdf,docx,pptx,xlsx]'`,
-        },
-      }),
-      processRoot,
-    ),
-    { packages: ["pandas", "markitdown"] },
-  )
-  assert.deepEqual(
-    managedPythonDependencyInstall(
-      permission({
-        metadata: {
-          command: `uv pip install --python ${processRoot}/.wanta-python/bin/python3 --compile pypdf`,
-        },
-      }),
-      processRoot,
-    ),
-    { packages: ["pypdf"] },
-  )
-  assert.deepEqual(
-    managedPythonDependencyInstall(
-      permission({
-        metadata: {
-          command: `cd ${processRoot} && .wanta-python/bin/python -m pip install weasyprint 2>&1 | tail -5`,
-        },
-      }),
-      processRoot,
-    ),
-    { packages: ["weasyprint"] },
-  )
-  assert.deepEqual(
-    managedPythonDependencyInstall(
-      permission({
-        metadata: {
-          command: `uv --no-progress pip install --python=${processRoot}/.wanta-python/bin/python pypdf 2>&1 | tail -5`,
-        },
-      }),
-      processRoot,
-    ),
-    { packages: ["pypdf"] },
-  )
-  assert.deepEqual(
-    managedPythonDependencyInstall(
-      permission({
-        metadata: {
-          command:
-            `python3 -m venv "${processRoot}/.wanta-python" && ` +
-            `"${processRoot}/.wanta-python/bin/python" -m pip install python-docx 2>&1`,
-        },
-      }),
-      processRoot,
-    ),
-    { packages: ["python-docx"] },
-  )
-  assert.deepEqual(
-    managedPythonDependencyInstall(
-      permission({
-        metadata: {
-          command:
-            `cd '${processRoot}' && python3 -m venv .wanta-python && ` +
-            `.wanta-python/bin/python -m pip install python-docx`,
-        },
-      }),
-      processRoot,
-    ),
-    { packages: ["python-docx"] },
-  )
-  for (const rootedEnvironment of ["/.wanta-python", "\\.wanta-python"]) {
-    assert.equal(
+    assert.deepEqual(managedPythonDependencyInstall(request), { packages: ["openpyxl", "fpdf2"] })
+    assert.deepEqual(managedPythonDependencyInstall(request, processRoot), { packages: ["openpyxl", "fpdf2"] })
+    assert.deepEqual(
+      managedPythonDependencyInstall(
+        permission({
+          metadata: {
+            command: `${processRoot}/.wanta-python/bin/python -m pip install --compile --use-feature=fast-deps --upgrade 'pandas>=2,<3' 'markitdown[pdf,docx,pptx,xlsx]'`,
+          },
+        }),
+        processRoot,
+      ),
+      { packages: ["pandas", "markitdown"] },
+    )
+    assert.deepEqual(
+      managedPythonDependencyInstall(
+        permission({
+          metadata: {
+            command: `uv pip install --python ${processRoot}/.wanta-python/bin/python3 --compile pypdf`,
+          },
+        }),
+        processRoot,
+      ),
+      { packages: ["pypdf"] },
+    )
+    assert.deepEqual(
+      managedPythonDependencyInstall(
+        permission({
+          metadata: {
+            command: `cd ${processRoot} && .wanta-python/bin/python -m pip install weasyprint 2>&1 | tail -5`,
+          },
+        }),
+        processRoot,
+      ),
+      { packages: ["weasyprint"] },
+    )
+    assert.deepEqual(
+      managedPythonDependencyInstall(
+        permission({
+          metadata: {
+            command: `uv --no-progress pip install --python=${processRoot}/.wanta-python/bin/python pypdf 2>&1 | tail -5`,
+          },
+        }),
+        processRoot,
+      ),
+      { packages: ["pypdf"] },
+    )
+    assert.deepEqual(
       managedPythonDependencyInstall(
         permission({
           metadata: {
             command:
-              `cd '${processRoot}' && python3 -m venv '${rootedEnvironment}' && ` +
-              `'${rootedEnvironment}/bin/python' -m pip install python-docx`,
+              `python3 -m venv "${processRoot}/.wanta-python" && ` +
+              `"${processRoot}/.wanta-python/bin/python" -m pip install python-docx 2>&1`,
+          },
+        }),
+        processRoot,
+      ),
+      { packages: ["python-docx"] },
+    )
+    assert.deepEqual(
+      managedPythonDependencyInstall(
+        permission({
+          metadata: {
+            command:
+              `cd '${processRoot}' && python3 -m venv .wanta-python && ` +
+              `.wanta-python/bin/python -m pip install python-docx`,
+          },
+        }),
+        processRoot,
+      ),
+      { packages: ["python-docx"] },
+    )
+    for (const rootedEnvironment of ["/.wanta-python", "\\.wanta-python"]) {
+      assert.equal(
+        managedPythonDependencyInstall(
+          permission({
+            metadata: {
+              command:
+                `cd '${processRoot}' && python3 -m venv '${rootedEnvironment}' && ` +
+                `'${rootedEnvironment}/bin/python' -m pip install python-docx`,
+            },
+          }),
+          processRoot,
+        ),
+        null,
+        rootedEnvironment,
+      )
+    }
+    assert.equal(
+      managedPythonDependencyInstall(
+        permission({ metadata: { command: "pip3 install --user openpyxl fpdf2" } }),
+        processRoot,
+      ),
+      null,
+    )
+    assert.equal(
+      managedPythonDependencyInstall(
+        permission({
+          metadata: { command: `${processRoot}/.wanta-python/bin/python -m pip install -r requirements.txt` },
+        }),
+        processRoot,
+      ),
+      null,
+    )
+    assert.equal(
+      managedPythonDependencyInstall(
+        permission({
+          metadata: { command: `${processRoot}/.wanta-python/bin/python -m pip install git+https://x.test/a` },
+        }),
+        processRoot,
+      ),
+      null,
+    )
+    assert.equal(
+      managedPythonDependencyInstall(
+        permission({ metadata: { command: `${command} --extra-index-url https://example.test/simple` } }),
+        processRoot,
+      ),
+      null,
+    )
+    for (const protectedArguments of [
+      "--user",
+      "--break-system-packages",
+      "--target /tmp/python-target",
+      "--prefix=/tmp/python-prefix",
+      "--index=https://example.test/simple",
+      "-ihttps://example.test/simple",
+      "-cconstraints.txt",
+      "-rrequirements.txt",
+      "-e .",
+    ]) {
+      assert.equal(
+        managedPythonDependencyInstall(
+          permission({ metadata: { command: `${command} ${protectedArguments}` } }),
+          processRoot,
+        ),
+        null,
+        protectedArguments,
+      )
+    }
+    assert.equal(
+      managedPythonDependencyInstall(permission({ metadata: { command: `${command} && rm -rf /tmp/x` } }), processRoot),
+      null,
+    )
+    assert.equal(
+      isProjectScopedPythonDependencyInstallRequest(
+        permission({
+          metadata: {
+            command: "/Users/example/code/customer-project/.venv/bin/python -m pip install --compile pandas",
+          },
+        }),
+        "/Users/example/code/customer-project",
+      ),
+      true,
+    )
+    assert.equal(
+      isProjectScopedPythonDependencyInstallRequest(
+        permission({
+          metadata: {
+            command: "/Users/example/code/other-project/.venv/bin/python -m pip install pandas",
+          },
+        }),
+        "/Users/example/code/customer-project",
+      ),
+      false,
+    )
+    assert.equal(
+      isProjectScopedPythonDependencyInstallRequest(
+        permission({
+          metadata: {
+            command: "cd /Users/example/code/customer-project && .venv/bin/python -m pip install pandas",
+          },
+        }),
+        "/Users/example/code/customer-project",
+      ),
+      true,
+    )
+    assert.equal(
+      managedPythonDependencyInstall(
+        permission({
+          metadata: {
+            command: `cd ${processRoot} && .wanta-python/bin/python -m pip install pandas && rm -rf /tmp/x`,
           },
         }),
         processRoot,
       ),
       null,
-      rootedEnvironment,
     )
-  }
-  assert.equal(
-    managedPythonDependencyInstall(
-      permission({ metadata: { command: "pip3 install --user openpyxl fpdf2" } }),
-      processRoot,
-    ),
-    null,
-  )
-  assert.equal(
-    managedPythonDependencyInstall(
-      permission({
-        metadata: { command: `${processRoot}/.wanta-python/bin/python -m pip install -r requirements.txt` },
-      }),
-      processRoot,
-    ),
-    null,
-  )
-  assert.equal(
-    managedPythonDependencyInstall(
-      permission({
-        metadata: { command: `${processRoot}/.wanta-python/bin/python -m pip install git+https://x.test/a` },
-      }),
-      processRoot,
-    ),
-    null,
-  )
-  assert.equal(
-    managedPythonDependencyInstall(
-      permission({ metadata: { command: `${command} --extra-index-url https://example.test/simple` } }),
-      processRoot,
-    ),
-    null,
-  )
-  for (const protectedArguments of [
-    "--user",
-    "--break-system-packages",
-    "--target /tmp/python-target",
-    "--prefix=/tmp/python-prefix",
-    "--index=https://example.test/simple",
-    "-ihttps://example.test/simple",
-    "-cconstraints.txt",
-    "-rrequirements.txt",
-    "-e .",
-  ]) {
-    assert.equal(
-      managedPythonDependencyInstall(
-        permission({ metadata: { command: `${command} ${protectedArguments}` } }),
-        processRoot,
-      ),
-      null,
-      protectedArguments,
-    )
-  }
-  assert.equal(
-    managedPythonDependencyInstall(permission({ metadata: { command: `${command} && rm -rf /tmp/x` } }), processRoot),
-    null,
-  )
-  assert.equal(
-    isProjectScopedPythonDependencyInstallRequest(
-      permission({
-        metadata: {
-          command: "/Users/example/code/customer-project/.venv/bin/python -m pip install --compile pandas",
-        },
-      }),
-      "/Users/example/code/customer-project",
-    ),
-    true,
-  )
-  assert.equal(
-    isProjectScopedPythonDependencyInstallRequest(
-      permission({
-        metadata: {
-          command: "/Users/example/code/other-project/.venv/bin/python -m pip install pandas",
-        },
-      }),
-      "/Users/example/code/customer-project",
-    ),
-    false,
-  )
-  assert.equal(
-    isProjectScopedPythonDependencyInstallRequest(
-      permission({
-        metadata: {
-          command: "cd /Users/example/code/customer-project && .venv/bin/python -m pip install pandas",
-        },
-      }),
-      "/Users/example/code/customer-project",
-    ),
-    true,
-  )
-  assert.equal(
-    managedPythonDependencyInstall(
-      permission({
-        metadata: {
-          command: `cd ${processRoot} && .wanta-python/bin/python -m pip install pandas && rm -rf /tmp/x`,
-        },
-      }),
-      processRoot,
-    ),
-    null,
-  )
 
-  const grant = createSessionPermissionGrant(request, { managedPythonProcessRoot: processRoot })
-  assert.deepEqual(grant, {
-    action: "bash",
-    kind: "python_dependency_install",
-    patterns: ["openpyxl", "fpdf2"],
-    processRoot,
-  })
-})
+    const grant = createSessionPermissionGrant(request, { managedPythonProcessRoot: processRoot })
+    assert.deepEqual(grant, {
+      action: "bash",
+      kind: "python_dependency_install",
+      patterns: ["openpyxl", "fpdf2"],
+      processRoot,
+    })
+  },
+)
 
 test("oo CLI permission requests are recognized for automatic approval", () => {
   assert.equal(isOoCliPermissionRequest(permission({ metadata: { command: 'oo search "metaso" --json' } })), true)

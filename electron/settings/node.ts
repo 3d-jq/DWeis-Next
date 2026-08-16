@@ -1,5 +1,5 @@
-import type { WindowsTitleBarTheme } from "../window/title-bar-overlay.ts"
 import type { DWeisReasoningLevel } from "../agent/reasoning.ts"
+import type { WindowsTitleBarTheme } from "../window/title-bar-overlay.ts"
 import type { GenerationConfig, SearchConfig, SubagentModelChoice } from "./common.ts"
 import type {
   AppSettings,
@@ -12,9 +12,9 @@ import type {
 import type { SettingsStore } from "./store.ts"
 import type { IConnectionService } from "@oomol/connection"
 
-import { DWEIS_REASONING_LEVELS } from "../agent/reasoning.ts"
 import { ConnectionService } from "@oomol/connection"
 import { app, BrowserWindow, nativeTheme } from "electron"
+import { DWEIS_REASONING_LEVELS } from "../agent/reasoning.ts"
 import {
   defaultDataDirectory,
   migrateUserDataDirectory,
@@ -101,9 +101,7 @@ export class SettingsServiceImpl
         DEFAULT_APP_SETTINGS.notificationSoundEnabled,
       ),
       operatingMode:
-        persisted.operatingMode === "oomol" ||
-        persisted.operatingMode === "self-managed" ||
-        persisted.operatingMode === "unselected"
+        persisted.operatingMode === "self-managed" || persisted.operatingMode === "unselected"
           ? persisted.operatingMode
           : DEFAULT_APP_SETTINGS.operatingMode,
       persona: persisted.persona === "work" || persisted.persona === "code" ? persisted.persona : "work",
@@ -207,7 +205,7 @@ export class SettingsServiceImpl
   }
 
   public setOperatingMode(mode: OperatingMode): Promise<void> {
-    if (mode !== "oomol" && mode !== "self-managed" && mode !== "unselected") {
+    if (mode !== "self-managed" && mode !== "unselected") {
       return Promise.reject(new Error("Unsupported operating mode."))
     }
     this.deps.store.write({ ...this.deps.store.read(), operatingMode: mode })
@@ -369,8 +367,8 @@ function numberSetting(value: number | undefined, fallback: number): number {
 function validSubagentModelChoice(
   value: { kind?: string; id?: string } | null | undefined,
 ): SubagentModelChoice | null {
-  if (value && (value.kind === "builtin" || value.kind === "custom") && typeof value.id === "string" && value.id) {
-    return { kind: value.kind, id: value.id }
+  if (value && value.kind === "custom" && typeof value.id === "string" && value.id) {
+    return { kind: "custom", id: value.id }
   }
   return null
 }

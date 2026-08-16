@@ -27,7 +27,6 @@ import { releaseAttachmentSnapshots } from "@/routes/Chat/chat-attachment-utils"
 
 type SendQueuedMessage = (request: ChatSendRequest & { afterOptimisticSubmit?: () => void }) => Promise<ChatSendResult>
 
-
 interface UseChatQueueStateOptions {
   activeSessionId: string | null
   dispatchBlocked: boolean

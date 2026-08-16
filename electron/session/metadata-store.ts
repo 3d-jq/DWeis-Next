@@ -1,6 +1,6 @@
+import type { Persona } from "../settings/common.ts"
 import type { SessionScope } from "./common.ts"
 import type { SessionPermissionMode } from "./common.ts"
-import type { Persona } from "../settings/common.ts"
 
 import { readFile } from "node:fs/promises"
 import path from "node:path"

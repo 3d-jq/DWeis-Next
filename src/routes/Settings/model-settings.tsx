@@ -62,11 +62,7 @@ function SubagentConfigBlock({
 }) {
   const choice = modelValue
   const value = choice ? `${choice.kind}:${choice.id}` : "default"
-  const selectedLabel = choice
-    ? choice.kind === "custom"
-      ? catalog?.customModels.find((item) => item.id === choice.id)?.displayName
-      : catalog?.builtins.find((item) => item.id === choice.id)?.displayName
-    : undefined
+  const selectedLabel = choice ? catalog?.customModels.find((item) => item.id === choice.id)?.displayName : undefined
 
   return (
     <SettingsItem title={title} description={description} icon={Icon}>
@@ -173,32 +169,21 @@ function decodeSubagentModelChoice(value: string): SubagentModelChoice | null {
   }
   const kind = value.slice(0, separator)
   const id = value.slice(separator + 1)
-  if ((kind === "builtin" || kind === "custom") && id) {
+  if (kind === "custom" && id) {
     return { kind, id }
   }
   return null
 }
 
-export function ModelSettings({
-  connectorsEnabled,
-  models,
-}: {
-  connectorsEnabled: boolean
-  models: ReturnType<typeof useModelCatalog>
-}) {
+export function ModelSettings({ models }: { models: ReturnType<typeof useModelCatalog> }) {
   const { t } = useI18n()
   const [editingModel, setEditingModel] = React.useState<CustomModelSummary | undefined>()
   const [deletingModel, setDeletingModel] = React.useState<CustomModelSummary | null>(null)
   const catalog = models.catalog
-  const selectedCustomId = catalog?.selected.kind === "custom" ? catalog.selected.id : null
-  const selectedBuiltinId = catalog?.selected.kind === "builtin" ? catalog.selected.id : null
+  const selected = catalog?.selected
+  const selectedCustomId = selected?.kind === "custom" ? selected.id : null
   const selectedModel =
-    catalog?.selected.kind === "custom"
-      ? catalog.customModels.find((item) => item.id === catalog.selected.id)?.displayName
-      : connectorsEnabled
-        ? catalog?.builtins.find((item) => item.id === catalog.selected.id)?.displayName
-        : undefined
-
+    selected?.kind === "custom" ? catalog?.customModels.find((item) => item.id === selected.id)?.displayName : undefined
   const openAdd = (presetProviderId?: string) => {
     setEditingModel(undefined)
     models.openDialog(presetProviderId)
@@ -239,21 +224,6 @@ export function ModelSettings({
 
       {catalog ? (
         <div className="grid gap-3">
-          {connectorsEnabled && catalog.builtins.length > 0 ? (
-            <div className="grid gap-1.5">
-              <p className="oo-text-caption-compact font-medium text-muted-foreground">{t("settings.modelsOomol")}</p>
-              {catalog.builtins.map((model) => (
-                <ModelRow
-                  key={model.id}
-                  active={selectedBuiltinId === model.id}
-                  description={model.providerName}
-                  name={model.displayName}
-                  onSelect={() => models.selectModel({ kind: "builtin", id: model.id })}
-                />
-              ))}
-            </div>
-          ) : null}
-
           {/* 自定义模型按供应商分组：先供应商，供应商下再模型 */}
           {customModelsByProvider(catalog.customModels).map((group) => (
             <div key={group.providerId} className="grid gap-1.5">
@@ -296,7 +266,7 @@ export function ModelSettings({
       {models.catalogError ? <ErrorNotice error={models.catalogError} compact /> : null}
       {models.selectionError ? <ErrorNotice error={models.selectionError} compact /> : null}
       <AddCustomModelDialog
-        connectorsEnabled={connectorsEnabled}
+        connectorsEnabled={false}
         model={editingModel}
         open={models.dialogOpen}
         presetProviderId={models.presetProviderId}

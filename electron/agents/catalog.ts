@@ -141,7 +141,6 @@ export async function pathExists(pathname: string): Promise<boolean> {
   }
 }
 
-
 export async function detectCliCommand(
   commands: readonly string[],
   options: AgentDiscoveryOptions = {},

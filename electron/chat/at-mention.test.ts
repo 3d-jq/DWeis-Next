@@ -39,10 +39,7 @@ describe("resolveAtMentionPaths", () => {
   it("leaves absolute, ~/ and nonexistent @ tokens unchanged", async () => {
     const root = await temporaryRoot()
 
-    const out = await resolveAtMentionPaths(
-      "a @D:/proj/x.ts b @~/notes.md c @missing.ts d @agent-name",
-      root,
-    )
+    const out = await resolveAtMentionPaths("a @D:/proj/x.ts b @~/notes.md c @missing.ts d @agent-name", root)
 
     expect(out).toBe("a @D:/proj/x.ts b @~/notes.md c @missing.ts d @agent-name")
   })

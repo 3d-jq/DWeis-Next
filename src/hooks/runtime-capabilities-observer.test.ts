@@ -18,8 +18,8 @@ const localCapabilities = resolveRuntimeCapabilities({
   mode: "local",
   localAgentAvailable: false,
 })
-const oomolCapabilities = resolveRuntimeCapabilities({
-  mode: "oomol",
+const agentCapabilities = resolveRuntimeCapabilities({
+  mode: "local",
   localAgentAvailable: true,
 })
 
@@ -38,11 +38,11 @@ describe("observeRuntimeCapabilities", () => {
       },
     })
 
-    emit?.(oomolCapabilities)
+    emit?.(agentCapabilities)
     initial.resolve(localCapabilities)
     await initial.promise
 
-    expect(states).toEqual([oomolCapabilities])
+    expect(states).toEqual([agentCapabilities])
     dispose()
   })
 
@@ -60,7 +60,7 @@ describe("observeRuntimeCapabilities", () => {
       },
     })
 
-    emit?.(oomolCapabilities)
+    emit?.(agentCapabilities)
     initial.reject(new Error("stale"))
     await expect(initial.promise).rejects.toThrow("stale")
 

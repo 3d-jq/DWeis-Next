@@ -1,8 +1,8 @@
 import type { ModelChoice } from "../models/common.ts"
 import type { AgentMode, AgentPermissionMode } from "./common.ts"
 
-import { BUG_REPORT_COMMAND } from "./common.ts"
 import { branding } from "../branding.ts"
+import { BUG_REPORT_COMMAND } from "./common.ts"
 export { BUG_REPORT_COMMAND }
 export const BUG_REPORT_FILE_NAME = "dweis-bug-report.md"
 

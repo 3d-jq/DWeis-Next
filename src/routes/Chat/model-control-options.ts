@@ -1,25 +1,14 @@
 import type { ModelCatalog, ModelChoice } from "../../../electron/models/common.ts"
 
-import { DEFAULT_BUILTIN_MODEL_ID, resolveBuiltinModel } from "../../../electron/models/builtin.ts"
-
 export type ModelTier = "high" | "medium" | "low"
 
 export interface SelectedModelSummary {
-  kind: "builtin" | "custom"
+  kind: "custom"
   label: string
   supportsImages: boolean
 }
 
 export type ModelMenuItem =
-  | {
-      active: boolean
-      choice: ModelChoice
-      id: string
-      kind: "builtin"
-      tier?: ModelTier
-      supportsImages?: boolean
-      title: string
-    }
   | {
       active: boolean
       choice: ModelChoice
@@ -41,60 +30,28 @@ export function sameModelChoice(a: ModelChoice | undefined, b: ModelChoice | und
 }
 
 export function selectedModelSummary(catalog: ModelCatalog | null): SelectedModelSummary {
-  if (!catalog) {
-    const fallback = resolveBuiltinModel(DEFAULT_BUILTIN_MODEL_ID)
-    return { kind: "builtin", label: fallback.displayName, supportsImages: fallback.capabilities.supportsImages }
+  if (!catalog || !catalog.selected) {
+    // 本地 self-managed：无内置模型，未选择时显示占位（由调用方翻译）。
+    return { kind: "custom", label: "", supportsImages: false }
   }
   const selected = catalog.selected
-  if (selected.kind === "custom") {
-    const custom = catalog.customModels.find((model) => model.id === selected.id)
-    if (custom) {
-      return {
-        kind: "custom",
-        label: custom.displayName,
-        supportsImages: custom.supportsImages,
-      }
+  const custom = catalog.customModels.find((model) => model.id === selected.id)
+  if (custom) {
+    return {
+      kind: "custom",
+      label: custom.displayName,
+      supportsImages: custom.supportsImages,
     }
   }
-  const builtin =
-    (selected.kind === "builtin" ? catalog.builtins.find((model) => model.id === selected.id) : undefined) ??
-    catalog.builtins[0]
-  return {
-    kind: "builtin",
-    label: builtin?.displayName ?? "Auto",
-    supportsImages: builtin?.supportsImages ?? false,
-  }
+  return { kind: "custom", label: "", supportsImages: false }
 }
 
 export function buildModelMenuItems(catalog: ModelCatalog | null, addTitle: string): ModelMenuItem[] {
-  const selected = selectedModelSummary(catalog)
   if (!catalog) {
-    return [
-      {
-        active: true,
-        choice: { kind: "builtin", id: DEFAULT_BUILTIN_MODEL_ID },
-        id: `builtin:${DEFAULT_BUILTIN_MODEL_ID}`,
-        kind: "builtin",
-        supportsImages: selected.supportsImages,
-        title: selected.label,
-      },
-      { active: false, id: "action:add", kind: "add", title: addTitle },
-    ]
+    return [{ active: false, id: "action:add", kind: "add", title: addTitle }]
   }
 
   return [
-    ...catalog.builtins.map((model): ModelMenuItem => {
-      const choice: ModelChoice = { kind: "builtin", id: model.id }
-      return {
-        active: sameModelChoice(catalog.selected, choice),
-        choice,
-        id: `builtin:${model.id}`,
-        kind: "builtin",
-        tier: builtinModelTier(model.id),
-        supportsImages: model.supportsImages,
-        title: model.displayName,
-      }
-    }),
     ...catalog.customModels.map((model): ModelMenuItem => {
       const choice: ModelChoice = { kind: "custom", id: model.id }
       return {
@@ -109,19 +66,6 @@ export function buildModelMenuItems(catalog: ModelCatalog | null, addTitle: stri
     }),
     { active: false, id: "action:add", kind: "add", title: addTitle },
   ]
-}
-
-export function builtinModelTier(id: Extract<ModelChoice, { kind: "builtin" }>["id"]): ModelTier | undefined {
-  switch (id) {
-    case "gpt-5.6-sol":
-      return "high"
-    case "gpt-5.6-terra":
-      return "medium"
-    case "gpt-5.6-luna":
-      return "low"
-    default:
-      return undefined
-  }
 }
 
 export function combinedModelReasoningLabel(modelLabel: string, reasoningLabel: string): string {

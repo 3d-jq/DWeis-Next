@@ -39,7 +39,7 @@ test("runtime capabilities remain credential-free across the chat service bounda
   )
 
   const capabilities = resolveRuntimeCapabilities({
-    mode: "oomol",
+    mode: "local",
     localAgentAvailable: true,
   })
   service.setRuntimeCapabilities(capabilities)
@@ -242,57 +242,6 @@ test("isAbortErrorMessage recognizes controlled stop errors only", () => {
   assert.equal(isAbortErrorMessage("Remote service cancelled the request"), false)
 })
 
-test("setAgentTeam waits for the scope synchronization callback", async () => {
-  let resolveScope: (() => void) | undefined
-  const service = new ChatServiceImpl(null, {
-    onSetAgentTeam: async () =>
-      new Promise<void>((resolve) => {
-        resolveScope = resolve
-      }),
-  })
-
-  let completed = false
-  const request = service.setAgentTeam({ teamName: "acme-corp" }).then(() => {
-    completed = true
-  })
-  await waitForCondition(() => Boolean(resolveScope))
-
-  assert.equal(completed, false)
-  resolveScope?.()
-  await request
-  assert.equal(completed, true)
-})
-
-test("sendMessage waits for the request team scope before prompting", async () => {
-  const bridge = createBridgeAgent()
-  let resolveScope: (() => void) | undefined
-  bridge.setSessionTeamName.mockImplementationOnce(
-    async () =>
-      new Promise<void>((resolve) => {
-        resolveScope = resolve
-      }),
-  )
-  const service = new ChatServiceImpl(bridge.agent)
-
-  const request = service.sendMessage({
-    scope: { kind: "team", teamId: "team-id", teamName: " acme-corp " },
-    sessionId: "session-1",
-    text: "hello",
-  })
-  await waitForCondition(() => Boolean(resolveScope))
-
-  assert.deepEqual(bridge.setSessionTeamName.mock.calls, [["session-1", "acme-corp"]])
-  assert.equal((await service.getActiveRun("session-1"))?.phase, "sending")
-  assert.equal(bridge.createArtifactDir.mock.calls.length, 0)
-  assert.equal(bridge.promptStreaming.mock.calls.length, 0)
-
-  resolveScope?.()
-  await request
-
-  assert.equal(bridge.createArtifactDir.mock.calls.length, 1)
-  assert.equal(bridge.promptStreaming.mock.calls.length, 1)
-})
-
 test("sendMessage persists original attachments and hides internal spreadsheet parts", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "dweis-user-attachment-flow-"))
   const bridge = createBridgeAgent()
@@ -444,7 +393,7 @@ test("sendMessage exposes active run snapshots with the request workspace", asyn
   assert.ok(events.some((event) => event.event === "activeRunUpdated"))
 })
 
-test("sendMessage accepts a local workspace without assigning a team", async () => {
+test("sendMessage accepts a local workspace", async () => {
   const bridge = createBridgeAgent()
   const service = new ChatServiceImpl(bridge.agent)
 
@@ -459,7 +408,6 @@ test("sendMessage accepts a local workspace without assigning a team", async () 
     workspaceId: "local",
     workspaceName: "Local",
   })
-  assert.deepEqual(bridge.setSessionTeamName.mock.calls, [["local-session", undefined]])
 })
 
 test("getSessionSnapshot returns messages, pending asks, and active run together", async () => {
@@ -577,13 +525,7 @@ test("sendMessage allows concurrent generations in different team scopes", async
   await second
 
   assert.equal(secondCompleted, true)
-  assert.deepEqual(bridge.setSessionTeamName.mock.calls, [
-    ["session-1", "team-a"],
-    ["session-2", "team-b"],
-  ])
   assert.equal(bridge.promptStreaming.mock.calls.length, 2)
-  assert.equal(bridge.promptStreaming.mock.calls[0]?.[2]?.teamName, "team-a")
-  assert.equal(bridge.promptStreaming.mock.calls[1]?.[2]?.teamName, "team-b")
 })
 
 test("sendMessage allows concurrent generations in the same team scope", async () => {
@@ -610,119 +552,8 @@ test("sendMessage allows concurrent generations in the same team scope", async (
   await second
 
   assert.equal(secondCompleted, true)
-  assert.deepEqual(bridge.setSessionTeamName.mock.calls, [
-    ["session-1", "team-a"],
-    ["session-2", "team-a"],
-  ])
   assert.equal(service.hasActiveGeneration(), true)
   assert.equal(bridge.promptStreaming.mock.calls.length, 2)
-})
-
-test("setAgentTeam applies only the latest queued workspace scope", async () => {
-  const bridge = createBridgeAgent()
-  const scopeCalls: Array<string | undefined> = []
-  const service = new ChatServiceImpl(bridge.agent, {
-    onSetAgentTeam: async (teamName) => {
-      scopeCalls.push(teamName)
-    },
-  })
-  service.startEventBridge()
-
-  await service.sendMessage({
-    scope: { kind: "team", teamId: "team-a", teamName: "team-a" },
-    sessionId: "session-1",
-    text: "first",
-  })
-
-  const firstSync = service.setAgentTeam({ teamName: "team-b" })
-  const secondSync = service.setAgentTeam({ teamName: "team-c" })
-  await Promise.resolve()
-
-  await Promise.all([firstSync, secondSync])
-
-  assert.deepEqual(scopeCalls, ["team-c"])
-})
-
-test("setAgentTeam is not superseded by per-turn team scopes", async () => {
-  const bridge = createBridgeAgent()
-  const scopeCalls: Array<string | undefined> = []
-  let releaseFirstScope: (() => void) | undefined
-  const service = new ChatServiceImpl(bridge.agent, {
-    onSetAgentTeam: async (teamName) => {
-      scopeCalls.push(teamName)
-      if (teamName === "team-a") {
-        await new Promise<void>((resolve) => {
-          releaseFirstScope = resolve
-        })
-      }
-    },
-  })
-  service.startEventBridge()
-
-  const firstSync = service.setAgentTeam({ teamName: "team-a" })
-  await waitForCondition(() => Boolean(releaseFirstScope))
-  const secondSync = service.setAgentTeam({ teamName: "team-b" })
-  await service.sendMessage({
-    scope: { kind: "team", teamId: "team-c", teamName: "team-c" },
-    sessionId: "session-1",
-    text: "turn scoped to team-c",
-  })
-
-  releaseFirstScope?.()
-  await Promise.all([firstSync, secondSync])
-
-  assert.deepEqual(scopeCalls, ["team-a", "team-b"])
-})
-
-test("setAgentTeam does not interrupt active generations from other team scopes", async () => {
-  const bridge = createBridgeAgent()
-  const scopeCalls: Array<string | undefined> = []
-  const service = new ChatServiceImpl(bridge.agent, {
-    onSetAgentTeam: async (teamName) => {
-      scopeCalls.push(teamName)
-    },
-  })
-  service.startEventBridge()
-
-  await service.sendMessage({
-    scope: { kind: "team", teamId: "team-a", teamName: "team-a" },
-    sessionId: "session-1",
-    text: "first",
-  })
-  assert.equal(service.hasActiveGeneration(), true)
-
-  await service.setAgentTeam({ teamName: "team-b" })
-
-  assert.deepEqual(scopeCalls, ["team-b"])
-  assert.equal(bridge.abort.mock.calls.length, 0)
-  assert.equal(service.hasActiveGeneration(), true)
-})
-
-test("setAgentTeam does not wait on active generations for the requested team scope", async () => {
-  const bridge = createBridgeAgent()
-  const scopeCalls: Array<string | undefined> = []
-  const service = new ChatServiceImpl(bridge.agent, {
-    onSetAgentTeam: async (teamName) => {
-      scopeCalls.push(teamName)
-    },
-  })
-  service.startEventBridge()
-
-  await service.sendMessage({
-    scope: { kind: "team", teamId: "team-a", teamName: "team-a" },
-    sessionId: "session-1",
-    text: "first",
-  })
-  let completed = false
-  const sync = service.setAgentTeam({ teamName: "team-a" }).then(() => {
-    completed = true
-  })
-
-  await sync
-
-  assert.equal(bridge.abort.mock.calls.length, 0)
-  assert.equal(completed, true)
-  assert.deepEqual(scopeCalls, ["team-a"])
 })
 
 test("stopGeneration suppresses delayed streaming events until the next send", async () => {
@@ -1611,53 +1442,6 @@ test("agent errors from multiple opencode channels produce one message error per
   assert.equal(events.filter((event) => event.event === "messageError").length, 2)
 })
 
-test("only OOMOL runtime chat 401 expires the global session", async () => {
-  const localBridge = createBridgeAgent()
-  const localExpiry = vi.fn(async () => undefined)
-  const localService = new ChatServiceImpl(localBridge.agent, { onOomolAuthRequired: localExpiry })
-  const localEvents = captureServiceEvents(localService)
-  localService.startEventBridge()
-  await localService.sendMessage({ scope: testTeamScope, sessionId: "local-session", text: "hello" })
-  localBridge.emit({
-    type: "session.error",
-    properties: {
-      sessionID: "local-session",
-      error: { name: "APIError", data: { message: '{"status":401,"message":"invalid api key"}' } },
-    },
-  })
-  await waitForMessageErrorCount(localEvents, 1)
-
-  const localError = localEvents.find((event) => event.event === "messageError") as
-    | { data: { errorKind?: string } }
-    | undefined
-  assert.equal(localError?.data.errorKind, "model_auth_required")
-  assert.equal(localExpiry.mock.calls.length, 0)
-
-  const oomolBridge = createBridgeAgent()
-  const oomolExpiry = vi.fn(async () => undefined)
-  const oomolService = new ChatServiceImpl(oomolBridge.agent, { onOomolAuthRequired: oomolExpiry })
-  oomolService.setRuntimeCapabilities(
-    resolveRuntimeCapabilities({ mode: "oomol", localAgentAvailable: true }),
-  )
-  const oomolEvents = captureServiceEvents(oomolService)
-  oomolService.startEventBridge()
-  await oomolService.sendMessage({ scope: testTeamScope, sessionId: "oomol-session", text: "hello" })
-  oomolBridge.emit({
-    type: "session.error",
-    properties: {
-      sessionID: "oomol-session",
-      error: { name: "APIError", data: { message: '{"status":401,"message":"session expired"}' } },
-    },
-  })
-  await waitForMessageErrorCount(oomolEvents, 1)
-  await vi.waitFor(() => expect(oomolExpiry).toHaveBeenCalledOnce())
-
-  const oomolError = oomolEvents.find((event) => event.event === "messageError") as
-    | { data: { errorKind?: string } }
-    | undefined
-  assert.equal(oomolError?.data.errorKind, "auth_required")
-})
-
 test("hasActiveGeneration tracks pending and completed assistant turns", async () => {
   const bridge = createBridgeAgent()
   const service = new ChatServiceImpl(bridge.agent)
@@ -2280,7 +2064,7 @@ test("sendMessage turns /bug-report into a Markdown artifact-only turn", async (
   try {
     await service.sendMessage({
       mode: "plan",
-      model: { id: "oopilot", kind: "builtin" },
+      model: { id: "custom-1", kind: "custom" },
       permissionMode: "default",
       scope: { kind: "team", teamId: "team-id", teamName: "team-name" },
       sessionId: "session-1",
@@ -2289,7 +2073,9 @@ test("sendMessage turns /bug-report into a Markdown artifact-only turn", async (
 
     assert.equal(bridge.promptStreaming.mock.calls.length, 1)
     assert.equal(bridge.promptStreaming.mock.calls[0]?.[1], "/bug-report Focus on the authorization state mismatch.")
-    const options = bridge.promptStreaming.mock.calls[0]?.[2] as { mode?: string; system?: string; stableSystem?: string } | undefined
+    const options = bridge.promptStreaming.mock.calls[0]?.[2] as
+      | { mode?: string; system?: string; stableSystem?: string }
+      | undefined
     assert.equal(options?.mode, "build")
     assert.match(options?.system ?? "", /built-in \/bug-report command/)
     assert.match(options?.system ?? "", /Focus on the authorization state mismatch/)
@@ -3142,108 +2928,6 @@ test("automatic permission replies are deduplicated across pending reload and ev
   await waitForCondition(() => events.some((event) => event.event === "permissionReplied"))
 })
 
-test("pure oo permissions are approved in the main process", async () => {
-  const bridge = createBridgeAgent()
-  const service = new ChatServiceImpl(bridge.agent)
-  service.setLinkRuntime("oomol")
-  const events = captureServiceEvents(service)
-  service.startEventBridge()
-
-  bridge.emit({
-    type: "permission.v2.asked",
-    properties: {
-      id: "permission-1",
-      sessionID: "session-1",
-      action: "bash",
-      resources: ['oo search "gmail" --json'],
-    },
-  })
-
-  await waitForCondition(() => bridge.answerPermission.mock.calls.length === 1)
-
-  assert.deepEqual(bridge.answerPermission.mock.calls, [["session-1", "permission-1", "once"]])
-  assert.equal(
-    events.some((event) => event.event === "permissionAsked"),
-    false,
-  )
-})
-
-test("OpenConnector direct oo commands are approved in the main process", async () => {
-  const bridge = createBridgeAgent()
-  const service = new ChatServiceImpl(bridge.agent)
-  service.setLinkRuntime("openconnector")
-  const events = captureServiceEvents(service)
-  service.startEventBridge()
-
-  bridge.emit({
-    type: "permission.v2.asked",
-    properties: {
-      id: "permission-1",
-      sessionID: "session-1",
-      action: "bash",
-      resources: ["oo connector apps --json"],
-    },
-  })
-
-  await waitForCondition(() => bridge.answerPermission.mock.calls.length === 1)
-  assert.deepEqual(bridge.answerPermission.mock.calls, [["session-1", "permission-1", "once"]])
-  assert.equal(
-    events.some((event) => event.event === "permissionAsked"),
-    false,
-  )
-})
-
-test("OpenConnector credential commands are rejected even in full-access mode", async () => {
-  const bridge = createBridgeAgent()
-  const service = new ChatServiceImpl(bridge.agent)
-  service.setLinkRuntime("openconnector")
-  const events = captureServiceEvents(service)
-  service.startEventBridge()
-  await service.setPermissionMode({ sessionId: "session-1", permissionMode: "full_access" })
-
-  bridge.emit({
-    type: "permission.v2.asked",
-    properties: {
-      id: "permission-1",
-      sessionID: "session-1",
-      action: "bash",
-      resources: ["echo $OO_CONNECTOR_TOKEN"],
-      metadata: { command: "echo $OO_CONNECTOR_TOKEN" },
-    },
-  })
-
-  await waitForCondition(() => bridge.answerPermission.mock.calls.length === 1)
-  assert.deepEqual(bridge.answerPermission.mock.calls, [["session-1", "permission-1", "reject"]])
-  assert.equal(
-    events.some((event) => event.event === "permissionAsked"),
-    false,
-  )
-})
-
-test("OpenConnector unmodeled local wrappers are approved in full-access mode", async () => {
-  const bridge = createBridgeAgent()
-  const service = new ChatServiceImpl(bridge.agent)
-  service.setLinkRuntime("openconnector")
-  const events = captureServiceEvents(service)
-  service.startEventBridge()
-  await service.setPermissionMode({ sessionId: "session-1", permissionMode: "full_access" })
-
-  bridge.emit({
-    type: "permission.v2.asked",
-    properties: {
-      id: "permission-1",
-      sessionID: "session-1",
-      action: "bash",
-      resources: ["bash render-pdf.sh"],
-      metadata: { command: "bash render-pdf.sh" },
-    },
-  })
-
-  await waitForCondition(() => bridge.answerPermission.mock.calls.length === 1)
-  assert.deepEqual(bridge.answerPermission.mock.calls, [["session-1", "permission-1", "once"]])
-  assert.equal(events.filter((event) => event.event === "permissionAsked").length, 0)
-})
-
 test("always permission reply stores a main-process session grant", async () => {
   const bridge = createBridgeAgent()
   const service = new ChatServiceImpl(bridge.agent)
@@ -3282,129 +2966,141 @@ test("always permission reply stores a main-process session grant", async () => 
   assert.equal(bridge.getPendingPermissions.mock.calls.length, 0)
 })
 
-test.skipIf(process.platform === "win32")("direct managed Python dependencies are approved automatically in the active turn environment", async () => {
-  const bridge = createBridgeAgent()
-  const processRoot = path.join(os.tmpdir(), "dweis-python-task-1")
-  bridge.createProcessDir.mockResolvedValue(processRoot)
-  const service = new ChatServiceImpl(bridge.agent)
-  const events = captureServiceEvents(service)
-  service.startEventBridge()
-  await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "Create a spreadsheet" })
+test.skipIf(process.platform === "win32")(
+  "direct managed Python dependencies are approved automatically in the active turn environment",
+  async () => {
+    const bridge = createBridgeAgent()
+    const processRoot = path.join(os.tmpdir(), "dweis-python-task-1")
+    bridge.createProcessDir.mockResolvedValue(processRoot)
+    const service = new ChatServiceImpl(bridge.agent)
+    const events = captureServiceEvents(service)
+    service.startEventBridge()
+    await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "Create a spreadsheet" })
 
-  const command = `${processRoot}/.wanta-python/bin/python -m pip install --upgrade 'pandas>=2' openpyxl`
-  bridge.emit({
-    type: "permission.v2.asked",
-    properties: {
-      id: "permission-1",
-      sessionID: "session-1",
-      action: "bash",
-      resources: [command],
-      metadata: { command },
-    },
-  })
+    const command = `${processRoot}/.wanta-python/bin/python -m pip install --upgrade 'pandas>=2' openpyxl`
+    bridge.emit({
+      type: "permission.v2.asked",
+      properties: {
+        id: "permission-1",
+        sessionID: "session-1",
+        action: "bash",
+        resources: [command],
+        metadata: { command },
+      },
+    })
 
-  await waitForCondition(() => bridge.answerPermission.mock.calls.length === 1)
-  assert.deepEqual(bridge.answerPermission.mock.calls, [["session-1", "permission-1", "once"]])
-  assert.equal(events.filter((event) => event.event === "permissionAsked").length, 0)
-})
+    await waitForCondition(() => bridge.answerPermission.mock.calls.length === 1)
+    assert.deepEqual(bridge.answerPermission.mock.calls, [["session-1", "permission-1", "once"]])
+    assert.equal(events.filter((event) => event.event === "permissionAsked").length, 0)
+  },
+)
 
-test.skipIf(process.platform === "win32")("task Python environment bootstrap and dependency install are approved as one bounded operation", async () => {
-  const bridge = createBridgeAgent()
-  const processRoot = path.join(os.tmpdir(), "dweis-python-bootstrap-task")
-  bridge.createProcessDir.mockResolvedValue(processRoot)
-  const service = new ChatServiceImpl(bridge.agent)
-  const events = captureServiceEvents(service)
-  service.startEventBridge()
-  await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "Create a Word document" })
+test.skipIf(process.platform === "win32")(
+  "task Python environment bootstrap and dependency install are approved as one bounded operation",
+  async () => {
+    const bridge = createBridgeAgent()
+    const processRoot = path.join(os.tmpdir(), "dweis-python-bootstrap-task")
+    bridge.createProcessDir.mockResolvedValue(processRoot)
+    const service = new ChatServiceImpl(bridge.agent)
+    const events = captureServiceEvents(service)
+    service.startEventBridge()
+    await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "Create a Word document" })
 
-  const command =
-    `python3 -m venv "${processRoot}/.wanta-python" && ` +
-    `"${processRoot}/.wanta-python/bin/python" -m pip install python-docx 2>&1`
-  bridge.emit({
-    type: "permission.v2.asked",
-    properties: {
-      id: "permission-1",
-      sessionID: "session-1",
-      action: "bash",
-      resources: [command],
-      metadata: { command },
-    },
-  })
+    const command =
+      `python3 -m venv "${processRoot}/.wanta-python" && ` +
+      `"${processRoot}/.wanta-python/bin/python" -m pip install python-docx 2>&1`
+    bridge.emit({
+      type: "permission.v2.asked",
+      properties: {
+        id: "permission-1",
+        sessionID: "session-1",
+        action: "bash",
+        resources: [command],
+        metadata: { command },
+      },
+    })
 
-  await waitForCondition(() => bridge.answerPermission.mock.calls.length === 1)
-  assert.deepEqual(bridge.answerPermission.mock.calls, [["session-1", "permission-1", "once"]])
-  assert.equal(events.filter((event) => event.event === "permissionAsked").length, 0)
-})
+    await waitForCondition(() => bridge.answerPermission.mock.calls.length === 1)
+    assert.deepEqual(bridge.answerPermission.mock.calls, [["session-1", "permission-1", "once"]])
+    assert.equal(events.filter((event) => event.event === "permissionAsked").length, 0)
+  },
+)
 
-test.skipIf(process.platform === "win32")("task-scoped dependencies inherit the parent process boundary in task subagents", async () => {
-  const bridge = createBridgeAgent()
-  const processRoot = path.join(os.tmpdir(), "dweis-python-parent-task")
-  bridge.createProcessDir.mockResolvedValue(processRoot)
-  const service = new ChatServiceImpl(bridge.agent)
-  const events = captureServiceEvents(service)
-  service.startEventBridge()
-  await service.sendMessage({ scope: testTeamScope, sessionId: "parent-session", text: "Delegate the PDF work" })
-  bridge.emit({
-    type: "message.part.updated",
-    properties: {
-      part: {
-        id: "task-1",
-        sessionID: "parent-session",
-        messageID: "assistant-1",
-        type: "tool",
-        callID: "call-1",
-        tool: "task",
-        state: {
-          status: "running",
-          input: {},
-          metadata: { parentSessionId: "parent-session", sessionId: "child-session" },
+test.skipIf(process.platform === "win32")(
+  "task-scoped dependencies inherit the parent process boundary in task subagents",
+  async () => {
+    const bridge = createBridgeAgent()
+    const processRoot = path.join(os.tmpdir(), "dweis-python-parent-task")
+    bridge.createProcessDir.mockResolvedValue(processRoot)
+    const service = new ChatServiceImpl(bridge.agent)
+    const events = captureServiceEvents(service)
+    service.startEventBridge()
+    await service.sendMessage({ scope: testTeamScope, sessionId: "parent-session", text: "Delegate the PDF work" })
+    bridge.emit({
+      type: "message.part.updated",
+      properties: {
+        part: {
+          id: "task-1",
+          sessionID: "parent-session",
+          messageID: "assistant-1",
+          type: "tool",
+          callID: "call-1",
+          tool: "task",
+          state: {
+            status: "running",
+            input: {},
+            metadata: { parentSessionId: "parent-session", sessionId: "child-session" },
+          },
         },
       },
-    },
-  })
+    })
 
-  const command = `${processRoot}/.wanta-python/bin/python -m pip install pypdf reportlab`
-  bridge.emit({
-    type: "permission.v2.asked",
-    properties: {
-      id: "permission-1",
-      sessionID: "child-session",
-      action: "bash",
-      resources: [command],
-      metadata: { command },
-    },
-  })
+    const command = `${processRoot}/.wanta-python/bin/python -m pip install pypdf reportlab`
+    bridge.emit({
+      type: "permission.v2.asked",
+      properties: {
+        id: "permission-1",
+        sessionID: "child-session",
+        action: "bash",
+        resources: [command],
+        metadata: { command },
+      },
+    })
 
-  await waitForCondition(() => bridge.answerPermission.mock.calls.length === 1)
-  assert.deepEqual(bridge.answerPermission.mock.calls, [["child-session", "permission-1", "once"]])
-  assert.equal(events.filter((event) => event.event === "permissionAsked").length, 0)
-})
+    await waitForCondition(() => bridge.answerPermission.mock.calls.length === 1)
+    assert.deepEqual(bridge.answerPermission.mock.calls, [["child-session", "permission-1", "once"]])
+    assert.equal(events.filter((event) => event.event === "permissionAsked").length, 0)
+  },
+)
 
-test.skipIf(process.platform === "win32")("managed Python dependency approval does not depend on package popularity", async () => {
-  const bridge = createBridgeAgent()
-  const processRoot = path.join(os.tmpdir(), "dweis-python-task-1")
-  bridge.createProcessDir.mockResolvedValue(processRoot)
-  const service = new ChatServiceImpl(bridge.agent)
-  const events = captureServiceEvents(service)
-  service.startEventBridge()
-  await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "Create a spreadsheet" })
+test.skipIf(process.platform === "win32")(
+  "managed Python dependency approval does not depend on package popularity",
+  async () => {
+    const bridge = createBridgeAgent()
+    const processRoot = path.join(os.tmpdir(), "dweis-python-task-1")
+    bridge.createProcessDir.mockResolvedValue(processRoot)
+    const service = new ChatServiceImpl(bridge.agent)
+    const events = captureServiceEvents(service)
+    service.startEventBridge()
+    await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "Create a spreadsheet" })
 
-  const command = `${processRoot}/.wanta-python/bin/python -m pip install pendulum`
-  bridge.emit({
-    type: "permission.v2.asked",
-    properties: {
-      id: "permission-1",
-      sessionID: "session-1",
-      action: "bash",
-      resources: [command],
-      metadata: { command },
-    },
-  })
+    const command = `${processRoot}/.wanta-python/bin/python -m pip install pendulum`
+    bridge.emit({
+      type: "permission.v2.asked",
+      properties: {
+        id: "permission-1",
+        sessionID: "session-1",
+        action: "bash",
+        resources: [command],
+        metadata: { command },
+      },
+    })
 
-  await waitForCondition(() => bridge.answerPermission.mock.calls.length === 1)
-  assert.deepEqual(bridge.answerPermission.mock.calls, [["session-1", "permission-1", "once"]])
-  assert.equal(events.filter((event) => event.event === "permissionAsked").length, 0)
-})
+    await waitForCondition(() => bridge.answerPermission.mock.calls.length === 1)
+    assert.deepEqual(bridge.answerPermission.mock.calls, [["session-1", "permission-1", "once"]])
+    assert.equal(events.filter((event) => event.event === "permissionAsked").length, 0)
+  },
+)
 
 test("default command approvals still prompt unsafe package mutations", async () => {
   const bridge = createBridgeAgent()
@@ -3513,87 +3209,93 @@ test("standard registry Node dependencies are approved automatically in the sele
   assert.equal(events.filter((event) => event.event === "permissionAsked").length, 0)
 })
 
-test.skipIf(process.platform === "win32")("bounded Python dependencies are approved automatically in the selected project", async () => {
-  const bridge = createBridgeAgent()
-  const projectPath = "/Users/example/code/customer-project"
-  const service = new ChatServiceImpl(bridge.agent, {
-    projectStore: projectStore([
-      {
-        id: "project-1",
-        name: "customer-project",
-        path: projectPath,
-        createdAt: 1_000,
-        updatedAt: 1_000,
-      },
-    ]),
-  })
-  const events = captureServiceEvents(service)
-  service.startEventBridge()
-  await service.sendMessage({
-    scope: testTeamScope,
-    projectContext: { id: "project-1", name: "customer-project", path: projectPath },
-    sessionId: "session-1",
-    text: "Create a PDF report",
-  })
-
-  const commands = [
-    `${projectPath}/.venv/bin/python -m pip install --compile --use-feature=fast-deps weasyprint`,
-    `uv pip install --python=${projectPath}/venv/bin/python3 pypdf`,
-  ]
-  for (const [index, command] of commands.entries()) {
-    bridge.emit({
-      type: "permission.v2.asked",
-      properties: {
-        id: `permission-${index + 1}`,
-        sessionID: "session-1",
-        action: "bash",
-        resources: [command],
-        metadata: { command },
-      },
+test.skipIf(process.platform === "win32")(
+  "bounded Python dependencies are approved automatically in the selected project",
+  async () => {
+    const bridge = createBridgeAgent()
+    const projectPath = "/Users/example/code/customer-project"
+    const service = new ChatServiceImpl(bridge.agent, {
+      projectStore: projectStore([
+        {
+          id: "project-1",
+          name: "customer-project",
+          path: projectPath,
+          createdAt: 1_000,
+          updatedAt: 1_000,
+        },
+      ]),
     })
-  }
-
-  await waitForCondition(() => bridge.answerPermission.mock.calls.length === 2)
-  assert.deepEqual(bridge.answerPermission.mock.calls, [
-    ["session-1", "permission-1", "once"],
-    ["session-1", "permission-2", "once"],
-  ])
-  assert.equal(events.filter((event) => event.event === "permissionAsked").length, 0)
-})
-
-test.skipIf(process.platform === "win32")("browser libraries are approved automatically in the active PDF task directory", async () => {
-  const bridge = createBridgeAgent()
-  const processRoot = path.join(os.tmpdir(), "DWeis PDF Task", "process-1")
-  bridge.createProcessDir.mockResolvedValue(processRoot)
-  const service = new ChatServiceImpl(bridge.agent)
-  const events = captureServiceEvents(service)
-  service.startEventBridge()
-  await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "Create a PDF report" })
-
-  const commands = [
-    `cd "${processRoot}" && npm install puppeteer-core 2>&1 | tail -5`,
-    `cd "${processRoot}" && npm install playwright puppeteer canvas --unknown-option 2>&1 | tail -5`,
-  ]
-  for (const [index, command] of commands.entries()) {
-    bridge.emit({
-      type: "permission.v2.asked",
-      properties: {
-        id: `permission-${index + 1}`,
-        sessionID: "session-1",
-        action: "bash",
-        resources: [command],
-        metadata: { command },
-      },
+    const events = captureServiceEvents(service)
+    service.startEventBridge()
+    await service.sendMessage({
+      scope: testTeamScope,
+      projectContext: { id: "project-1", name: "customer-project", path: projectPath },
+      sessionId: "session-1",
+      text: "Create a PDF report",
     })
-  }
 
-  await waitForCondition(() => bridge.answerPermission.mock.calls.length === 2)
-  assert.deepEqual(bridge.answerPermission.mock.calls, [
-    ["session-1", "permission-1", "once"],
-    ["session-1", "permission-2", "once"],
-  ])
-  assert.equal(events.filter((event) => event.event === "permissionAsked").length, 0)
-})
+    const commands = [
+      `${projectPath}/.venv/bin/python -m pip install --compile --use-feature=fast-deps weasyprint`,
+      `uv pip install --python=${projectPath}/venv/bin/python3 pypdf`,
+    ]
+    for (const [index, command] of commands.entries()) {
+      bridge.emit({
+        type: "permission.v2.asked",
+        properties: {
+          id: `permission-${index + 1}`,
+          sessionID: "session-1",
+          action: "bash",
+          resources: [command],
+          metadata: { command },
+        },
+      })
+    }
+
+    await waitForCondition(() => bridge.answerPermission.mock.calls.length === 2)
+    assert.deepEqual(bridge.answerPermission.mock.calls, [
+      ["session-1", "permission-1", "once"],
+      ["session-1", "permission-2", "once"],
+    ])
+    assert.equal(events.filter((event) => event.event === "permissionAsked").length, 0)
+  },
+)
+
+test.skipIf(process.platform === "win32")(
+  "browser libraries are approved automatically in the active PDF task directory",
+  async () => {
+    const bridge = createBridgeAgent()
+    const processRoot = path.join(os.tmpdir(), "DWeis PDF Task", "process-1")
+    bridge.createProcessDir.mockResolvedValue(processRoot)
+    const service = new ChatServiceImpl(bridge.agent)
+    const events = captureServiceEvents(service)
+    service.startEventBridge()
+    await service.sendMessage({ scope: testTeamScope, sessionId: "session-1", text: "Create a PDF report" })
+
+    const commands = [
+      `cd "${processRoot}" && npm install puppeteer-core 2>&1 | tail -5`,
+      `cd "${processRoot}" && npm install playwright puppeteer canvas --unknown-option 2>&1 | tail -5`,
+    ]
+    for (const [index, command] of commands.entries()) {
+      bridge.emit({
+        type: "permission.v2.asked",
+        properties: {
+          id: `permission-${index + 1}`,
+          sessionID: "session-1",
+          action: "bash",
+          resources: [command],
+          metadata: { command },
+        },
+      })
+    }
+
+    await waitForCondition(() => bridge.answerPermission.mock.calls.length === 2)
+    assert.deepEqual(bridge.answerPermission.mock.calls, [
+      ["session-1", "permission-1", "once"],
+      ["session-1", "permission-2", "once"],
+    ])
+    assert.equal(events.filter((event) => event.event === "permissionAsked").length, 0)
+  },
+)
 
 test("package runner probes and document commands are approved from structure rather than argument text", async () => {
   const bridge = createBridgeAgent()

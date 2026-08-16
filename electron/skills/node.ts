@@ -1,4 +1,3 @@
-import type { AuthManager } from "../auth/node.ts"
 import type { OoCommandResult } from "../oo-command.ts"
 import type {
   DeleteSkillRequest,
@@ -36,11 +35,7 @@ import { SkillInventoryCache } from "./inventory-cache.ts"
 import { mergeInstalledSkillSnapshots, readSkillCoverageAgents } from "./inventory-snapshot.ts"
 import { buildSummary, groupInstalledSkills } from "./inventory.ts"
 import { areManifestStoresEqual, readManifestStore, upsertManifestRecords, writeManifestStore } from "./manifest.ts"
-import {
-  isSkillRemovedByUser,
-  RemovedSkillStore,
-  upsertRemovedSkillRecord,
-} from "./removed-store.ts"
+import { isSkillRemovedByUser, RemovedSkillStore, upsertRemovedSkillRecord } from "./removed-store.ts"
 import { scanInstalledSkills, scanDWeisInstalledSkills } from "./scan.ts"
 
 interface SkillServiceOptions {
@@ -48,7 +43,6 @@ interface SkillServiceOptions {
 }
 
 export class SkillServiceImpl extends ConnectionService<SkillService> implements IConnectionService<SkillService> {
-  private readonly authService: AuthManager
   private readonly fileWatcher: SkillFileWatcher
   private readonly inventoryCache = new SkillInventoryCache()
   private readonly externalRuntimeSynchronizer: ExternalSkillRuntimeSynchronizer
@@ -59,9 +53,8 @@ export class SkillServiceImpl extends ConnectionService<SkillService> implements
   private isDisposed = false
   public readonly inventoryChanged = new ServiceEvent<SkillInventoryChangedEvent>()
 
-  public constructor(authService: AuthManager, options: SkillServiceOptions = {}) {
+  public constructor(options: SkillServiceOptions = {}) {
     super(SkillServiceName)
-    this.authService = authService
     this.options = options
     this.fileWatcher = new SkillFileWatcher({
       onExternalRuntimeSync: () => this.syncExternalRuntimeSkillsAndNotify("external-skill-files-changed"),
@@ -122,17 +115,6 @@ export class SkillServiceImpl extends ConnectionService<SkillService> implements
 
   private getBundledAgentSkillRoot(): string {
     return path.join(app.getPath("userData"), "agent", "workspace", ".opencode", "skill")
-  }
-
-  private async readSkillAuthToken(): Promise<string> {
-    await this.authService.getAuthState()
-    const authToken = await this.authService.currentSessionToken()
-
-    if (!authToken) {
-      throw new Error("Skills not available (sign in first)")
-    }
-
-    return authToken
   }
 
   public async getSkillInventory(): Promise<SkillInventory> {
@@ -325,20 +307,16 @@ export class SkillServiceImpl extends ConnectionService<SkillService> implements
     target: Pick<SkillDeleteStoreTarget, "kind">,
     args: string[],
   ): Promise<OoCommandResult> {
-    const authToken = await this.readSkillAuthToken()
-
     const globalStoreRoot = this.getGlobalOoStoreRoot()
     const env =
       target.kind === "global"
         ? buildOomolMaintenanceEnv({
-            authToken,
             configDir: globalStoreRoot,
             dataDir: path.join(globalStoreRoot, "data"),
             logDir: path.join(globalStoreRoot, "log"),
             ooBinPath: process.env["OO_CLI_PATH"],
           })
         : buildOomolMaintenanceEnv({
-            authToken,
             configDir: path.join(this.getDWeisOoStoreRoot(), "config"),
             dataDir: path.join(this.getDWeisOoStoreRoot(), "data"),
             logDir: path.join(this.getDWeisOoStoreRoot(), "log"),

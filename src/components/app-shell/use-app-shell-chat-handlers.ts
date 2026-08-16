@@ -22,8 +22,8 @@ import type { ChatStatus } from "ai"
 import * as React from "react"
 import { buildFallbackSessionTitle } from "../../../electron/session/title.ts"
 import { buildSessionTitleInput, chatSendAccepted } from "./app-shell-model.ts"
-import { chatTurnInputKey } from "@/routes/Chat/chat-turns"
 import { chatTurnAllowsDirectSend, chatTurnAllowsStop } from "@/routes/Chat/chat-turn-state"
+import { chatTurnInputKey } from "@/routes/Chat/chat-turns"
 
 interface KnowledgeMention {
   id: string

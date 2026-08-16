@@ -78,9 +78,10 @@ function parseTimeOfDay(text: string): string | null {
     return null
   }
   // 中文：上午/下午/晚上 + 数字 + 点（+ 半/一刻/数字分）
-  const periodMatch = /(上午|早上|早晨|下午|晚上|中午|凌晨)?\s*([零一二两三四五六七八九十\d]+)\s*点(?:\s*(半|一刻|(\d{1,2})分?))?/.exec(
-    trimmed,
-  )
+  const periodMatch =
+    /(上午|早上|早晨|下午|晚上|中午|凌晨)?\s*([零一二两三四五六七八九十\d]+)\s*点(?:\s*(半|一刻|(\d{1,2})分?))?/.exec(
+      trimmed,
+    )
   if (periodMatch) {
     const hourRaw = parseChineseNumber(periodMatch[2])
     if (hourRaw === null) return null
@@ -251,9 +252,7 @@ function nextRunAtFromCronInFrame(cron: string, from: Date, utc: boolean): Date 
     ((utc ? from.getUTCHours() : from.getHours()) * 60 + (utc ? from.getUTCMinutes() : from.getMinutes())) % (24 * 60)
   // 最多扫 400 天（含跨年）；命中当天后在当天内找第一个匹配 时:分。
   for (let offset = 0; offset <= 400; offset += 1) {
-    const day = utc
-      ? new Date(Date.UTC(year, month, date + offset))
-      : new Date(year, month, date + offset)
+    const day = utc ? new Date(Date.UTC(year, month, date + offset)) : new Date(year, month, date + offset)
     const frameYear = utc ? day.getUTCFullYear() : day.getFullYear()
     const frameMonth = utc ? day.getUTCMonth() : day.getMonth()
     const frameDate = utc ? day.getUTCDate() : day.getDate()

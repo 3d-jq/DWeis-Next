@@ -6,9 +6,9 @@ beyond AGENTS.md. Read only the section that matches the current task.
 
 ## What this is
 
-OOMOL's Electron desktop AI-agent chat client: Vite + React renderer (`src/`), Electron main
-process (`electron/`), Node dev tooling (`scripts/`). Requires Node >= 22.22.2 and
-`pnpm@9.14.4` via corepack — run commands as `corepack pnpm ...`.
+DWeis Next's Electron desktop AI-agent client (fork of oomol-lab/wanta, local self-managed only):
+Vite + React renderer (`src/`), Electron main process (`electron/`), Node dev tooling (`scripts/`).
+Requires Node >= 22.22.2 and `pnpm@9.14.4` via corepack — run commands as `corepack pnpm ...`.
 
 ## Bootstrap
 
@@ -18,9 +18,9 @@ Fresh-checkout initialization; rerun any time the checkout is partially initiali
 2. Run `corepack pnpm run dev:worktree` for worktree-aware development. If the current worktree's
    `./dweis` userData is missing or empty, it is initialized once from the canonical repo's
    `./dweis` when that source exists and is non-empty.
-3. For login, sign-in, sign-out, auth persistence, or first-run work, run
-   `corepack pnpm run auth:clean` to start with a clean signed-out dev profile. Delete `./dweis`
-   when you want `dev:worktree` to initialize from the canonical repo again.
+3. The product is local self-managed only — there is no cloud login. First run goes straight to
+   the custom-model setup screen. To reset dev state to first-run, delete `./dweis` (or the
+   worktree's `./dweis`) — `dev:worktree` re-initializes it from the canonical repo when available.
 4. If the checkout is partially initialized, rerun `corepack pnpm run bootstrap`; it is idempotent.
 5. Run the quality gate when needed: `ts-check` → `lint` → `format` → `test` → `build`.
 
@@ -31,11 +31,8 @@ Fresh-checkout initialization; rerun any time the checkout is partially initiali
   directory, never the canonical repo's directory directly.
 - `dev:worktree` copies the canonical repo's `./dweis` only when the target `./dweis` is missing or
   empty. Existing worktree state is never overwritten.
-- The old `~/dweis-dev/login-state` and `~/dweis-dev/login-user-data` auth snapshot flow is retired;
-  new development commands do not create, read, or depend on `~/dweis-dev`.
-- `corepack pnpm run auth:status` reports only the current checkout's `./dweis`. `auth:clean`
-  removes and recreates that directory with a small marker so `dev:worktree` preserves the
-  intentionally signed-out profile. `auth:capture`, `auth:save`, and `auth:restore` are deprecated.
+- No auth state exists: `operatingMode` in `dweis/settings.json` records `self-managed` (after the
+  first-run model setup) or `unselected` (before).
 
 ### Dev launch
 
@@ -44,7 +41,7 @@ Fresh-checkout initialization; rerun any time the checkout is partially initiali
 - Headless renderer startup only: `corepack pnpm run dev:no-electron`
 - Disable Electron auto-start when you want the Vite process without an app window:
   `DWEIS_ELECTRON_AUTO_START=0 corepack pnpm run dev`
-- Login capture, sign-in callback, and protocol-handler debugging require the dev protocol handler:
+- Protocol-handler debugging requires the dev protocol handler:
   `DWEIS_SKIP_PROTOCOL_REGISTRATION=0 corepack pnpm run dev:worktree`. Use only one such session per
   machine.
 
@@ -78,9 +75,8 @@ Use when the repo is opened in a fresh worktree and multiple agents may run in p
   environment.
 - Ordinary product work starts from the worktree's `./dweis`. If it is missing or empty,
   `dev:worktree` initializes it once from the canonical repo's `./dweis` when available.
-- Login/auth work can reset the current worktree to a clean signed-out profile with
-  `corepack pnpm run auth:clean`, which clears `./dweis` and leaves a marker so startup does not
-  re-initialize it from the canonical repo.
+- First-run work (operating mode / model setup) can reset the worktree by deleting `./dweis`
+  (startup then re-initializes it from the canonical repo, or shows the first-run setup if none).
 
 ### Shared resources and safe assumptions
 
@@ -89,11 +85,10 @@ Use when the repo is opened in a fresh worktree and multiple agents may run in p
   handler.
 - The canonical repo's `./dweis` is a one-time initialization source for empty worktree `./dweis`
   directories; it is never used as a shared runtime profile.
-- Only one session per machine should enable protocol registration for login callback work.
+- Only one session per machine should enable protocol registration (deep-link debugging).
 - One active `corepack pnpm run dev` per machine is the default safe mode; `dev:worktree` is the
   safer default for parallel agent work.
 - Existing worktree `./dweis` data is never overwritten by startup.
-- `auth:clean` is the right starting point for login, logout, callback, and first-run behavior.
 - `DWEIS_ELECTRON_AUTO_START=0` is useful when you want the build/watch loop without auto-launch.
 - Branches should stay short-lived and isolated from `main`.
 
@@ -102,16 +97,16 @@ Use when the repo is opened in a fresh worktree and multiple agents may run in p
 - Port collisions
 - Shared user data
 - Shared protocol registration
-- Missing, signed-out, or expired canonical/current `./dweis` profiles
+- Missing or first-run `./dweis` profiles (model not configured yet)
 - Any background process that survives a stopped dev session
 
 ### Worktree-safe startup
 
 1. Run `corepack pnpm run bootstrap`.
-2. Run `corepack pnpm run auth:clean` only when you intentionally need a signed-out profile.
-3. Run `corepack pnpm run dev:worktree`.
+2. Run `corepack pnpm run dev:worktree`.
 
-If no canonical `./dweis` exists, the worktree still starts normally and shows the login page.
+If no canonical `./dweis` exists, the worktree still starts normally and shows the first-run model
+setup.
 
 ## Dev Debugging
 
@@ -123,21 +118,19 @@ screen sharing.
 - `corepack pnpm run dev:worktree`
 - `VITE_DWEIS_ROUTE=settings corepack pnpm run dev:worktree`
 - `VITE_DWEIS_SMOKE="hello" corepack pnpm run dev:worktree`
-- `DWEIS_SKIP_PROTOCOL_REGISTRATION=0 corepack pnpm run dev:worktree` only when debugging login
-  callback handling; keep this to one active session per machine.
+- `DWEIS_SKIP_PROTOCOL_REGISTRATION=0 corepack pnpm run dev:worktree` only when debugging deep-link
+  handling; keep this to one active session per machine.
 
-### Auth state modes
+### Runtime state modes
 
 - Normal product work: launch with `dev:worktree`; an empty worktree `./dweis` initializes once from
   the canonical repo's `./dweis` when available.
-- Login/auth work: `corepack pnpm run auth:clean`, then launch with `dev:worktree`.
-- There is no machine-level `~/dweis-dev` auth snapshot. If no canonical `./dweis` exists or its
-  login has expired, sign in in the current checkout's own `./dweis` profile.
-- When login state is suspect, run `corepack pnpm run auth:status` first. It reports the current
-  checkout's `./dweis` profile, cookie marker, and cookie expiry without printing credentials.
+- First-run / model-setup work: delete `./dweis` (or the worktree's copy), then launch with
+  `dev:worktree`; the app shows the custom-model setup until `operatingMode` becomes `self-managed`.
+- If the app shows the model-setup screen but a model is already configured, check
+  `dweis/settings.json` — `operatingMode` should be `self-managed`.
 
-Do not ask the user to describe a logged-in screen before checking whether the current worktree has
-the intended auth mode.
+Do not ask the user to describe a logged-in screen; there is no login in this product.
 
 ### What to inspect
 
@@ -153,18 +146,14 @@ the intended auth mode.
 - macOS: `osascript` for window/process state, `screencapture` for full-screen or region capture
 - Windows: capture screenshots to a scratch dir (e.g. `D:\tmp`)
 - `cat .dweis-dev/bootstrap.json` for the active worktree port, protocol scheme, and user-data path
-- `corepack pnpm run auth:status` for the current worktree auth mode and saved cookie expiry
 - `lsof -iTCP:<port> -sTCP:LISTEN` (macOS) / `netstat -ano` (Windows) for port conflicts
 
 ### Common failure modes
 
 - Electron window never appears
-- app stays on the login gate because the canonical/current `./dweis` is missing, signed out, or
-  expired, or the task intentionally started from `auth:clean`
+- app stays on the first-run model setup because `./dweis` was reset or the model config is missing
 - the worktree port is already taken
 - a stale Electron process is still alive after a stopped session
-- login callback does not return to the app because protocol registration is disabled in
-  `dev:worktree`
 
 ### Debugging rule
 

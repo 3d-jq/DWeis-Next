@@ -35,7 +35,9 @@ describe("isTrustedIpcSender", () => {
 
   it("accepts a packaged renderer file URL inside the dist directory", () => {
     const packaged = { viteDevServerUrl: undefined, rendererBaseUrl: "file:///C:/app/resources/app.asar/dist/" }
-    expect(isTrustedIpcSender(fakeEvent("file:///C:/app/resources/app.asar/dist/index.html", true), packaged)).toBe(true)
+    expect(isTrustedIpcSender(fakeEvent("file:///C:/app/resources/app.asar/dist/index.html", true), packaged)).toBe(
+      true,
+    )
   })
 
   it("rejects a file URL outside the dist directory", () => {

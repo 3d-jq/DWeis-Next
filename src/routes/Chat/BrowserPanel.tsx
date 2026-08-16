@@ -1,12 +1,12 @@
 import type { BrowserPageState, BrowserViewBounds } from "../../../electron/browser/common.ts"
 import type { BrowserService } from "../../../electron/browser/common.ts"
+import type { PanelHeaderAction } from "@/components/app-shell/PanelHeader.tsx"
 import type { ConnectionClientService } from "@oomol/connection"
 
 import { ArrowLeft, ArrowRight, ExternalLink, LoaderCircle, RotateCw } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
 import { PanelHeader } from "@/components/app-shell/PanelHeader.tsx"
-import type { PanelHeaderAction } from "@/components/app-shell/PanelHeader.tsx"
 import { useT } from "@/i18n/i18n"
 import { reportRendererHandledError } from "@/lib/renderer-diagnostics"
 import { cn } from "@/lib/utils"
@@ -27,7 +27,14 @@ function browserViewIsOccluded(root: ParentNode = document): boolean {
   return Boolean(root.querySelector('[aria-modal="true"]'))
 }
 
-export function BrowserPanel({ browserService, sessionId, state, onSetTitle, maximized, onToggleMaximized }: BrowserPanelProps) {
+export function BrowserPanel({
+  browserService,
+  sessionId,
+  state,
+  onSetTitle,
+  maximized,
+  onToggleMaximized,
+}: BrowserPanelProps) {
   const t = useT()
   const browserSlotRef = React.useRef<HTMLDivElement | null>(null)
   const previewRequestRef = React.useRef(0)
@@ -93,11 +100,7 @@ export function BrowserPanel({ browserService, sessionId, state, onSetTitle, max
         }
         // Always ensure the native view is hidden behind a modal (idempotent)
         void browserService.invoke("hide", sessionId).catch((cause: unknown) => {
-          reportRendererHandledError(
-            "browser",
-            "hide browser page behind renderer surface failed",
-            cause,
-          )
+          reportRendererHandledError("browser", "hide browser page behind renderer surface failed", cause)
         })
         // Capture a placeholder snapshot only once (avoid re-capturing every frame)
         if (!snapshotShown) {
@@ -183,15 +186,18 @@ export function BrowserPanel({ browserService, sessionId, state, onSetTitle, max
 
   const pageTitle = state.navigation.title || state.navigation.url || t("rightPanel.tabBrowser")
 
-  const headerActions: PanelHeaderAction[] = React.useMemo(() => [
-    {
-      id: "open-in-browser",
-      icon: <ExternalLink className="size-4" />,
-      label: t("browser.openInSystem"),
-      onClick: openInSystemBrowser,
-      disabled: !state.navigation.url || state.navigation.url === "about:blank",
-    },
-  ], [openInSystemBrowser, state.navigation.url, t])
+  const headerActions: PanelHeaderAction[] = React.useMemo(
+    () => [
+      {
+        id: "open-in-browser",
+        icon: <ExternalLink className="size-4" />,
+        label: t("browser.openInSystem"),
+        onClick: openInSystemBrowser,
+        disabled: !state.navigation.url || state.navigation.url === "about:blank",
+      },
+    ],
+    [openInSystemBrowser, state.navigation.url, t],
+  )
 
   return (
     <section className="flex h-full min-h-0 flex-col bg-background">

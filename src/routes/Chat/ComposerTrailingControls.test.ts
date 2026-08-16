@@ -18,34 +18,30 @@ const baseProps: ComponentProps<typeof ComposerTrailingControls> = {
   permissionMode: "default",
   reasoningLevel: "default",
   turnState: { chatStatus: "ready", status: "idle" },
-  voiceActive: false,
-  voiceBars: [],
-  voiceDurationMs: 0,
-  voiceEnabled: true,
-  voiceError: null,
-  voiceRetryBlob: null,
-  voiceStarting: false,
-  voiceTranscribing: false,
   willQueueMessage: false,
   onAddModel: () => undefined,
-  onCancelVoice: () => undefined,
   onDeleteModel: () => undefined,
   onRequestFullAccessPermissionMode: () => undefined,
-  onRetryVoice: () => undefined,
   onSelectAgentMode: () => undefined,
   onSelectDefaultPermissionMode: () => undefined,
   onSelectModel: () => undefined,
   onSelectReasoningLevel: () => undefined,
-  onStartVoice: () => undefined,
   onStop: () => undefined,
-  onStopVoice: () => undefined,
 }
 
 function renderControls(overrides: Partial<ComponentProps<typeof ComposerTrailingControls>>): string {
   return renderToStaticMarkup(
     React.createElement(
       ThemeContext.Provider,
-      { value: { effectiveTheme: "light", palette: "default", preference: "light", setPalette: () => undefined, setPreference: () => undefined } },
+      {
+        value: {
+          effectiveTheme: "light",
+          palette: "default",
+          preference: "light",
+          setPalette: () => undefined,
+          setPreference: () => undefined,
+        },
+      },
       React.createElement(
         I18nContext.Provider,
         { value: { locale: "en", setLocale: () => undefined, t } },
@@ -56,17 +52,10 @@ function renderControls(overrides: Partial<ComponentProps<typeof ComposerTrailin
 }
 
 describe("ComposerTrailingControls", () => {
-  it("does not expose stale voice errors when the runtime disables voice", () => {
-    const html = renderControls({ voiceEnabled: false, voiceError: "Transcription failed" })
+  it("renders the send control without any voice UI", () => {
+    const html = renderControls({})
 
-    expect(html).not.toContain(`aria-label="${t("chat.voiceRetry")}"`)
-    expect(html).not.toContain(`aria-label="${t("chat.voiceCancel")}"`)
-  })
-
-  it("distinguishes cancelling startup from discarding the recording", () => {
-    const html = renderControls({ voiceActive: true, voiceStarting: true })
-
-    expect(html).toContain(`aria-label="${t("chat.voiceCancel")}"`)
-    expect(html).toContain(`aria-label="${t("chat.voiceDiscard")}"`)
+    expect(html).toContain(`aria-label="${t("aria.send")}"`)
+    expect(html.toLowerCase()).not.toContain("voice")
   })
 })

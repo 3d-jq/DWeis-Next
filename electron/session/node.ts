@@ -190,7 +190,8 @@ export class SessionServiceImpl
     return this.resolveSessionPersona(metadata, normalizeSessionScope(metadata.scope))
   }
 
-  public async listProjects(req: SessionScopeRequest): Promise<SessionProject[]> {    const agent = this.agent
+  public async listProjects(req: SessionScopeRequest): Promise<SessionProject[]> {
+    const agent = this.agent
     const revision = this.runtimeRevision
     if (!agent) {
       return []
@@ -343,7 +344,9 @@ export class SessionServiceImpl
     // 会话归属模式已定时，只能关联同模式项目（异模式视为不可关联）；会话未定时（旧会话）
     // 关联项目时采纳项目模式一并写入（关联即归属），后续归属不再改变。
     const canAssign =
-      project && !project.archivedAt && sessionScopeMatches(project.scope, scope) &&
+      project &&
+      !project.archivedAt &&
+      sessionScopeMatches(project.scope, scope) &&
       (sessionPersona === undefined || (project.persona ?? "work") === sessionPersona)
     if (canAssign) {
       next.projectId = project.id

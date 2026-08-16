@@ -56,7 +56,9 @@ describe("PlanSummaryPanel", () => {
   })
 
   it("renders nothing when there are no todo tool calls", () => {
-    const messages: ChatMessage[] = [{ id: "m1", role: "user", createdAt: 1, parts: [{ kind: "text", partId: "p1", text: "hi" }] }]
+    const messages: ChatMessage[] = [
+      { id: "m1", role: "user", createdAt: 1, parts: [{ kind: "text", partId: "p1", text: "hi" }] },
+    ]
     expect(
       renderToStaticMarkup(
         React.createElement(
@@ -166,10 +168,7 @@ describe("PlanSummaryPanel", () => {
 
     it("关闭后任务清单与关闭时快照不一致 → 自动重新呼出", async () => {
       const onOpenChange = vi.fn()
-      localStorage.setItem(
-        dismissedSnapshotKey,
-        JSON.stringify([{ content: "旧任务", status: "completed" }]),
-      )
+      localStorage.setItem(dismissedSnapshotKey, JSON.stringify([{ content: "旧任务", status: "completed" }]))
       const { host, root } = await renderLive([todoMessage([{ content: "新任务", status: "pending" }])], {
         initialOpen: false,
         onOpenChange,

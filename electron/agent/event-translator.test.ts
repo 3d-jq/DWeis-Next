@@ -109,9 +109,7 @@ test("message.updated omits tokenUsage while streaming tokens are still all-zero
     },
   })
 
-  assert.deepEqual(out, [
-    { event: "messageStarted", data: { sessionId: "s1", messageId: "m1", role: "assistant" } },
-  ])
+  assert.deepEqual(out, [{ event: "messageStarted", data: { sessionId: "s1", messageId: "m1", role: "assistant" } }])
 })
 
 test("message.updated with assistant error emits agentError after messageStarted", () => {

@@ -24,7 +24,7 @@ describe("bug report command", () => {
   it("uses a stable Markdown artifact name and model label", () => {
     expect(BUG_REPORT_FILE_NAME).toBe("dweis-bug-report.md")
     expect(bugReportModelLabel(undefined)).toBe("default")
-    expect(bugReportModelLabel({ id: "oopilot", kind: "builtin" })).toBe("builtin:oopilot")
+    expect(bugReportModelLabel({ id: "oopilot", kind: "custom" })).toBe("custom:oopilot")
   })
 
   it("builds a file-only, privacy-aware report contract", () => {
@@ -35,7 +35,7 @@ describe("bug report command", () => {
         appCommit: "abc123",
         appVersion: "1.2.3",
         generatedAt: "2026-07-13T06:30:22.000Z",
-        model: "builtin:oomol/oopilot",
+        model: "custom:oomol/oopilot",
         permissionMode: "default",
         platform: "darwin",
       },

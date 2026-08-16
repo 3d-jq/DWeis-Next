@@ -16,8 +16,6 @@ const customModel: OpencodeCustomModel = {
 const baseOptions = {
   customModels: [customModel],
   defaultModel: { kind: "custom" as const, id: "deepseek-v4-flash" },
-  linkRuntime: null,
-  modelAccess: { kind: "local" as const },
 }
 
 describe("buildOpencodeConfig subagent model", () => {

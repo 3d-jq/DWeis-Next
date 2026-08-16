@@ -15,7 +15,6 @@ export interface KnowledgeArchiveNode {
   path: string
 }
 
-
 export interface KnowledgeBreadcrumb {
   label: string
   path: string

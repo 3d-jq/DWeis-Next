@@ -1,3 +1,4 @@
+import type { DWeisReasoningLevel } from "../../electron/agent/reasoning.ts"
 import type {
   AppSettings,
   CompletionNotificationCondition,
@@ -7,7 +8,6 @@ import type {
   SearchConfig,
   SubagentModelChoice,
 } from "../../electron/settings/common.ts"
-import type { DWeisReasoningLevel } from "../../electron/agent/reasoning.ts"
 
 import * as React from "react"
 import { DEFAULT_APP_SETTINGS } from "../../electron/settings/common.ts"

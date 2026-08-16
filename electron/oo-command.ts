@@ -105,4 +105,3 @@ export function getOoPath(env: NodeJS.ProcessEnv = process.env, platform: NodeJS
 
   return pathParts.filter((part): part is string => Boolean(part)).join(platform === "win32" ? ";" : ":")
 }
-

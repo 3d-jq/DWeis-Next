@@ -2,7 +2,6 @@ import { ConnectionClient } from "@oomol/connection"
 import { ElectronClientAdapter } from "@oomol/connection-electron-adapter/client"
 import { createRoot } from "react-dom/client"
 import { AttentionService } from "../electron/attention/common.ts"
-import { AuthService } from "../electron/auth/common.ts"
 import { AutomationService } from "../electron/automation/common.ts"
 import { BrowserService } from "../electron/browser/common.ts"
 import { ChatService } from "../electron/chat/common.ts"
@@ -14,8 +13,8 @@ import { ModelsService } from "../electron/models/common.ts"
 import { SessionService } from "../electron/session/common.ts"
 import { SettingsService } from "../electron/settings/common.ts"
 import { SkillService } from "../electron/skills/common.ts"
-import { UpdateService } from "../electron/update/common.ts"
 import { UsageService } from "../electron/stats/common.ts"
+import { UpdateService } from "../electron/update/common.ts"
 import { App } from "@/App"
 import { AppContext } from "@/components/AppContext"
 import { detectInitialLocale, translate } from "@/i18n/i18n"
@@ -55,7 +54,6 @@ if (!hasElectronConnectionBridge()) {
   const skillService = client.use(SkillService)
   const modelsService = client.use(ModelsService)
   const settingsService = client.use(SettingsService)
-  const authService = client.use(AuthService)
   const updateService = client.use(UpdateService)
   const usageService = client.use(UsageService)
 
@@ -74,7 +72,6 @@ if (!hasElectronConnectionBridge()) {
         skillService,
         modelsService,
         settingsService,
-        authService,
         updateService,
         usageService,
       }}

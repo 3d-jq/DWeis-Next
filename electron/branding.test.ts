@@ -1,6 +1,5 @@
 import assert from "node:assert"
 import { describe, it } from "vitest"
-
 import { branding, serviceName, storageKey } from "./branding.ts"
 
 describe("branding storage-key contract", () => {

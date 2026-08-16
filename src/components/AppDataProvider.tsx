@@ -1,13 +1,9 @@
-import type { AuthState } from "../../electron/auth/common.ts"
 import type { SkillInventory } from "../../electron/skills/common.ts"
 import type { AppDataResources } from "@/components/AppDataContext"
 
 import * as React from "react"
 import { useAppContext } from "@/components/AppContext"
 import { AppDataContext } from "@/components/AppDataContext"
-import { useAuth } from "@/hooks/useAuth"
-import { clearBillingOverviewCache } from "@/hooks/useBillingOverview"
-import { clearAvatarImageCache } from "@/lib/avatar-image-cache"
 import { reportRendererHandledError } from "@/lib/renderer-diagnostics"
 import { createResource } from "@/lib/resource-store"
 
@@ -35,61 +31,18 @@ function isRefreshDataEqual<T>(current: T, next: T): boolean {
   return JSON.stringify(normalizeRefreshData(current)) === JSON.stringify(normalizeRefreshData(next))
 }
 
-function authCacheScope(state: AuthState | null): string | null {
-  if (!state) {
-    return null
-  }
-  return state.status === "authenticated" && state.account ? `account:${state.account.id}` : "unauthenticated"
-}
-
 export function AppDataProvider({ children }: { children: React.ReactNode }) {
   const { skillService } = useAppContext()
-  const auth = useAuth()
-  const authStateRef = React.useRef(auth.state)
-  authStateRef.current = auth.state
-  const resources = React.useMemo<AppDataResources>(() => {
-    const created: AppDataResources = {
-      authState: createResource<AuthState>({
-        isEqualData: isRefreshDataEqual,
-        staleTimeMs: 10_000,
-        load: async () => {
-          const state = authStateRef.current
-          if (!state) {
-            throw new Error("Auth state is unavailable.")
-          }
-          return state
-        },
-      }),
+  const resources = React.useMemo<AppDataResources>(
+    () => ({
       skillInventory: createResource<SkillInventory>({
         isEqualData: isRefreshDataEqual,
         // 主进程 watcher 会在技能变化时主动失效；较长 TTL 仅兜底发现启动时尚不存在的技能目录。
         staleTimeMs: 5 * 60_000,
         load: () => skillService.invoke("getSkillInventory"),
       }),
-    }
-    if (authStateRef.current) {
-      created.authState.setData(authStateRef.current)
-    }
-    return created
-  }, [skillService])
-
-  React.useEffect(() => {
-    const previousAuthState = resources.authState.getSnapshot().data
-    if (auth.state) {
-      if (authCacheScope(previousAuthState) !== authCacheScope(auth.state)) {
-        clearAvatarImageCache()
-        clearBillingOverviewCache()
-      }
-      resources.authState.setData(auth.state)
-    }
-  }, [auth.state, resources])
-
-  React.useEffect(
-    () => () => {
-      clearAvatarImageCache()
-      clearBillingOverviewCache()
-    },
-    [],
+    }),
+    [skillService],
   )
 
   React.useEffect(() => {

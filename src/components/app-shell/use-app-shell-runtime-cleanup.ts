@@ -3,10 +3,10 @@ import type { AppShellRoute as Route } from "./app-shell-types.ts"
 import type { PendingChatTransition } from "./pending-chat.ts"
 
 import * as React from "react"
-import { resolveUserFacingError } from "@/lib/user-facing-error"
-import { useT } from "@/i18n/i18n"
 import { existingSessionComposerDraftKey, sessionRecordScopeKey } from "./app-shell-model.ts"
 import { nextActiveSessionIdAfterArchive } from "./sidebar-sessions.ts"
+import { useT } from "@/i18n/i18n"
+import { resolveUserFacingError } from "@/lib/user-facing-error"
 
 interface UseAppShellRuntimeCleanupOptions {
   activeChatSessionId: string | null

@@ -1,7 +1,7 @@
 import type { SessionScope } from "../../../electron/session/common.ts"
 
-import { sessionScopeKey } from "../../../electron/session/common.ts"
 import { storageKey } from "../../../electron/branding.ts"
+import { sessionScopeKey } from "../../../electron/session/common.ts"
 
 export type SidebarSegment = "projects" | "tasks"
 export type SidebarTaskSortMode = "createdAt" | "title" | "updatedAt"
@@ -70,7 +70,9 @@ export interface SidebarCategoryCollapsed {
 const defaultSidebarCategoryCollapsed: SidebarCategoryCollapsed = { conversations: false, projects: false }
 
 /** 侧边栏「对话 / 项目」分类折叠状态（两个视图共用）。 */
-export function readStoredSidebarCategoriesCollapsed(storage: LocalStorageLike | null | undefined): SidebarCategoryCollapsed {
+export function readStoredSidebarCategoriesCollapsed(
+  storage: LocalStorageLike | null | undefined,
+): SidebarCategoryCollapsed {
   const raw = readItem(storage, sidebarCategoriesStorageKey)
   if (!raw) {
     return defaultSidebarCategoryCollapsed
@@ -98,15 +100,11 @@ export function writeStoredSidebarCategoriesCollapsed(
   writeItem(storage, sidebarCategoriesStorageKey, JSON.stringify(collapsed))
 }
 
-export function projectSidebarCollapsedStorageKey(
-  accountId: string | undefined,
-  scope: SessionScope | null,
-): string | null {
-  if (!scope || (scope.kind === "team" && !accountId)) {
+export function projectSidebarCollapsedStorageKey(scope: SessionScope | null): string | null {
+  if (!scope) {
     return null
   }
-  const ownerKey = scope.kind === "local" ? "local" : accountId
-  return `${projectCollapsedStoragePrefix}:${ownerKey}:${sessionScopeKey(scope)}`
+  return `${projectCollapsedStoragePrefix}:local:${sessionScopeKey(scope)}`
 }
 
 export function readStoredCollapsedProjectIds(

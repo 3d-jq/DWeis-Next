@@ -1,7 +1,7 @@
+import type { AutomationSchedule } from "./schedule.ts"
 import type { ServiceName } from "@oomol/connection"
 
 import { serviceName } from "../branding.ts"
-import type { AutomationSchedule } from "./schedule.ts"
 
 export type AutomationTaskStatus = "success" | "error" | "running"
 

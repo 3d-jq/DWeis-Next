@@ -3,7 +3,6 @@ import { resolveAppEntryState } from "@/app-entry"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
 import { ThemeProvider } from "@/components/ThemeProvider"
 import { Button } from "@/components/ui/button"
-import { AuthProvider, useAuth } from "@/hooks/useAuth"
 import { useGlobalScrollbars } from "@/hooks/useGlobalScrollbars"
 import { RuntimeCapabilitiesProvider, useRuntimeCapabilities } from "@/hooks/useRuntimeCapabilities"
 import { useT } from "@/i18n"
@@ -15,12 +14,10 @@ const AuthenticatedAppShell = lazy(() =>
   import("@/components/AuthenticatedAppShell").then((module) => ({ default: module.AuthenticatedAppShell })),
 )
 
-function AuthGate() {
-  const auth = useAuth()
+function AppGate() {
   const runtime = useRuntimeCapabilities()
   const uiReadyNotified = useRef(false)
   const entry = resolveAppEntryState({
-    authReady: auth.state !== null,
     runtimeFailed: runtime.error !== null,
     runtimeReady: runtime.capabilities !== null,
   })
@@ -41,18 +38,17 @@ function AuthGate() {
     return <div className="h-full bg-background" />
   }
 
-  if (entry === "fallback" || !runtime.capabilities || !auth.state) {
+  if (entry === "fallback" || !runtime.capabilities) {
     return <AppShellFallback />
   }
 
-  // key：身份/runtime 变化时整体重挂载（会话列表、云数据和 isReady 轮询全部重置）。
+  // key：runtime 变化时整体重挂载（会话列表和 isReady 轮询全部重置）。
   // Suspense fallback 复用未知态的空背景，chunk 加载期间不闪烁、不留白；
   // ErrorBoundary 兜底动态 import 失败：渲染可恢复的重载入口，而非崩成空白页。
-  const accountKey = auth.state.status === "authenticated" ? auth.state.account?.id : "local"
   return (
     <ErrorBoundary fallback={<AppShellFallback />}>
       <Suspense fallback={<div className="h-full bg-background" />}>
-        <AuthenticatedAppShell key={`${accountKey}:${runtime.capabilities.mode}`} auth={auth} />
+        <AuthenticatedAppShell key={`local:${runtime.capabilities.mode}`} />
       </Suspense>
     </ErrorBoundary>
   )
@@ -78,11 +74,9 @@ export function App() {
     <ErrorBoundary fallback={<RootFallback />}>
       <I18nProvider>
         <ThemeProvider>
-          <AuthProvider>
-            <RuntimeCapabilitiesProvider>
-              <AuthGate />
-            </RuntimeCapabilitiesProvider>
-          </AuthProvider>
+          <RuntimeCapabilitiesProvider>
+            <AppGate />
+          </RuntimeCapabilitiesProvider>
         </ThemeProvider>
       </I18nProvider>
     </ErrorBoundary>

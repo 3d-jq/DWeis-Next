@@ -1,5 +1,5 @@
-import type { ServiceName } from "@oomol/connection"
 import type { Persona } from "../settings/common.ts"
+import type { ServiceName } from "@oomol/connection"
 
 import { serviceName } from "../branding.ts"
 

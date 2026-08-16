@@ -1,5 +1,4 @@
 import type { DWeisReasoningVariant } from "../agent/reasoning.ts"
-import type { BuiltinModelId } from "./builtin.ts"
 import type { ServiceName } from "@oomol/connection"
 
 import { serviceName } from "../branding.ts"
@@ -8,8 +7,9 @@ import { serviceName } from "../branding.ts"
  * 用户按自己的 base URL 选对应格式；base URL 原样透传（SDK 追加 /chat/completions /messages /responses 端点）。 */
 export type ModelProtocol = "openai" | "anthropic" | "responses"
 
+/** 兼容保留：本地 self-managed 无内置云模型，目录恒为空数组。 */
 export interface BuiltinModelSummary {
-  id: BuiltinModelId
+  id: string
   displayName: string
   providerName: string
   supportsImages: boolean
@@ -79,13 +79,13 @@ export interface CustomModelSummary {
   reasoningVariants?: readonly DWeisReasoningVariant[]
 }
 
-export type ModelChoice = { kind: "builtin"; id: BuiltinModelId } | { kind: "custom"; id: string }
+export type ModelChoice = { kind: "custom"; id: string }
 
 export interface ModelCatalog {
   builtins: BuiltinModelSummary[]
   customModels: CustomModelSummary[]
   providers: CustomModelProvider[]
-  selected: ModelChoice
+  selected: ModelChoice | undefined
 }
 
 export interface SaveCustomModelRequest {

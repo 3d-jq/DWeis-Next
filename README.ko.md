@@ -146,16 +146,16 @@ Skills, MCP, 세션, 제품 UI, 데스크톱 통합을 제공합니다.
 
 가장 중요한 확장 포인트:
 
-| 영역                                       | 시작점                                                              |
-| ------------------------------------------ | ------------------------------------------------------------------- |
-| Agent 정체성과 실행 계약                   | [`electron/agent/system-prompt.ts`](electron/agent/system-prompt.ts) |
-| Agent 모드, 모델, 도구, 권한               | [`electron/agent/config.ts`](electron/agent/config.ts)               |
-| 커스텀 도구, Skills, MCP 도구 소스         | [`electron/agent/tool-sources.ts`](electron/agent/tool-sources.ts)   |
-| 내장 및 커스텀 모델 지원                   | [`electron/models/`](electron/models/)                               |
-| 채팅, 아티팩트, 브라우저 경험                | [`src/routes/Chat/`](src/routes/Chat/)                               |
-| Skills 관리                                | [`src/routes/Skills/`](src/routes/Skills/)                           |
-| 모든 제품 설정                             | [`src/routes/Settings/`](src/routes/Settings/)                       |
-| 애플리케이션 정체성                          | [`electron/branding.ts`](electron/branding.ts)                       |
+| 영역                               | 시작점                                                               |
+| ---------------------------------- | -------------------------------------------------------------------- |
+| Agent 정체성과 실행 계약           | [`electron/agent/system-prompt.ts`](electron/agent/system-prompt.ts) |
+| Agent 모드, 모델, 도구, 권한       | [`electron/agent/config.ts`](electron/agent/config.ts)               |
+| 커스텀 도구, Skills, MCP 도구 소스 | [`electron/agent/tool-sources.ts`](electron/agent/tool-sources.ts)   |
+| 내장 및 커스텀 모델 지원           | [`electron/models/`](electron/models/)                               |
+| 채팅, 아티팩트, 브라우저 경험      | [`src/routes/Chat/`](src/routes/Chat/)                               |
+| Skills 관리                        | [`src/routes/Skills/`](src/routes/Skills/)                           |
+| 모든 제품 설정                     | [`src/routes/Settings/`](src/routes/Settings/)                       |
+| 애플리케이션 정체성                | [`electron/branding.ts`](electron/branding.ts)                       |
 
 Agent 능력은 하나의 제품 계약이며, 활성화된 도구, 권한 규칙, 시스템 프롬프트 세 곳으로 표현됩니다.
 런타임 동작, 안전성, UI 기대치를 일치시키기 위해 세 곳을 함께 변경하세요. 이 경계를 변경하기 전에
@@ -210,14 +210,14 @@ DWeis Next는 모델 컨텍스트에 provider별 도구를 대량으로 등록�
 
 ## 프로젝트 맵
 
-| 경로                                       | 목적                                                                |
-| ------------------------------------------ | ------------------------------------------------------------------- |
-| [`electron/`](electron/)                   | 메인 프로세스, preload, Agent 런타임, 데스크톱 서비스                |
-| [`src/`](src/)                             | React 렌더러, 라우트, hooks, UI 컴포넌트                            |
-| [`scripts/`](scripts/)                     | 개발, 바이너리 준비, 패키징, 배포 지원                              |
-| [`resources/`](resources/)                 | 앱과 함께 번들되는 브랜딩과 리소스                                   |
-| [`docs/`](docs/)                           | 제품, 아키텍처, 개발, 컨벤션, 의사결정 기록                          |
-| [`.github/workflows/`](.github/workflows/) | PR 및 릴리스 자동화                                                 |
+| 경로                                       | 목적                                                  |
+| ------------------------------------------ | ----------------------------------------------------- |
+| [`electron/`](electron/)                   | 메인 프로세스, preload, Agent 런타임, 데스크톱 서비스 |
+| [`src/`](src/)                             | React 렌더러, 라우트, hooks, UI 컴포넌트              |
+| [`scripts/`](scripts/)                     | 개발, 바이너리 준비, 패키징, 배포 지원                |
+| [`resources/`](resources/)                 | 앱과 함께 번들되는 브랜딩과 리소스                    |
+| [`docs/`](docs/)                           | 제품, 아키텍처, 개발, 컨벤션, 의사결정 기록           |
+| [`.github/workflows/`](.github/workflows/) | PR 및 릴리스 자동화                                   |
 
 ## 문서
 

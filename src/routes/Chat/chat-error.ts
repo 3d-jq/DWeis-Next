@@ -6,7 +6,7 @@ import { normalizeChatError } from "../../../electron/chat/error.ts"
 export type { ChatErrorKind } from "../../../electron/chat/error.ts"
 
 export type ChatErrorSeverity = "warning" | "destructive" | "info"
-export type ChatErrorRecoveryKind = "current_task" | "fresh_task" | "reauthenticate" | "billing"
+export type ChatErrorRecoveryKind = "current_task" | "fresh_task" | "reauthenticate"
 
 export interface ChatErrorViewModel {
   kind: ChatErrorKind
@@ -28,7 +28,8 @@ export interface ResolveChatErrorOptions {
 export function chatErrorRecoveryKind(kind: ChatErrorKind): ChatErrorRecoveryKind | null {
   switch (kind) {
     case "payment_required":
-      return "billing"
+      // 纯本地模式无账单恢复入口：错误卡只展示，不提供恢复动作。
+      return null
     case "content_filtered":
       return "fresh_task"
     case "auth_required":

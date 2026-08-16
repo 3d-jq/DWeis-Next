@@ -3,8 +3,8 @@ import type { UseModelCatalog } from "@/routes/Chat/useModelCatalog"
 
 import { ArrowRight, BrainCircuit, Check } from "lucide-react"
 import * as React from "react"
-import { Loader } from "@/components/ai-elements/loader"
 import { branding } from "../../../electron/branding.ts"
+import { Loader } from "@/components/ai-elements/loader"
 import { ErrorNotice } from "@/components/ErrorNotice"
 import { Button } from "@/components/ui/button"
 import { useT } from "@/i18n/i18n"
@@ -107,11 +107,7 @@ function SelfManagedSetup({
           </button>
           <p className="mt-1 text-xs text-muted-foreground">{t("setup.skipDescription")}</p>
         </div>
-        <Button
-          size="lg"
-          disabled={!hasModel || completing}
-          onClick={() => runActivation(onComplete)}
-        >
+        <Button size="lg" disabled={!hasModel || completing} onClick={() => runActivation(onComplete)}>
           {completing ? <Loader /> : <ArrowRight />}
           {t("setup.completeSelfManaged")}
         </Button>

@@ -107,16 +107,13 @@ export default function ArtifactPptxPreview({
         {t("artifacts.pptxSlideCount", { count: slides.length })}
       </div>
       {slides.map((slide) => (
-        <div
-          key={slide.index}
-          className="overflow-hidden rounded-lg border border-[var(--oo-divider)] bg-background"
-        >
+        <div key={slide.index} className="overflow-hidden rounded-lg border border-[var(--oo-divider)] bg-background">
           <div className="oo-border-divider flex items-center gap-2 border-b px-3 py-1.5">
             <span className="oo-text-caption-compact font-medium text-foreground">
               {t("artifacts.pptxSlide")} {slide.index}
             </span>
           </div>
-          <div className="whitespace-pre-wrap px-3 py-2 text-sm leading-6 text-foreground/90">
+          <div className="px-3 py-2 text-sm leading-6 whitespace-pre-wrap text-foreground/90">
             {slide.text || t("artifacts.pptxSlideEmpty")}
           </div>
         </div>

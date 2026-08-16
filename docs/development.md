@@ -82,10 +82,9 @@ corepack pnpm run dev:no-electron
   `DWEIS_ELECTRON_AUTO_START=0 corepack pnpm run dev`.
 - When `.electron-dist` exists, vite automatically sets `ELECTRON_OVERRIDE_DIST_PATH`, so dev uses
   the Electron copy with the `dweis-local` scheme (the menu bar shows the dev identity) — required
-  for the browser-login round trip to hit the dev instance.
+  for deep-link (protocol handler) debugging.
 - Dev userData lives at `./dweis` in the current checkout; agent data under its `agent/` (workspace /
-  isolation / oo-store). Link runtime selection and encrypted OpenConnector token metadata live in
-  `link-runtime.json` at the userData root. Packaged production builds keep Electron's default
+  isolation / oo-store). Packaged production builds keep Electron's default
   platform userData path such as `~/Library/Application Support/dweis` on macOS.
 - `corepack pnpm run dev:worktree` keeps the same `./dweis` userData rule for each worktree while
   adding per-worktree port and protocol-registration isolation. When the target `./dweis` is missing
@@ -104,26 +103,11 @@ corepack pnpm run dev:no-electron
 - Quality gate after any change, all four green:
   `corepack pnpm run ts-check && corepack pnpm run lint && corepack pnpm run format && corepack pnpm test`.
 
-### Local OpenConnector development
+### Local model/provider development
 
-DWeis consumes an already-running OpenConnector; it does not supervise the sibling repository.
-Start the two projects separately:
-
-```bash
-cd /path/to/connect
-npm run dev
-
-cd /path/to/dweis
-corepack pnpm run dev
-```
-
-The source development defaults are API `http://localhost:3000` and Console
-`http://localhost:5173`. Verify both `GET /health` and the standard-envelope `GET /v1/health`, then
-open Settings → Link Runtime, enter the two origins and any runtime token, test, save, and select
-OpenConnector. A token is optional when OpenConnector authentication is disabled. Use the
-Connections route for the sanitized inventory and the external Console for provider credentials.
-Do not set `OO_CONNECTOR_URL` or run `oo connector login` inside DWeis; the app owns an isolated,
-non-persisting sidecar environment.
+DWeis Next is local self-managed: no hosted backend, no Link/Connector runtime, no accounts.
+Custom models are OpenAI-compatible endpoints configured in Settings → Models; MCP servers and
+user tools (AI generation / web search) are configured in Settings.
 
 ## 4. Testing
 
@@ -137,15 +121,12 @@ non-persisting sidecar environment.
   to enforce the renderer→electron import allowlist.
 - **Real-run verification** uses the manual smoke scripts under `.dweis-dev/` (gitignored, not
   packaged, not covered by lint/format/tsc): `agent-smoke.ts` (headless golden path),
-  `chat-stream-smoke.ts`, `connections-smoke.ts`, `r4-smoke.ts`, `system-probe.ts` (verifies
-  body.system is append-not-replace), `spike.mjs`. Run:
-  `OO_API_KEY=... node --experimental-strip-types .dweis-dev/xxx.ts` (smoke scripts construct
-  `AgentManager` directly, no browser login; the `AgentManager` option is now `authToken` and
-  takes the session token — the env var name stays `OO_API_KEY` purely as oo-cli's external
-  contract; the gateway authenticates uniformly). **A fresh clone has none of these scripts**
-  (they exist only on the original dev machine): when missing, write your own by constructing
-  `AgentManager` directly per [architecture.md §2](architecture.md) (`electron/agent/` is
-  electron-free).
+  `chat-stream-smoke.ts`, `system-probe.ts` (verifies body.system is append-not-replace),
+  `spike.mjs`. Run:
+  `node --experimental-strip-types .dweis-dev/xxx.ts` (smoke scripts construct
+  `AgentManager` directly — `electron/agent/` is electron-free). **A fresh clone has none of these
+  scripts** (they exist only on the original dev machine): when missing, write your own by
+  constructing `AgentManager` directly per [architecture.md §2](architecture.md).
 - **UI real-machine verification bypasses** (dev-only env vars, harmless in production):
   `VITE_DWEIS_SMOKE` (auto-sends one message once AppShell is ready, `AppShell.tsx`),
   `VITE_DWEIS_ROUTE=settings` (also supports `knowledge` and other AppShell pages),

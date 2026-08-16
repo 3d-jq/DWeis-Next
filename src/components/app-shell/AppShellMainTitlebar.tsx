@@ -1,16 +1,13 @@
 import type { SessionInfo } from "../../../electron/session/common.ts"
-import type { BillingDetailsTarget } from "@/components/app-shell/BillingUsagePopover"
 import type { UseAppUpdate } from "@/hooks/useAppUpdate"
-import type { WorkspaceSelection } from "@/hooks/useTeamWorkspace"
 
 import { ChevronRight, ListTodo, MoreHorizontal, PanelRightClose, PanelRightOpen } from "lucide-react"
 import * as React from "react"
 import { EditableTitlebarTitle } from "./AppShellDialogs.tsx"
 import { SidebarTitlebarActions } from "./AppShellSidebar.tsx"
-import { BillingUsagePopover } from "@/components/app-shell/BillingUsagePopover"
 import { AppUpdateTitlebarEntry } from "@/components/AppUpdateTitlebarEntry"
-import { useT } from "@/i18n/i18n"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { useT } from "@/i18n/i18n"
 import { cn } from "@/lib/utils"
 
 interface TitlebarBreadcrumb {
@@ -86,7 +83,6 @@ function TitlebarBreadcrumbs({
 export const AppShellMainTitlebar = React.memo(function AppShellMainTitlebar({
   activeSession,
   appUpdate,
-  billingCacheScope,
   isSidebarRestoring,
   onOpenSearch,
   onRenameSession,
@@ -94,7 +90,6 @@ export const AppShellMainTitlebar = React.memo(function AppShellMainTitlebar({
   onTitlebarBreadcrumbNavigate,
   onTogglePlanPanel,
   onToggleSidebar,
-  onViewBilling,
   planPanelOpen,
   rightPanelOpen,
   rightPanelToggleLabel,
@@ -102,11 +97,9 @@ export const AppShellMainTitlebar = React.memo(function AppShellMainTitlebar({
   titlebarEditable,
   titlebarBreadcrumbs,
   titlebarTitle,
-  workspace,
 }: {
   activeSession: SessionInfo | null
   appUpdate: UseAppUpdate
-  billingCacheScope: string
   isSidebarRestoring: boolean
   onOpenSearch: () => void
   onRenameSession: (sessionId: string, title: string) => void
@@ -114,7 +107,6 @@ export const AppShellMainTitlebar = React.memo(function AppShellMainTitlebar({
   onTitlebarBreadcrumbNavigate?: (path: string) => void
   onTogglePlanPanel?: () => void
   onToggleSidebar: () => void
-  onViewBilling?: (target?: BillingDetailsTarget) => void
   planPanelOpen?: boolean
   rightPanelOpen: boolean
   rightPanelToggleLabel: string
@@ -122,7 +114,6 @@ export const AppShellMainTitlebar = React.memo(function AppShellMainTitlebar({
   titlebarEditable: boolean
   titlebarBreadcrumbs?: TitlebarBreadcrumb[]
   titlebarTitle: string
-  workspace: WorkspaceSelection
 }) {
   const t = useT()
   return (
@@ -157,13 +148,6 @@ export const AppShellMainTitlebar = React.memo(function AppShellMainTitlebar({
       </div>
       <div className="ml-auto flex shrink-0 items-center gap-1 [-webkit-app-region:no-drag]">
         <AppUpdateTitlebarEntry update={appUpdate} />
-        {onViewBilling ? (
-          <BillingUsagePopover
-            cacheScope={billingCacheScope}
-            workspace={workspace}
-            onViewDetails={onViewBilling}
-          />
-        ) : null}
         {/* 右侧边栏常驻开关：位于窗口控制按钮（最小化/关闭）左侧。 */}
         <button
           type="button"

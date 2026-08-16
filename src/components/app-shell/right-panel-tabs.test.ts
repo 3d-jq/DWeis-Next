@@ -1,3 +1,4 @@
+import type { RightPanelTab } from "./right-panel-tabs.ts"
 import type { ArtifactSelection } from "@/routes/Chat/GeneratedArtifacts"
 import type { TurnOutputSelection } from "@/routes/Chat/TurnOutputs"
 
@@ -11,7 +12,6 @@ import {
   turnOutputTabId,
   upsertTab,
 } from "./right-panel-tabs.ts"
-import type { RightPanelTab } from "./right-panel-tabs.ts"
 
 function artifactSelection(messageId: string): ArtifactSelection {
   return { messageId, group: {} as never }
@@ -30,7 +30,13 @@ function turnOutputSelection(sessionId: string, messageId: string): TurnOutputSe
 }
 
 function artifactTab(messageId: string): RightPanelTab {
-  return { id: artifactTabId(artifactSelection(messageId)), kind: "artifact", selection: artifactSelection(messageId), source: "manual", title: "Artifacts" }
+  return {
+    id: artifactTabId(artifactSelection(messageId)),
+    kind: "artifact",
+    selection: artifactSelection(messageId),
+    source: "manual",
+    title: "Artifacts",
+  }
 }
 
 test("tab ids are deterministic per content", () => {

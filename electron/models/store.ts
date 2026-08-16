@@ -7,7 +7,6 @@ import path from "node:path"
 import { atomicWriteText } from "../atomic-file.ts"
 import { externalModelProviderBaseUrls } from "../domain.ts"
 import { logStoreReadFailure } from "../store-diagnostics.ts"
-import { DEFAULT_BUILTIN_MODEL_ID, builtinModelSummaries, isBuiltinModelId } from "./builtin.ts"
 
 const providerBaseUrls = externalModelProviderBaseUrls
 const millionTokenContextWindow = 1_000_000
@@ -281,10 +280,7 @@ export function customProviderModelSupportsImages(
 }
 
 /** 模型/提供商的 API 协议（openai 默认 / anthropic）。 */
-export function customProviderProtocol(
-  provider: CustomModelProvider | undefined,
-  modelName?: string,
-): ModelProtocol {
+export function customProviderProtocol(provider: CustomModelProvider | undefined, modelName?: string): ModelProtocol {
   const option = modelName ? provider?.modelOptions?.find((model) => model.id === modelName.trim()) : undefined
   return option?.protocol ?? provider?.protocol ?? "openai"
 }
@@ -376,16 +372,9 @@ export function sanitizeOptionalTokenLimit(value: number | undefined, fieldName:
   return value
 }
 
-export function defaultModelChoice(): ModelChoice {
-  return { kind: "builtin", id: DEFAULT_BUILTIN_MODEL_ID }
-}
-
 export function isKnownModelChoice(models: PersistedModels, choice: ModelChoice | undefined): choice is ModelChoice {
   if (!choice) {
     return false
-  }
-  if (choice.kind === "builtin") {
-    return isBuiltinModelId(choice.id)
   }
   return Boolean(models.customModels?.some((model) => model.id === choice.id))
 }
@@ -415,12 +404,12 @@ export class ModelsStore {
     try {
       const parsed = JSON.parse(await readFile(this.file, "utf-8")) as PersistedModels
       return {
-        selected: isKnownModelChoice(parsed, parsed.selected) ? parsed.selected : defaultModelChoice(),
+        selected: isKnownModelChoice(parsed, parsed.selected) ? parsed.selected : undefined,
         customModels: Array.isArray(parsed.customModels) ? parsed.customModels.filter(isPersistedCustomModel) : [],
       }
     } catch (error) {
       logStoreReadFailure("models", this.file, error)
-      return { selected: defaultModelChoice(), customModels: [] }
+      return { selected: undefined, customModels: [] }
     }
   }
 
@@ -437,10 +426,10 @@ export class ModelsStore {
   public async catalog(): Promise<ModelCatalog> {
     const models = await this.read()
     return {
-      builtins: builtinModelSummaries(),
+      builtins: [],
       customModels: (models.customModels ?? []).map(publicCustomModel),
       providers: CUSTOM_MODEL_PROVIDERS,
-      selected: isKnownModelChoice(models, models.selected) ? models.selected : defaultModelChoice(),
+      selected: isKnownModelChoice(models, models.selected) ? models.selected : undefined,
     }
   }
 
@@ -448,7 +437,7 @@ export class ModelsStore {
     return (await this.runtimeModels()).customModels
   }
 
-  public async runtimeModels(): Promise<{ customModels: RuntimeCustomModel[]; selected: ModelChoice }> {
+  public async runtimeModels(): Promise<{ customModels: RuntimeCustomModel[]; selected: ModelChoice | undefined }> {
     const models = await this.read()
     const customModels = await Promise.all(
       (models.customModels ?? []).filter(isRuntimeCustomModelMetadata).map(async (model) => {
@@ -463,7 +452,7 @@ export class ModelsStore {
     )
     return {
       customModels: customModels.filter((model): model is RuntimeCustomModel => model !== null),
-      selected: models.selected ?? defaultModelChoice(),
+      selected: models.selected ?? undefined,
     }
   }
 
@@ -503,7 +492,7 @@ export class ModelsStore {
       .map(migrateCustomModelMetadata)
       .filter((model): model is PersistedCustomModel => model !== null)
     await this.write({
-      selected: isKnownModelChoice({ customModels }, raw.selected) ? raw.selected : defaultModelChoice(),
+      selected: isKnownModelChoice({ customModels }, raw.selected) ? raw.selected : undefined,
       customModels,
     })
   }

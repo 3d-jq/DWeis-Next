@@ -6,11 +6,11 @@ import type { ConnectionClientService } from "@oomol/connection"
 
 import { AnimatePresence, motion } from "motion/react"
 import * as React from "react"
-import { cn } from "@/lib/utils"
-import { useT } from "@/i18n/i18n"
 import { ARTIFACTS_PANEL_MIN_WIDTH_PX } from "./app-shell-model.ts"
 import { RIGHT_PANEL_TABPANEL_ID, tabElementId } from "./right-panel-tabs.ts"
 import { UnifiedTabBar } from "./UnifiedTabBar.tsx"
+import { useT } from "@/i18n/i18n"
+import { cn } from "@/lib/utils"
 
 const ArtifactsPanel = React.lazy(() =>
   import("@/routes/Chat/GeneratedArtifacts").then((module) => ({ default: module.ArtifactsPanel })),
@@ -85,11 +85,7 @@ export const AppShellRightPanel = React.memo(function AppShellRightPanel({
         rightPanelVisible ? "translate-x-0 opacity-100" : "pointer-events-none translate-x-3 opacity-0",
       )}
       style={{
-        width: rightPanelVisible
-          ? artifactsPanelIsMaximized
-            ? undefined
-            : "var(--right-panel-width, 0px)"
-          : "0px",
+        width: rightPanelVisible ? (artifactsPanelIsMaximized ? undefined : "var(--right-panel-width, 0px)") : "0px",
       }}
     >
       {!artifactsPanelIsMaximized ? (

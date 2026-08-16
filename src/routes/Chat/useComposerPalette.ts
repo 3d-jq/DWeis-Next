@@ -29,12 +29,7 @@ import {
 import { detectComposerTrigger } from "./composer-triggers.ts"
 
 interface UseComposerPaletteOptions {
-  contextItems: Array<
-    | ArtifactPaletteItem
-    | AttachmentPaletteItem
-    | KnowledgeLibraryPaletteItem
-    | KnowledgePaletteItem
-  >
+  contextItems: Array<ArtifactPaletteItem | AttachmentPaletteItem | KnowledgeLibraryPaletteItem | KnowledgePaletteItem>
   disabled: boolean
   dismissedTriggerKey: string | null
   dispatch: React.Dispatch<ComposerAction>
@@ -47,7 +42,6 @@ interface UseComposerPaletteOptions {
   onOpenKnowledgeLibrary?: () => void
   onSelectAttachments: (kind: AttachmentPickerKind) => void
   onSelectKnowledgeBase: (id: string) => void
-  onViewBilling?: () => void
   skillItems: SkillPaletteItem[]
   slashItems: SlashCommandPaletteItem[]
 }
@@ -83,7 +77,6 @@ export function useComposerPalette({
   onOpenKnowledgeLibrary,
   onSelectAttachments,
   onSelectKnowledgeBase,
-  onViewBilling,
   skillItems,
   slashItems,
 }: UseComposerPaletteOptions): UseComposerPaletteResult {
@@ -148,12 +141,6 @@ export function useComposerPalette({
         focusDraftAt(currentTrigger.start + 1)
         return
       }
-      if (item.action === "billing") {
-        dispatch({ type: "replace-trigger", trigger: currentTrigger, replacement: "" })
-        onViewBilling?.()
-        focusDraftAt(currentTrigger.start)
-        return
-      }
       if (item.action === "bug-report") {
         dispatch({ type: "select-bug-report", trigger: currentTrigger })
         focusDraftAt(currentTrigger.start)
@@ -201,7 +188,7 @@ export function useComposerPalette({
         return
       }
     },
-    [dispatch, focusDraftAt, onAddContextMention, onSelectAttachments, onViewBilling, updatePaletteNavigation],
+    [dispatch, focusDraftAt, onAddContextMention, onSelectAttachments, updatePaletteNavigation],
   )
 
   const applySkillItem = React.useCallback(

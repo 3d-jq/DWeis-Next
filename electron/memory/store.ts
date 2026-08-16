@@ -1,6 +1,5 @@
 import { readFile } from "node:fs/promises"
 import path from "node:path"
-
 import { atomicWriteText } from "../atomic-file.ts"
 import { isMissingFileError, logStoreReadFailure } from "../store-diagnostics.ts"
 

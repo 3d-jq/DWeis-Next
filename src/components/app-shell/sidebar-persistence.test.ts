@@ -47,36 +47,22 @@ describe("sidebar persistence", () => {
     expect(readStoredTaskSortMode(storage)).toBe("updatedAt")
   })
 
-  test("scopes collapsed project groups by account and workspace", () => {
+  test("scopes collapsed project groups by local workspace", () => {
+    expect(projectSidebarCollapsedStorageKey(null)).toBeNull()
     expect(
-      projectSidebarCollapsedStorageKey(undefined, {
-        kind: "team",
-        teamId: "team-id",
-        teamName: "team-name",
-      }),
-    ).toBeNull()
-    expect(projectSidebarCollapsedStorageKey("account-a", null)).toBeNull()
-    expect(
-      projectSidebarCollapsedStorageKey("account-a", {
-        kind: "team",
-        teamId: "team-id",
-        teamName: "team-name",
-      }),
-    ).toBe("dweis.projectSidebarCollapsed:account-a:team:team-id")
-    expect(
-      projectSidebarCollapsedStorageKey("account-a", {
-        kind: "team",
-        teamId: "team-a",
-        teamName: "Team A",
-      }),
-    ).toBe("dweis.projectSidebarCollapsed:account-a:team:team-a")
-    expect(
-      projectSidebarCollapsedStorageKey(undefined, {
+      projectSidebarCollapsedStorageKey({
         kind: "local",
         workspaceId: "local",
         workspaceName: "Local",
       }),
     ).toBe("dweis.projectSidebarCollapsed:local:local:local")
+    expect(
+      projectSidebarCollapsedStorageKey({
+        kind: "local",
+        workspaceId: "shared",
+        workspaceName: "Local",
+      }),
+    ).toBe("dweis.projectSidebarCollapsed:local:local:shared")
   })
 
   test("reads, writes, removes, and prunes collapsed project ids", () => {

@@ -31,8 +31,8 @@ DWeis Next is built by [DWeis](https://dweis.ai/) for developers who want to shi
 without rebuilding the product infrastructure around the Agent loop. Fork it, replace the model,
 prompt, tools, skills, branding, and distribution — then ship an Agent for your own product or workflow.
 
-You can use DWeis Next as it is: run locally with your own OpenAI-compatible model, or sign in to use
-DWeis-hosted models, an optional OpenConnector runtime, OAuth authorization, and team workspaces.
+You can use DWeis Next as it is: it runs fully local and self-managed with your own OpenAI-compatible
+model — no cloud account, no login, no hosted backend.
 
 ## Why We Open-Sourced DWeis Next
 
@@ -45,7 +45,7 @@ DWeis Next opens up the complete desktop foundation so you can:
 
 - use OpenCode as the runtime for Agents beyond software development;
 - build domain-specific tools, Skills, MCP servers, prompts, and workflows;
-- combine local computer work with authenticated SaaS actions;
+- combine local computer work with web browsing, search, and OpenAI-compatible generation tools;
 - distribute a branded desktop product instead of a developer-only prototype;
 - choose how much infrastructure to operate yourself.
 
@@ -62,8 +62,7 @@ open-source community.
 ## What's in the Repository
 
 DWeis Next is a general work Agent today, but the architecture is designed to be adapted. The open-source
-core covers the full desktop product surface; the optional hosted layer adds managed accounts,
-connectors, and team workspaces.
+core covers the full desktop product surface and runs entirely on the user's machine.
 
 ### Agent and Runtime
 
@@ -76,7 +75,6 @@ connectors, and team workspaces.
 ### Models
 
 - **OpenAI-compatible custom models** — any provider, configured per model and per provider
-- **DWeis-hosted models** when signed in
 - **Per-model credentials** encrypted with Electron `safeStorage`; never returned to the renderer
 - **Subagent model selection** for `general` and `explore` subagents
 
@@ -149,16 +147,16 @@ integration.
 
 The most important extension points are:
 
-| Area                                          | Start here                                                          |
-| --------------------------------------------- | ------------------------------------------------------------------- |
-| Agent identity and operating contract         | [`electron/agent/system-prompt.ts`](electron/agent/system-prompt.ts) |
-| Agent modes, models, tools, and permissions   | [`electron/agent/config.ts`](electron/agent/config.ts)               |
-| Custom tools, skills, and MCP tool sources     | [`electron/agent/tool-sources.ts`](electron/agent/tool-sources.ts)   |
-| Built-in and custom model support             | [`electron/models/`](electron/models/)                               |
-| Chat, artifacts, and browser experience        | [`src/routes/Chat/`](src/routes/Chat/)                               |
-| Skills management                             | [`src/routes/Skills/`](src/routes/Skills/)                           |
-| All product settings                          | [`src/routes/Settings/`](src/routes/Settings/)                       |
-| Application identity                          | [`electron/branding.ts`](electron/branding.ts)                       |
+| Area                                        | Start here                                                           |
+| ------------------------------------------- | -------------------------------------------------------------------- |
+| Agent identity and operating contract       | [`electron/agent/system-prompt.ts`](electron/agent/system-prompt.ts) |
+| Agent modes, models, tools, and permissions | [`electron/agent/config.ts`](electron/agent/config.ts)               |
+| Custom tools, skills, and MCP tool sources  | [`electron/agent/tool-sources.ts`](electron/agent/tool-sources.ts)   |
+| Built-in and custom model support           | [`electron/models/`](electron/models/)                               |
+| Chat, artifacts, and browser experience     | [`src/routes/Chat/`](src/routes/Chat/)                               |
+| Skills management                           | [`src/routes/Skills/`](src/routes/Skills/)                           |
+| All product settings                        | [`src/routes/Settings/`](src/routes/Settings/)                       |
+| Application identity                        | [`electron/branding.ts`](electron/branding.ts)                       |
 
 Agent capability is one product contract expressed in three places: enabled tools, permission rules,
 and the system prompt. Change them together so runtime behavior, safety, and UI expectations stay
@@ -185,29 +183,23 @@ DWeis Next avoids registering hundreds of provider-specific tools in the model c
 Skills, and MCP servers are each a small, explicit contract — authorization failures return as
 structured product states instead of free-form model text.
 
-### OpenCode, the OpenConnector runtime, and DWeis
+### OpenCode and DWeis
 
 - **OpenCode** is the local Agent runtime. DWeis Next manages its lifecycle and supplies the Agent
   configuration, permissions, prompts, custom tools, and skills.
-- **OpenConnector** is an optional Link runtime mode — a user-configured endpoint (`baseUrl` +
-  `consoleUrl` + optional `runtimeToken`) that lets DWeis Next consume actions from an OpenConnector
-  instance when one is available.
-- **DWeis** provides the optional hosted layer for sign-in, managed models, Connector credentials,
-  OAuth, teams, Skills, usage, and billing.
+- **DWeis Next runs local self-managed only**: no hosted accounts, managed models, Connectors,
+  teams, or billing. Every model, tool, and credential is configured on the user's own machine.
 
-The Local BYOK core does not require a DWeis account. Signing in enables the hosted Connector and
-team layer; it is not required to inspect, fork, or develop the desktop application.
-
-For the complete process, trust-boundary, IPC, streaming, authentication, and storage design, read the
+For the complete process, trust-boundary, IPC, streaming, and storage design, read the
 [Architecture guide](docs/architecture.md).
 
 ## Security and Data Boundaries
 
 - OpenCode listens only on loopback and uses a random per-process server password.
-- DWeis session tokens and custom model API keys have separate storage and lifecycles.
-- Custom model keys are encrypted with Electron `safeStorage` and are never returned to the renderer.
+- Custom model API keys are encrypted with Electron `safeStorage` and are never returned to the renderer.
 - High-risk local operations are connected to DWeis Next's explicit approval UI.
-- Local sessions are not silently uploaded into a DWeis team workspace.
+- Nothing leaves the machine unless the user's own tools (web search, generation APIs, MCP servers)
+  send it.
 
 See [SECURITY.md](SECURITY.md) for private vulnerability reporting and the
 [Architecture guide](docs/architecture.md) for complete trust boundaries.

@@ -3,11 +3,7 @@ import type { AssistantTimelineBlock } from "./assistant-timeline.ts"
 import type { ChatTurnProcess, ChatTurnProcessStatus } from "./chat-turns.ts"
 import type { RenderBlock } from "./render-blocks.ts"
 
-import {
-  chatTurnProcessStatus,
-  settlingToolPartId,
-  summarizeTurnProcess,
-} from "./chat-turns.ts"
+import { chatTurnProcessStatus, settlingToolPartId, summarizeTurnProcess } from "./chat-turns.ts"
 import { isActiveToolPart } from "./tool-state.ts"
 import { groupedWikigraphToolActivityBlocks } from "./wikigraph-tool-grouping.ts"
 

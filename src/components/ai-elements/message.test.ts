@@ -39,7 +39,6 @@ const mockService = {
 
 const appContext = {
   attentionService: mockService,
-  authService: mockService,
   browserService: mockService,
   chatService: mockService,
   gitService: mockService,
@@ -120,7 +119,15 @@ describe("messageResponseRenderers", () => {
     const html = renderToStaticMarkup(
       React.createElement(
         ThemeContext.Provider,
-        { value: { effectiveTheme: "light", palette: "default", preference: "light", setPalette: () => undefined, setPreference: () => undefined } },
+        {
+          value: {
+            effectiveTheme: "light",
+            palette: "default",
+            preference: "light",
+            setPalette: () => undefined,
+            setPreference: () => undefined,
+          },
+        },
         React.createElement(
           I18nContext.Provider,
           {

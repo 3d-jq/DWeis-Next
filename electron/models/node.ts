@@ -15,7 +15,6 @@ import {
   customProviderModelSupportsImages,
   customProviderModelSupportsToolCalls,
   customProviderProtocol,
-  defaultModelChoice,
   isKnownModelChoice,
   sanitizeBaseUrl,
   sanitizeOptionalTokenLimit,
@@ -44,7 +43,7 @@ export class ModelsServiceImpl extends ConnectionService<ModelsService> implemen
   public setSelectedModel(choice: ModelChoice): Promise<ModelCatalog> {
     return this.enqueueMutation(async () => {
       const models = await this.deps.store.read()
-      const selected = isKnownModelChoice(models, choice) ? choice : defaultModelChoice()
+      const selected = isKnownModelChoice(models, choice) ? choice : undefined
       await this.deps.store.write({ ...models, selected })
       return this.emitCatalog()
     })
@@ -149,8 +148,7 @@ export class ModelsServiceImpl extends ConnectionService<ModelsService> implemen
       const credentialStore = this.deps.store.credentialStore()
       const existingApiKey = await credentialStore.get(id)
       const customModels = (models.customModels ?? []).filter((model) => model.id !== id)
-      const selected =
-        models.selected?.kind === "custom" && models.selected.id === id ? defaultModelChoice() : models.selected
+      const selected = models.selected?.kind === "custom" && models.selected.id === id ? undefined : models.selected
       await credentialStore.delete(id)
       try {
         await this.deps.store.write({ ...models, customModels, selected })

@@ -179,7 +179,12 @@ export function AddCustomModelDialog({
   // 历史 bug（DeepSeek 供应商名残留、删模型后 apiKey 状态脏导致"锁住"）都源于打开时未真正重置状态；
   // 重挂载让 useState 初始化器每次打开都执行，杜绝残留。
   const formKey = open ? `${model?.id ?? "new"}:${presetProviderId ?? "none"}` : "closed"
-  return <AddCustomModelForm key={formKey} {...{ connectorsEnabled, model, open, presetProviderId, providers, error, onClose, onSave }} />
+  return (
+    <AddCustomModelForm
+      key={formKey}
+      {...{ connectorsEnabled, model, open, presetProviderId, providers, error, onClose, onSave }}
+    />
+  )
 }
 
 function AddCustomModelForm({
@@ -209,19 +214,20 @@ function AddCustomModelForm({
   const provider = providers.find((item) => item.id === providerId)
   const initialProvider = providers.find((item) => item.id === initialProviderId)
   // 供应商名：编辑沿用记录的 providerName（自定义命名）；添加时自定义供应商留空、预设用固定名。
-  const [providerName, setProviderName] = React.useState(
-    model?.providerName ?? providerDefaultName(initialProvider),
-  )
+  const [providerName, setProviderName] = React.useState(model?.providerName ?? providerDefaultName(initialProvider))
   const [apiPlanId, setApiPlanId] = React.useState(
-    model ? customModelEndpointSelectionForBaseUrl(initialProvider, model.baseUrl)?.apiPlanId ?? providerDefaultApiPlanId(initialProvider) : providerDefaultApiPlanId(initialProvider),
+    model
+      ? (customModelEndpointSelectionForBaseUrl(initialProvider, model.baseUrl)?.apiPlanId ??
+          providerDefaultApiPlanId(initialProvider))
+      : providerDefaultApiPlanId(initialProvider),
   )
   const [baseUrl, setBaseUrl] = React.useState(model?.baseUrl ?? providerBaseUrl(initialProvider))
   const [apiKey, setApiKey] = React.useState("")
   const [modelName, setModelName] = React.useState(model?.modelName ?? providerDefaultModelName(initialProvider))
   const [apiRegionId, setApiRegionId] = React.useState(
     model
-      ? customModelEndpointSelectionForBaseUrl(initialProvider, model.baseUrl)?.apiRegionId ??
-          endpointDefaultApiRegionId(providerEndpoint(initialProvider))
+      ? (customModelEndpointSelectionForBaseUrl(initialProvider, model.baseUrl)?.apiRegionId ??
+          endpointDefaultApiRegionId(providerEndpoint(initialProvider)))
       : endpointDefaultApiRegionId(providerEndpoint(initialProvider)),
   )
   const [supportsImages, setSupportsImages] = React.useState(
@@ -239,9 +245,9 @@ function AddCustomModelForm({
   const [maxOutputTokens, setMaxOutputTokens] = React.useState(
     String(model?.maxOutputTokens ?? providerDefaultMaxOutputTokens(initialProvider, model?.modelName ?? "")),
   )
-  const [reasoningVariants, setReasoningVariants] = React.useState<DWeisReasoningVariant[]>(
-    [...(model?.reasoningVariants ?? providerDefaultReasoningVariants(initialProvider, model?.modelName ?? ""))],
-  )
+  const [reasoningVariants, setReasoningVariants] = React.useState<DWeisReasoningVariant[]>([
+    ...(model?.reasoningVariants ?? providerDefaultReasoningVariants(initialProvider, model?.modelName ?? "")),
+  ])
   const [protocol, setProtocol] = React.useState<ModelProtocol>(
     model?.protocol ?? providerDefaultProtocol(initialProvider, model?.modelName ?? ""),
   )
@@ -311,9 +317,9 @@ function AddCustomModelForm({
 
   const canSave = Boolean(
     providerId &&
-      (apiKey.trim() || model?.apiKeyConfigured) &&
-      modelName.trim() &&
-      (!(provider?.requiresBaseUrl ?? true) || baseUrl.trim()),
+    (apiKey.trim() || model?.apiKeyConfigured) &&
+    modelName.trim() &&
+    (!(provider?.requiresBaseUrl ?? true) || baseUrl.trim()),
   )
   const toggleReasoningVariant = (variant: DWeisReasoningVariant, checked: boolean): void => {
     setReasoningVariants((current) =>

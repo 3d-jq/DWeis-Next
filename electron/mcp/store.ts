@@ -1,9 +1,9 @@
+import type { McpServerEntry, PersistedMcpServers } from "./common.ts"
+
 import { readFile } from "node:fs/promises"
 import path from "node:path"
-
 import { atomicWriteText } from "../atomic-file.ts"
 import { logStoreReadFailure } from "../store-diagnostics.ts"
-import type { McpServerEntry, PersistedMcpServers } from "./common.ts"
 import { normalizeMcpServerEntry } from "./common.ts"
 
 /** MCP 服务配置持久化到 userData/mcp-servers.json（仅非凭证字段）。 */

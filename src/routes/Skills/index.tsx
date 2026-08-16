@@ -1,4 +1,5 @@
 import type { SkillSelectionKey } from "./skill-route-model.ts"
+import type { InstalledSkillFilter } from "./skill-route-model.ts"
 import type { SkillDetailContentProps } from "./SkillDetailContent.tsx"
 
 import * as React from "react"
@@ -17,7 +18,6 @@ import { useSkillInventoryResource } from "@/components/AppDataHooks"
 import { DeleteSkillConfirmDialog } from "@/components/DeleteSkillConfirmDialog"
 import { useSkillObjectActions } from "@/components/useSkillObjectActions"
 import { useAppI18n } from "@/i18n"
-import type { InstalledSkillFilter } from "./skill-route-model.ts"
 
 export function SkillsRoute() {
   const { t } = useAppI18n()

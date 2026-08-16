@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest"
 import type { ChatMessage, ChatMessagePart } from "../../electron/chat/common.ts"
+
+import { describe, expect, it } from "vitest"
 import { setPart, setReasoningPart, setTextPart } from "./chat-message-state.ts"
 
 function baseMessages(): ChatMessage[] {

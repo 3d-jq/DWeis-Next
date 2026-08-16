@@ -3,8 +3,8 @@ import type { ChatMessagePart } from "../../../electron/chat/common.ts"
 import { BrainIcon, ChevronDownIcon } from "lucide-react"
 import { AnimatePresence, motion } from "motion/react"
 import * as React from "react"
-import { useT } from "@/i18n/i18n"
 import { LoadingShimmerText } from "./LoadingShimmerText.tsx"
+import { useT } from "@/i18n/i18n"
 import { cn } from "@/lib/utils"
 
 /**
@@ -29,7 +29,7 @@ export function ReasoningBlock({ part }: { part: ChatMessagePart }) {
           // min-h-6 与 LiveStatusBar 行高一致（24px）：推理 part 到达时两者同帧替换，
           // 无固定行高会被 20px 图标盒撑成 ~20px，替换瞬间内容收缩 4px 导致界面跳变。
           "inline-flex min-h-6 max-w-full items-center gap-2 rounded text-left text-xs text-muted-foreground transition-colors",
-          "hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
         )}
       >
         {/* 与工具步骤行对齐：图标放 size-5 盒 + gap-2，文字列一致（否则过程区文字左右错开显得歪） */}

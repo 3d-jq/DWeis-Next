@@ -2,48 +2,43 @@ import type { ModelCatalog } from "../../../electron/models/common.ts"
 
 import { describe, expect, it } from "vitest"
 import { selectedModelReasoningLevels } from "./model-reasoning-levels.ts"
-import { llmBaseUrl } from "@/lib/domain"
 
 const catalog: ModelCatalog = {
-  selected: { kind: "builtin", id: "oopilot" },
+  selected: { kind: "custom", id: "custom-1" },
   providers: [],
-  builtins: [
-    {
-      id: "oopilot",
-      displayName: "Auto",
-      providerName: "OOMOL",
-      supportsImages: true,
-      toolCall: true,
-      runtimeKind: "openai-compatible",
-      reasoningVariants: ["high", "low", "high"],
-    },
-  ],
+  builtins: [],
   customModels: [
     {
       id: "custom-1",
       providerId: "custom",
       providerName: "Custom",
-      baseUrl: llmBaseUrl,
+      baseUrl: "https://models.example.test/v1",
       modelName: "custom-model",
       displayName: "Custom Model",
       apiKeyConfigured: true,
       supportsImages: false,
       supportsToolCalls: true,
-      reasoningVariants: ["max", "low", "max"],
+      reasoningVariants: ["high", "low", "high"],
     },
   ],
 }
 
 describe("selectedModelReasoningLevels", () => {
-  it("orders built-in reasoning levels by the fixed DWeis order", () => {
+  it("orders the selected custom model reasoning levels by the fixed DWeis order", () => {
     expect(selectedModelReasoningLevels(catalog)).toEqual(["default", "low", "high"])
   })
 
-  it("orders custom reasoning levels by the fixed DWeis order", () => {
-    expect(selectedModelReasoningLevels({ ...catalog, selected: { kind: "custom", id: "custom-1" } })).toEqual([
-      "default",
-      "low",
-      "max",
-    ])
+  it("orders alternative custom reasoning levels by the fixed DWeis order", () => {
+    expect(
+      selectedModelReasoningLevels({
+        ...catalog,
+        customModels: [
+          {
+            ...catalog.customModels[0]!,
+            reasoningVariants: ["max", "low", "max"],
+          },
+        ],
+      }),
+    ).toEqual(["default", "low", "max"])
   })
 })

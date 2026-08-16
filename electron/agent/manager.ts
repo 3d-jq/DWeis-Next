@@ -10,10 +10,10 @@ import type {
 } from "../chat/common.ts"
 import type { ModelChoice } from "../models/common.ts"
 import type { RuntimeCustomModel } from "../models/store.ts"
-import type { LinkRuntime, ModelAccess } from "../runtime/agent-runtime.ts"
+import type { GenerateSessionTitleRequest, SessionInfo } from "../session/common.ts"
 import type { SubagentModelChoice } from "../settings/common.ts"
 import type { Persona } from "../settings/common.ts"
-import type { GenerateSessionTitleRequest, SessionInfo } from "../session/common.ts"
+import type { DWeisReasoningVariant } from "./reasoning.ts"
 import type { GeneratedSessionTitle } from "./session-title-generator.ts"
 import type { Config, FilePartInput, SessionPromptAsyncData, TextPartInput } from "@opencode-ai/sdk/v2/client"
 import type { OpencodeClient } from "@opencode-ai/sdk/v2/client"
@@ -27,20 +27,15 @@ import { atomicWriteText } from "../atomic-file.ts"
 import { branding } from "../branding.ts"
 import { resolveUserCommandPath } from "../command-path.ts"
 import { logDiagnostic } from "../diagnostics-log.ts"
-import { connectorBaseUrl, llmBaseUrl } from "../domain.ts"
-import { DEFAULT_BUILTIN_MODEL_ID, isBuiltinModelId, resolveBuiltinModel } from "../models/builtin.ts"
 import { planAttachmentInputs } from "./attachment-input.ts"
-import { buildOpencodeConfig, customProviderId, DWEIS_MODEL_ID, DWEIS_PROVIDER_ID } from "./config.ts"
+import { buildOpencodeConfig, customProviderId } from "./config.ts"
 import { normalizeMessage, normalizePermissionRequest, normalizeQuestionRequest } from "./event-translator.ts"
 import { normalizeDWeisAgentMode, DWEIS_BUILD_AGENT_NAME } from "./mode.ts"
-import { buildDWeisPersonaSystem } from "./system-prompt.ts"
-import { writeOoIdentitySettings } from "./oo-identity.ts"
-import { buildAgentLinkEnv } from "./oo.ts"
 import { managedPythonEnvironmentPath, managedPythonExecutable } from "./python-environment.ts"
-import type { DWeisReasoningVariant } from "./reasoning.ts"
 import { DWEIS_REASONING_VARIANT_LEVELS, opencodeReasoningVariant } from "./reasoning.ts"
 import { generateSessionTitle as generateTitle } from "./session-title-generator.ts"
 import { OpencodeSidecar } from "./sidecar.ts"
+import { buildDWeisPersonaSystem } from "./system-prompt.ts"
 import { ensureWikiGraphCommandBin } from "./wikigraph-bin.ts"
 import { ensureAgentWorkspace } from "./workspace.ts"
 
@@ -48,16 +43,11 @@ export type { GeneratedSessionTitle } from "./session-title-generator.ts"
 
 export interface AgentManagerOptions {
   browserControl?: () => Promise<AgentBrowserControlConnection | undefined>
-  linkRuntime: LinkRuntime | null
-  modelAccess: ModelAccess
   /** opencode 二进制绝对路径。 */
   opencodeBinPath: string
-  /** The oo binary is resolved and injected only when a Link runtime is configured. */
-  ooBinPath?: string
   /** DWeis-owned WikiGraph CLI entrypoint used by the sidecar PATH `wg` shim. */
   wikiGraphCliPath?: string
   wikiGraphStateDir?: string
-  listOpenConnectorAuthorizedServices?: (signal?: AbortSignal) => Promise<string[]>
   /** 内置 skill 源目录（resources/skills 或打包 Resources/skills）；启动时拷进 .opencode/skill/。 */
   bundledSkillsDir?: string
   /** 构建期合并的自定义工具 runtime；启动时拷进 .opencode/runtime/tool.js。 */
@@ -93,16 +83,6 @@ export interface AgentBrowserControlConnection {
   url: string
 }
 
-function normalizeTeamName(teamName: string | undefined): string | undefined {
-  const normalized = teamName?.trim()
-  return normalized ? normalized : undefined
-}
-
-function requireOoBinPath(ooBinPath: string | undefined): string {
-  if (!ooBinPath) throw new Error("The Link runtime requires the oo binary path.")
-  return ooBinPath
-}
-
 function normalizeKnowledgeBaseIds(ids: readonly string[]): string[] {
   return [...new Set(ids.map((id) => id.trim()).filter(Boolean))]
 }
@@ -133,12 +113,9 @@ export function turnArtifactMarkerPath(storeDir: string): string {
 export interface AgentSidecarEnvOptions {
   browserControl?: AgentBrowserControlConnection
   commandPath: string
-  linkRuntime: LinkRuntime | null
   /** 持久记忆目录：memory 工具经此定位 MEMORY.md / USER.md。 */
   memoryDir?: string
-  ooBinPath?: string
   storeDir: string
-  teamName?: string
   teamScopePath: string
   /** 用户配置的工具（AI 生成 / 网页搜索）：注入 sidecar env 指向配置文件。 */
   toolConfig?: AgentToolConfig
@@ -147,25 +124,13 @@ export interface AgentSidecarEnvOptions {
 export function buildAgentSidecarEnv({
   browserControl,
   commandPath,
-  linkRuntime,
   memoryDir,
-  ooBinPath,
   storeDir,
-  teamName,
   teamScopePath,
   toolConfig,
 }: AgentSidecarEnvOptions): Record<string, string> {
-  const ooEnv = linkRuntime
-    ? buildAgentLinkEnv({
-        linkRuntime,
-        teamName,
-        teamScopePath,
-        storeDir,
-        ooBinPath: requireOoBinPath(ooBinPath),
-      })
-    : { DWEIS_TEAM_SCOPE_PATH: teamScopePath }
   return {
-    ...ooEnv,
+    DWEIS_TEAM_SCOPE_PATH: teamScopePath,
     ...buildManagedSkillRuntimeEnv(),
     PATH: commandPath,
     DWEIS_BROWSER_CONTROL_TOKEN: browserControl?.token ?? "",
@@ -175,36 +140,6 @@ export function buildAgentSidecarEnv({
     ...(toolConfig?.toolsConfigPath ? { DWEIS_TOOLS_CONFIG_PATH: toolConfig.toolsConfigPath } : {}),
     // 当前轮产物目录标记：generate_image 默认输出写当前轮目录（模型不传 outputPath 时）。
     DWEIS_TURN_ARTIFACT_PATH: turnArtifactMarkerPath(storeDir),
-  }
-}
-
-export interface TeamScopePersistenceOptions {
-  currentName: string | undefined
-  nextName: string | undefined
-  writeScope: (teamName: string | undefined) => Promise<void>
-}
-
-export async function persistTeamScopeUpdate({
-  currentName,
-  nextName,
-  writeScope,
-}: TeamScopePersistenceOptions): Promise<void> {
-  try {
-    await writeScope(nextName)
-  } catch (error) {
-    try {
-      await writeScope(currentName)
-    } catch (rollbackError) {
-      console.warn("[dweis] failed to rollback agent team scope:", rollbackError)
-      logDiagnostic(
-        "agent",
-        "failed to rollback agent team scope",
-        { error: rollbackError, teamName: currentName },
-        "warn",
-      )
-      throw new AggregateError([error, rollbackError], "Failed to persist and rollback agent team scope.")
-    }
-    throw error
   }
 }
 
@@ -237,12 +172,11 @@ function assertOpencodeSuccess<T>(result: OpencodeResult<T>, operation: string):
 
 export interface PromptStreamingOptions {
   system?: string
-  /** 稳定段（团队技能/权限规则等，会话内不随轮次变化）——前置以最大化前缀缓存命中。 */
+  /** 稳定段（技能/权限规则等，会话内不随轮次变化）——前置以最大化前缀缓存命中。 */
   stableSystem?: string
   attachments?: ChatAttachment[]
   mode?: AgentMode
   model?: ModelChoice
-  teamName?: string
   reasoningLevel?: ReasoningLevel
   artifactDir?: string
   outputProjectRoot?: string
@@ -274,8 +208,6 @@ const eventStreamRestartMaxDelayMs = 5_000
 const runtimeRestartMaxAttempts = 5
 const runtimeRestartInitialDelayMs = 1_000
 const runtimeRestartMaxDelayMs = 10_000
-const authorizedServicesCacheTtlMs = 30_000
-const authorizedServicesPromptBudgetMs = 750
 const structuredParseTimeoutMs = 90_000
 const structuredParsePollMs = 300
 
@@ -311,14 +243,9 @@ export class AgentManager {
   private runtimeRecovery: Promise<void> | null = null
   private started = false
   private eventLoopStopped = false
-  private teamName: string | undefined
   private teamScopePath: string | undefined
   private teamUpdateChain: Promise<void> = Promise.resolve()
-  private sessionTeamNames = new Map<string, string>()
   private sessionKnowledgeBaseIds = new Map<string, string[]>()
-  private authorizedServicesCache = new Map<string, { loadedAt: number; services: string[] }>()
-  private authorizedServicesLoadControllers = new Map<string, AbortController>()
-  private authorizedServicesLoads = new Map<string, Promise<string[]>>()
   private persona: Persona = "work"
   private readonly eventMetrics = new ActivityMetrics((snapshot) => {
     logDiagnostic("performance", "opencode event activity", { ...snapshot }, "trace")
@@ -327,7 +254,6 @@ export class AgentManager {
   public constructor(options: AgentManagerOptions) {
     this.options = options
     this.persona = options.persona ?? "work"
-    this.teamName = options.linkRuntime?.kind === "oomol" ? normalizeTeamName(options.linkRuntime.teamName) : undefined
   }
 
   /**
@@ -363,52 +289,6 @@ export class AgentManager {
     logDiagnostic("agent", "persona changed", { persona }, "info")
   }
 
-  /** 更新 Link 工具使用的团队工作区，不重启 sidecar，避免刷新会话列表。 */
-  public async setTeamName(teamName?: string): Promise<void> {
-    const nextTeamName = normalizeTeamName(teamName)
-    await this.queueTeamUpdate(async () => {
-      if (nextTeamName === this.teamName) {
-        return
-      }
-      const previousTeamName = this.teamName
-      await persistTeamScopeUpdate({
-        currentName: previousTeamName,
-        nextName: nextTeamName,
-        writeScope: (name) => this.writeTeamState(name),
-      })
-      this.teamName = nextTeamName
-    })
-  }
-
-  /** 记录单个 OpenCode session 的 Link 团队身份，供并发工具调用按 session 隔离读取。 */
-  public async setSessionTeamName(sessionId: string, teamName?: string): Promise<void> {
-    const normalizedSessionId = sessionId.trim()
-    if (!normalizedSessionId) {
-      throw new Error("Session id is required")
-    }
-    const nextTeamName = normalizeTeamName(teamName) ?? ""
-    await this.queueTeamUpdate(async () => {
-      if (this.sessionTeamNames.get(normalizedSessionId) === nextTeamName) {
-        return
-      }
-      this.sessionTeamNames.set(normalizedSessionId, nextTeamName)
-      await this.writeTeamScope(this.teamName)
-    })
-  }
-
-  public async clearSessionTeamName(sessionId: string): Promise<void> {
-    const normalizedSessionId = sessionId.trim()
-    if (!normalizedSessionId) {
-      return
-    }
-    await this.queueTeamUpdate(async () => {
-      if (!this.sessionTeamNames.delete(normalizedSessionId)) {
-        return
-      }
-      await this.writeTeamScope(this.teamName)
-    })
-  }
-
   /** 记录本轮选中的知识库；提示词按 OpenCode sessionID 注入对应 archive URI。 */
   public async setSessionKnowledgeBaseIds(sessionId: string, knowledgeBaseIds: readonly string[]): Promise<void> {
     const normalizedSessionId = sessionId.trim()
@@ -418,7 +298,7 @@ export class AgentManager {
       if (sameStringArray(this.sessionKnowledgeBaseIds.get(normalizedSessionId), normalizedIds)) return
       if (normalizedIds.length > 0) this.sessionKnowledgeBaseIds.set(normalizedSessionId, normalizedIds)
       else this.sessionKnowledgeBaseIds.delete(normalizedSessionId)
-      await this.writeTeamScope(this.teamName)
+      await this.writeTeamScope()
     })
   }
 
@@ -427,7 +307,7 @@ export class AgentManager {
     if (!normalizedSessionId) return
     await this.queueTeamUpdate(async () => {
       if (!this.sessionKnowledgeBaseIds.delete(normalizedSessionId)) return
-      await this.writeTeamScope(this.teamName)
+      await this.writeTeamScope()
     })
   }
 
@@ -441,7 +321,7 @@ export class AgentManager {
       if (sameStringArray(this.sessionKnowledgeBaseIds.get(normalizedChildId), parentIds)) return
       if (parentIds.length > 0) this.sessionKnowledgeBaseIds.set(normalizedChildId, [...parentIds])
       else this.sessionKnowledgeBaseIds.delete(normalizedChildId)
-      await this.writeTeamScope(this.teamName)
+      await this.writeTeamScope()
     })
   }
 
@@ -457,7 +337,7 @@ export class AgentManager {
         if (next.length > 0) this.sessionKnowledgeBaseIds.set(sessionId, next)
         else this.sessionKnowledgeBaseIds.delete(sessionId)
       }
-      if (changed) await this.writeTeamScope(this.teamName)
+      if (changed) await this.writeTeamScope()
     })
   }
 
@@ -480,20 +360,14 @@ export class AgentManager {
     const workspaceDir = path.join(rootDir, "workspace")
     const teamScopePath = path.join(rootDir, "team-scope.json")
 
-    await ensureAgentWorkspace(workspaceDir, bundledSkillsDir, bundledToolRuntimePath, {
-      bundledOoSkills: this.options.linkRuntime?.kind === "oomol",
-      connectors: this.options.linkRuntime !== null,
-    })
+    await ensureAgentWorkspace(workspaceDir, bundledSkillsDir, bundledToolRuntimePath)
     this.teamScopePath = teamScopePath
-    await this.writeTeamState(this.teamName)
+    await this.writeTeamScope()
   }
 
   private async startSidecar(): Promise<void> {
     const {
-      linkRuntime,
-      modelAccess,
       opencodeBinPath,
-      ooBinPath,
       rootDir,
       disableServerAuth,
       customModels,
@@ -516,12 +390,8 @@ export class AgentManager {
       subagentReasoningVariant: this.options.subagentReasoningVariant,
       exploreModel: this.options.exploreModel,
       exploreReasoningVariant: this.options.exploreReasoningVariant,
-      linkRuntime,
-      modelAccess,
     })
-    const baseCommandPath = await resolveUserCommandPath({
-      preferredDirectories: linkRuntime && ooBinPath ? [path.dirname(ooBinPath)] : [],
-    })
+    const baseCommandPath = await resolveUserCommandPath({})
     const wikiGraphBinDir =
       wikiGraphCliPath && wikiGraphStateDir
         ? await ensureWikiGraphCommandBin({
@@ -536,11 +406,8 @@ export class AgentManager {
     const env = buildAgentSidecarEnv({
       browserControl,
       commandPath,
-      linkRuntime,
       memoryDir: this.options.memoryDir,
-      ooBinPath,
       storeDir,
-      teamName: this.teamName,
       teamScopePath,
       toolConfig: this.options.toolConfig,
     })
@@ -840,19 +707,8 @@ export class AgentManager {
     modelID: string
   } {
     const effectiveChoice = choice ?? this.options.defaultModel
-    if (this.options.modelAccess.kind !== "oomol") {
-      const customModel = this.resolveLocalCustomModel(effectiveChoice)
-      return { apiKey: customModel.apiKey, baseUrl: customModel.baseUrl, modelID: customModel.modelName }
-    }
-    const resolved = this.resolveModel(effectiveChoice)
-    if (effectiveChoice?.kind !== "custom") {
-      return { apiKey: this.options.modelAccess.sessionToken, baseUrl: llmBaseUrl, modelID: resolved.modelID }
-    }
-    const customModel = this.options.customModels?.find((item) => item.id === effectiveChoice.id)
-    if (!customModel) {
-      throw new Error("Selected custom model is no longer available.")
-    }
-    return { apiKey: customModel.apiKey, baseUrl: customModel.baseUrl, modelID: resolved.modelID }
+    const customModel = this.resolveLocalCustomModel(effectiveChoice)
+    return { apiKey: customModel.apiKey, baseUrl: customModel.baseUrl, modelID: customModel.modelName }
   }
 
   public async getMessages(sessionId: string): Promise<ChatMessage[]> {
@@ -933,23 +789,19 @@ export class AgentManager {
 
   /**
    * 非阻塞发送：立即返回，内容经事件流推送。
-   * R4：默认每轮把"账号存在已授权 Link provider"的事实注入系统提示末尾（body.system 经实测追加
-   * 在 agent.prompt 之后），不列 provider 名，避免可用性上下文变成工具使用诱导。稳定前缀
-   * （人格/工具/契约）留在 agent.prompt 以利缓存。
+   * 稳定前缀（人格/工具/契约）留在 agent.prompt 以利缓存。
    */
   public async promptStreaming(sessionId: string, text: string, options: PromptStreamingOptions = {}): Promise<void> {
     if (options.signal?.aborted) {
       return
     }
-    // 缓存友好顺序：稳定段（persona/memory/稳定规则）前置，易变段（授权/动态
-    // context/产物目录）后置——DeepSeek/OpenAI 隐式前缀缓存命中更长前缀。
+    // 缓存友好顺序：稳定段（persona/memory/稳定规则）前置，易变段（动态 context/产物目录）后置
+    // ——DeepSeek/OpenAI 隐式前缀缓存命中更长前缀。
     // mergeSystemPrompts 对 undefined 段保留固定占位，避免段缺失导致后续位移。
     const tail = mergeSystemPrompts(
       buildDWeisPersonaSystem(this.persona),
       await buildMemorySystem(this.options.memoryDir),
       options.stableSystem,
-      this.options.linkRuntime?.kind === "oomol" ? buildWorkspaceIdentitySystem(options.teamName) : undefined,
-      await this.buildAuthorizedSystem(options.teamName, options.signal),
       options.system,
       buildArtifactSystem(options.artifactDir, options.outputProjectRoot),
       buildProcessSystem(options.processDir),
@@ -1031,101 +883,6 @@ export class AgentManager {
       await this.deleteSession(session.id).catch((error: unknown) => {
         console.warn("[dweis] cleanup parse session failed:", error)
       })
-    }
-  }
-
-  /** R4：构建注入系统提示末尾的已授权 Link 可用性提示（无已授权则 undefined）。 */
-  public async buildAuthorizedSystem(teamName?: string, signal?: AbortSignal): Promise<string | undefined> {
-    if (!this.options.linkRuntime) return undefined
-    const services = await this.authorizedServicesForPrompt(teamName, signal)
-    if (services.length === 0) {
-      return undefined
-    }
-    return (
-      `Some Link providers are already authorized for the active workspace. ` +
-      `This is availability awareness only: it is not a recommendation to use Link tools and does not indicate that any provider fits the current task. ` +
-      `For questions about which providers are connected, use list_apps. When, and only when, the user's request needs private/account-specific SaaS data or actions, use Link tools to discover the appropriate action; search results include whether a provider is authenticated. ` +
-      `Ignore this note for direct answers, local files, commands, concrete URLs, webpage fetching, and general web browsing.`
-    )
-  }
-
-  /** 提示词关键路径只等待很短预算；过期值可立即复用，刷新在后台完成。 */
-  private async authorizedServicesForPrompt(teamName?: string, signal?: AbortSignal): Promise<string[]> {
-    const cacheKey =
-      this.options.linkRuntime?.kind === "openconnector"
-        ? `openconnector:${this.options.linkRuntime.baseUrl}`
-        : `oomol:${connectorBaseUrl}:team:${normalizeTeamName(teamName) ?? ""}`
-    const cached = this.authorizedServicesCache.get(cacheKey)
-    if (cached && Date.now() - cached.loadedAt < authorizedServicesCacheTtlMs) {
-      return cached.services
-    }
-    let load = this.authorizedServicesLoads.get(cacheKey)
-    if (!load) {
-      const controller = new AbortController()
-      load = this.listAuthorizedServices(teamName, controller.signal).then((services) => {
-        if (!this.disposed && this.authorizedServicesLoads.get(cacheKey) === load) {
-          this.authorizedServicesCache.set(cacheKey, { loadedAt: Date.now(), services })
-        }
-        return services
-      })
-      this.authorizedServicesLoadControllers.set(cacheKey, controller)
-      this.authorizedServicesLoads.set(cacheKey, load)
-      const finishLoad = () => {
-        if (this.authorizedServicesLoads.get(cacheKey) === load) {
-          this.authorizedServicesLoads.delete(cacheKey)
-          this.authorizedServicesLoadControllers.delete(cacheKey)
-        }
-      }
-      void load.then(finishLoad, finishLoad)
-    }
-    if (cached) {
-      return cached.services
-    }
-    return settleWithinPromptBudget(load, authorizedServicesPromptBudgetMs, signal)
-  }
-
-  /** 直查 connector /v1/apps，返回已授权（active）service 名清单（R4 动态系统提示用）。 */
-  public async listAuthorizedServices(teamName?: string, signal?: AbortSignal): Promise<string[]> {
-    if (!this.started || !this.options.linkRuntime) {
-      return []
-    }
-    if (this.options.linkRuntime.kind === "openconnector") {
-      return this.options.listOpenConnectorAuthorizedServices?.(signal) ?? []
-    }
-    const normalizedTeamName = normalizeTeamName(teamName)
-    const requestSignal = signalWithTimeout(signal, 15_000)
-    try {
-      const response = await fetch(`${connectorBaseUrl}/v1/apps`, {
-        headers: {
-          Authorization: `Bearer ${this.options.linkRuntime.sessionToken}`,
-          ...(normalizedTeamName ? { "x-oo-organization-name": normalizedTeamName } : {}),
-        },
-        signal: requestSignal.signal,
-      })
-      if (!response.ok) {
-        console.warn("[dweis] authorized service lookup failed:", response.status, response.statusText)
-        logDiagnostic(
-          "agent",
-          "authorized service lookup failed",
-          {
-            status: response.status,
-            statusText: response.statusText,
-          },
-          "warn",
-        )
-        return []
-      }
-      const payload = (await response.json()) as { data?: Array<{ service?: string; status?: string }> }
-      const apps = payload.data ?? []
-      return apps.filter((a) => a.status === "active" && a.service).map((a) => a.service as string)
-    } catch (error) {
-      if (!signal?.aborted) {
-        console.warn("[dweis] authorized service lookup failed:", error)
-        logDiagnostic("agent", "authorized service lookup failed", { error }, "warn")
-      }
-      return []
-    } finally {
-      requestSignal.cleanup()
     }
   }
 
@@ -1277,7 +1034,7 @@ export class AgentManager {
     const prompted = await this.client.session.prompt({
       sessionID: id,
       agent: normalizeDWeisAgentMode(undefined),
-      model: { providerID: DWEIS_PROVIDER_ID, modelID: DWEIS_MODEL_ID },
+      model: this.resolveModel(undefined),
       ...(system ? { system } : {}),
       parts: [{ type: "text", text }],
     })
@@ -1288,35 +1045,14 @@ export class AgentManager {
     return { sessionId: id, messages }
   }
 
-  private async writeTeamScope(teamName: string | undefined): Promise<void> {
+  private async writeTeamScope(): Promise<void> {
     if (!this.teamScopePath) {
       return
     }
     const content = JSON.stringify({
-      teamName: teamName ?? "",
       sessionKnowledgeBaseIds: Object.fromEntries(this.sessionKnowledgeBaseIds),
-      sessionTeams: Object.fromEntries(this.sessionTeamNames),
     })
     await atomicWriteText(this.teamScopePath, content)
-  }
-
-  private async writeTeamState(teamName: string | undefined): Promise<void> {
-    const previousTeamName = this.teamName
-    await this.writeOoIdentity(teamName)
-    try {
-      await this.writeTeamScope(teamName)
-    } catch (error) {
-      try {
-        await this.writeOoIdentity(previousTeamName)
-      } catch (rollbackError) {
-        throw new AggregateError([error, rollbackError], "Failed to persist and rollback agent team state.")
-      }
-      throw error
-    }
-  }
-
-  private async writeOoIdentity(teamName: string | undefined): Promise<void> {
-    await writeOoIdentitySettings(path.join(this.options.rootDir, "oo-store", "config"), teamName)
   }
 
   /**
@@ -1332,12 +1068,6 @@ export class AgentManager {
     this.eventSubscriber = null
     this.started = false
     this.eventMetrics.dispose()
-    this.authorizedServicesCache.clear()
-    for (const controller of this.authorizedServicesLoadControllers.values()) {
-      controller.abort(new Error("Agent manager was disposed."))
-    }
-    this.authorizedServicesLoadControllers.clear()
-    this.authorizedServicesLoads.clear()
     // 同时回收"启动中"的实例：退出/重启可能正卡在 startSidecar 的 await 上，此时 this.sidecar 仍为
     // null，但 startingSidecar 已 spawn opencode，必须一并连根回收，否则它会成为漏网孤儿。
     const sidecar = this.sidecar ?? this.startingSidecar
@@ -1348,20 +1078,8 @@ export class AgentManager {
 
   private resolveModel(choice: ModelChoice | undefined): { providerID: string; modelID: string } {
     const effectiveChoice = choice ?? this.options.defaultModel
-    if (this.options.modelAccess.kind !== "oomol") {
-      const customModel = this.resolveLocalCustomModel(effectiveChoice)
-      return { providerID: customProviderId(customModel.id), modelID: customModel.modelName }
-    }
-    if (!effectiveChoice || effectiveChoice.kind === "builtin") {
-      const modelID =
-        effectiveChoice && isBuiltinModelId(effectiveChoice.id) ? effectiveChoice.id : DEFAULT_BUILTIN_MODEL_ID
-      return resolveBuiltinModel(modelID).runtime
-    }
-    const model = this.options.customModels?.find((item) => item.id === effectiveChoice.id)
-    if (!model) {
-      throw new Error("Selected custom model is no longer available.")
-    }
-    return { providerID: customProviderId(model.id), modelID: model.modelName }
+    const customModel = this.resolveLocalCustomModel(effectiveChoice)
+    return { providerID: customProviderId(customModel.id), modelID: customModel.modelName }
   }
 
   private resolveReasoningVariant(
@@ -1373,33 +1091,14 @@ export class AgentManager {
       return undefined
     }
     const effectiveChoice = choice ?? this.options.defaultModel
-    if (this.options.modelAccess.kind !== "oomol") {
-      const model = this.resolveLocalCustomModel(effectiveChoice)
-      return clampReasoningVariant(variant, model.reasoningVariants)
-    }
-    if (effectiveChoice?.kind === "custom") {
-      const model = this.options.customModels?.find((item) => item.id === effectiveChoice.id)
-      return clampReasoningVariant(variant, model?.reasoningVariants)
-    }
-    const modelID =
-      effectiveChoice && isBuiltinModelId(effectiveChoice.id) ? effectiveChoice.id : DEFAULT_BUILTIN_MODEL_ID
-    const model = resolveBuiltinModel(modelID)
-    return clampReasoningVariant(variant, model.capabilities.reasoningVariants)
+    const model = this.resolveLocalCustomModel(effectiveChoice)
+    return clampReasoningVariant(variant, model.reasoningVariants)
   }
 
-  private resolveAttachmentCapabilities(choice: ModelChoice | undefined): { images: boolean; pdf: boolean } {    const effectiveChoice = choice ?? this.options.defaultModel
-    if (this.options.modelAccess.kind !== "oomol") {
-      const model = this.resolveLocalCustomModel(effectiveChoice)
-      return { images: model.supportsImages === true, pdf: false }
-    }
-    if (effectiveChoice?.kind === "custom") {
-      const model = this.options.customModels?.find((item) => item.id === effectiveChoice.id)
-      return { images: model?.supportsImages === true, pdf: false }
-    }
-    const modelID =
-      effectiveChoice && isBuiltinModelId(effectiveChoice.id) ? effectiveChoice.id : DEFAULT_BUILTIN_MODEL_ID
-    const capabilities = resolveBuiltinModel(modelID).capabilities
-    return { images: capabilities.supportsImages, pdf: capabilities.supportsPdf }
+  private resolveAttachmentCapabilities(choice: ModelChoice | undefined): { images: boolean; pdf: boolean } {
+    const effectiveChoice = choice ?? this.options.defaultModel
+    const model = this.resolveLocalCustomModel(effectiveChoice)
+    return { images: model.supportsImages === true, pdf: false }
   }
 
   private resolveLocalCustomModel(choice: ModelChoice | undefined): RuntimeCustomModel {
@@ -1413,14 +1112,6 @@ export class AgentManager {
     }
     throw new Error("A custom model is required for the local Agent runtime.")
   }
-}
-
-export function buildWorkspaceIdentitySystem(teamName?: string): string {
-  const normalizedTeamName = normalizeTeamName(teamName)
-  if (!normalizedTeamName) {
-    throw new Error("Team workspace identity is unavailable")
-  }
-  return `Current-turn Link workspace: team ${JSON.stringify(normalizedTeamName)}; raw oo selector: --organization ${JSON.stringify(normalizedTeamName)}.`
 }
 
 async function buildPromptParts(
@@ -1456,62 +1147,6 @@ async function buildPromptParts(
   }
   parts.push({ type: "text", text })
   return parts
-}
-
-function signalWithTimeout(
-  signal: AbortSignal | undefined,
-  timeoutMs: number,
-): { signal: AbortSignal; cleanup: () => void } {
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
-  const abort = (): void => {
-    controller.abort(signal?.reason)
-  }
-  if (signal?.aborted) {
-    abort()
-  } else {
-    signal?.addEventListener("abort", abort, { once: true })
-  }
-  return {
-    signal: controller.signal,
-    cleanup: () => {
-      clearTimeout(timeoutId)
-      signal?.removeEventListener("abort", abort)
-    },
-  }
-}
-
-function settleWithinPromptBudget(
-  request: Promise<string[]>,
-  timeoutMs: number,
-  signal?: AbortSignal,
-): Promise<string[]> {
-  return new Promise((resolve) => {
-    let completed = false
-    const settle = (services: string[]): void => {
-      if (completed) {
-        return
-      }
-      completed = true
-      clearTimeout(timer)
-      signal?.removeEventListener("abort", abort)
-      resolve(services)
-    }
-    const abort = (): void => settle([])
-    const timer = setTimeout(() => {
-      settle([])
-    }, timeoutMs)
-    timer.unref?.()
-    if (signal?.aborted) {
-      settle([])
-    } else {
-      signal?.addEventListener("abort", abort, { once: true })
-    }
-    void request.then(
-      (services) => settle(services),
-      () => settle([]),
-    )
-  })
 }
 
 /**

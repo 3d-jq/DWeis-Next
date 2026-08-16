@@ -116,12 +116,14 @@ export function showSplashWindow(): BrowserWindow | null {
     console.warn("[dweis] failed to create splash window:", error)
     return null
   }
-  void win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(splashHtml(palette))}`).catch((error: unknown) => {
-    console.warn("[dweis] failed to load splash content:", error)
-    if (!win.isDestroyed()) {
-      win.destroy()
-    }
-  })
+  void win
+    .loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(splashHtml(palette))}`)
+    .catch((error: unknown) => {
+      console.warn("[dweis] failed to load splash content:", error)
+      if (!win.isDestroyed()) {
+        win.destroy()
+      }
+    })
   win.once("ready-to-show", () => {
     if (!win.isDestroyed()) {
       win.show()

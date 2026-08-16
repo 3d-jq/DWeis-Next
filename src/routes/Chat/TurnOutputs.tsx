@@ -23,6 +23,7 @@ import "react-diff-view/style/index.css"
 import { toast } from "sonner"
 import { turnOutputInitialCollapsedPaths } from "./turn-output-collapse.ts"
 import { availableTurnOutputRole } from "./turn-output-role.ts"
+import { PanelHeader } from "@/components/app-shell/PanelHeader.tsx"
 import { useChatService } from "@/components/AppContext"
 import { useT } from "@/i18n/i18n"
 import { writeClipboardText } from "@/lib/clipboard"
@@ -30,7 +31,6 @@ import { reportRendererHandledError } from "@/lib/renderer-diagnostics"
 import { resolveUserFacingError, userFacingErrorDescription } from "@/lib/user-facing-error"
 import { cn } from "@/lib/utils"
 import { FileKindTile } from "@/routes/Chat/file-type-icons"
-import { PanelHeader } from "@/components/app-shell/PanelHeader.tsx"
 
 export interface TurnOutputSelection {
   initialRole?: TurnOutputFileRole
@@ -172,9 +172,7 @@ export function TurnOutputsPanel({ maximized, onToggleMaximized, selection, onSe
   const activeDeletions = activeFiles.reduce((sum, file) => sum + file.deletions, 0)
 
   // Compute and sync title to parent tab.
-  const displayTitle = activeRole === "process"
-    ? t("turnOutputs.processDetails")
-    : t("turnOutputs.panelTitle")
+  const displayTitle = activeRole === "process" ? t("turnOutputs.processDetails") : t("turnOutputs.panelTitle")
 
   React.useEffect(() => {
     onSetTitle(displayTitle)
@@ -222,17 +220,8 @@ export function TurnOutputsPanel({ maximized, onToggleMaximized, selection, onSe
   )
 
   return (
-    <aside
-      className={cn(
-        "flex h-full min-h-0 w-full flex-col bg-background",
-        maximized && "border-l-0",
-      )}
-    >
-    <PanelHeader
-        title={displayTitle}
-        maximized={maximized}
-        onToggleMaximized={onToggleMaximized}
-      />
+    <aside className={cn("flex h-full min-h-0 w-full flex-col bg-background", maximized && "border-l-0")}>
+      <PanelHeader title={displayTitle} maximized={maximized} onToggleMaximized={onToggleMaximized} />
 
       {hasRoleSwitch ? (
         <div className="oo-border-divider border-b px-3 py-2">

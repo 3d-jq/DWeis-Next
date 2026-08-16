@@ -165,7 +165,7 @@ test("ModelsServiceImpl refreshes runtime only when model definitions change", a
   assert.ok(customModel)
   assert.equal(onModelDefinitionsChanged.mock.calls.length, 1)
 
-  await service.setSelectedModel({ kind: "builtin", id: "oopilot" })
+  await service.setSelectedModel({ kind: "custom", id: "custom-1" })
   assert.equal(onModelDefinitionsChanged.mock.calls.length, 1)
 
   await service.deleteCustomModel(customModel.id)

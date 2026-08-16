@@ -36,8 +36,7 @@ vi.mock("@/components/AppContext", () => ({
 const i18n = {
   locale: "zh-CN" as const,
   setLocale: () => undefined,
-  t: (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) =>
-    translate("zh-CN", key, vars),
+  t: (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) => translate("zh-CN", key, vars),
 }
 
 function noop(): void {
@@ -69,8 +68,6 @@ async function renderChatArea(overrides: ChatAreaOverrides = {}) {
       <I18nContext.Provider value={i18n}>
         <ChatArea
           activeSessionId="session-1"
-          billingCacheScope="test"
-          billingRequestScope={null}
           composerDraftKey="draft-1"
           composerFocusRequest={0}
           messages={overrides.messages ?? []}

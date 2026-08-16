@@ -13,8 +13,12 @@ describe("isAudioOnlyMediaRequest", () => {
 
 describe("isTrustedRendererUrl", () => {
   it("allows only the configured development server origin", () => {
-    expect(isTrustedRendererUrl("http://localhost:5273/chat", "http://localhost:5273", "file:///C:/app/dist/")).toBe(true)
-    expect(isTrustedRendererUrl("http://localhost:5274/chat", "http://localhost:5273", "file:///C:/app/dist/")).toBe(false)
+    expect(isTrustedRendererUrl("http://localhost:5273/chat", "http://localhost:5273", "file:///C:/app/dist/")).toBe(
+      true,
+    )
+    expect(isTrustedRendererUrl("http://localhost:5274/chat", "http://localhost:5273", "file:///C:/app/dist/")).toBe(
+      false,
+    )
     expect(
       isTrustedRendererUrl("http://localhost:5273@example.test/chat", "http://localhost:5273", "file:///C:/app/dist/"),
     ).toBe(false)
@@ -26,7 +30,9 @@ describe("isTrustedRendererUrl", () => {
     expect(isTrustedRendererUrl("file:///C:/app/dist/assets/app.js", undefined, "file:///C:/app/dist/")).toBe(true)
     expect(isTrustedRendererUrl("file:///tmp/untrusted.html", undefined, "file:///C:/app/dist/")).toBe(false)
     expect(isTrustedRendererUrl("file:///C:/app/dist/../untrusted.html", undefined, "file:///C:/app/dist/")).toBe(false)
-    expect(isTrustedRendererUrl("file:///app/dist/%2e%2e/untrusted.html", undefined, "file:///C:/app/dist/")).toBe(false)
+    expect(isTrustedRendererUrl("file:///app/dist/%2e%2e/untrusted.html", undefined, "file:///C:/app/dist/")).toBe(
+      false,
+    )
     expect(isTrustedRendererUrl("https://example.test/index.html", undefined, "file:///C:/app/dist/")).toBe(false)
     expect(isTrustedRendererUrl(undefined, undefined, "file:///C:/app/dist/")).toBe(false)
   })

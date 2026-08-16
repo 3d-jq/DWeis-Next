@@ -381,7 +381,6 @@ export interface ChatProjectContext {
   path: string
 }
 
-
 export type ChatContextMention =
   | {
       description?: string
@@ -691,10 +690,6 @@ export interface OpenExternalUrlRequest {
   url: string
 }
 
-export interface SetAgentTeamRequest {
-  teamName: string
-}
-
 export type RechargePrice = "5_USD" | "20_USD" | "100_USD"
 // Capped at 30: Insight V2 rejects daily windows wider than its 30-day user limit.
 export type BillingPeriodDays = 7 | 14 | 30
@@ -830,8 +825,7 @@ export interface BillingOverviewResult {
   teamPendingPaymentAvailable: boolean
 }
 
-/** 连接功能移除后保留的运行时选择标记：agent 恒以 none（本地）运行。 */
-export type ActiveLinkRuntime = "none" | "oomol" | "openconnector"
+/** 连接功能已移除：agent 恒以本地模式运行。 */
 
 export type ChatService = typeof ChatService
 export const ChatService = serviceName("chat-service") as ServiceName<{
@@ -875,10 +869,8 @@ export const ChatService = serviceName("chat-service") as ServiceName<{
     getArtifactBundles(req: ArtifactBundlesRequest): Promise<ArtifactBundle[]>
     openLocalPath(req: OpenLocalPathRequest): Promise<void>
     showLocalPathInFolder(req: ShowLocalPathInFolderRequest): Promise<void>
-    /** 用系统浏览器打开一个 http/https URL（额度中心等渲染层已自行解析好 URL 后调用；主进程仅校验+外开）。 */
+    /** 用系统浏览器打开一个 http/https URL（渲染层已自行解析好 URL 后调用；主进程仅校验+外开）。 */
     openExternalUrl(req: OpenExternalUrlRequest): Promise<void>
-    /** 同步 agent 的团队作用域（连接器请求已在渲染层带团队头；agent 仍由主进程持有，需单独告知）。 */
-    setAgentTeam(req: SetAgentTeamRequest): Promise<void>
     stopGeneration(sessionId: string): Promise<void>
     /** 触发 AI 压缩当前会话：sidecar 总结历史并替换为摘要以释放上下文。 */
     compactSession(sessionId: string): Promise<void>

@@ -1,15 +1,12 @@
-import type { ActiveLinkRuntime, AgentPermissionMode, ChatPermissionRequest } from "./common.ts"
+import type { AgentPermissionMode, ChatPermissionRequest } from "./common.ts"
 import type { PermissionRequestKind, SessionPermissionGrant } from "./permission-request.ts"
 
-import { openConnectorCommandPolicy } from "../agent/oo-command-permission.ts"
 import {
   createSessionPermissionGrant,
   isHighRiskPermissionRequest,
-  isOoCliPermissionRequest,
   isProjectScopedPythonDependencyInstallRequest,
   isTaskScopedPythonDependencyInstallRequest,
   permissionRequestHasSensitiveResource,
-  permissionCommand,
   permissionRequestNeedsDefaultPrompt,
   permissionRequestKind,
   requestMatchesManagedPythonDependencyInstallGrant,
@@ -55,7 +52,6 @@ export type LocalAccessDecision =
 
 export interface LocalAccessPolicyContext {
   activeGenerationId?: string
-  linkRuntime?: ActiveLinkRuntime
   permissionMode: AgentPermissionMode
   sessionGrants?: readonly SessionPermissionGrant[]
   taskProcessRoot?: string
@@ -103,12 +99,6 @@ export function evaluateLocalAccessRequest(
 ): LocalAccessDecision {
   const kind = permissionRequestKind(request)
   const highRisk = isHighRiskPermissionRequest(request)
-  const openConnectorPolicy =
-    context.linkRuntime === "openconnector" && kind === "command"
-      ? openConnectorCommandPolicy(permissionCommand(request) ?? request.resources.join(" "))
-      : null
-  if (openConnectorPolicy === "deny") return { type: "deny", kind, highRisk }
-  if (openConnectorPolicy === "allow") return { type: "allow", reason: "oo_cli", kind, highRisk }
   if (context.permissionMode === "full_access") {
     return { type: "allow", reason: "full_access", kind, highRisk }
   }
@@ -145,9 +135,6 @@ export function evaluateLocalAccessRequest(
   }
   if (permissionRequestNeedsDefaultPrompt(request)) {
     return { type: "prompt", kind, highRisk }
-  }
-  if (context.linkRuntime && isOoCliPermissionRequest(request)) {
-    return { type: "allow", reason: "oo_cli", kind, highRisk }
   }
   if (context.trustedProjectRoot && projectPermissionRequestInsideRoot(request, context.trustedProjectRoot)) {
     return { type: "allow", reason: "trusted_project", kind, highRisk }

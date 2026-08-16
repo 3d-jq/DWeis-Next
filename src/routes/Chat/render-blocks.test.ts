@@ -191,9 +191,7 @@ describe("renderBlocks", () => {
   })
 
   it("splits a MiniMax inline <think> block into reasoning + answer blocks", () => {
-    const blocks = renderBlocks([
-      textPart("text-1", "<think>用户问1+1，直接回答。</think>\n\n1+1=2。"),
-    ])
+    const blocks = renderBlocks([textPart("text-1", "<think>用户问1+1，直接回答。</think>\n\n1+1=2。")])
 
     expect(blocks).toEqual([
       { kind: "reasoning", part: { kind: "reasoning", partId: "text-1:think", text: "用户问1+1，直接回答。" } },

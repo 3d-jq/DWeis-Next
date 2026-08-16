@@ -98,13 +98,15 @@ test("spreadsheetWorkbookPreview reports truncated oversized sheets", () => {
   assert.equal(preview.workbook?.[0]?.rows[0]?.length, spreadsheetPreviewMaxColumns)
 })
 
-import { isPptxArtifact } from "./artifact-preview.ts"
 import { describe, expect, it } from "vitest"
+import { isPptxArtifact } from "./artifact-preview.ts"
 
 describe("isPptxArtifact", () => {
   it("recognizes pptx by extension and mime", () => {
     expect(isPptxArtifact("/tmp/slides.pptx", "application/octet-stream")).toBe(true)
-    expect(isPptxArtifact("/tmp/slides.pdf", "application/vnd.openxmlformats-officedocument.presentationml.presentation")).toBe(true)
+    expect(
+      isPptxArtifact("/tmp/slides.pdf", "application/vnd.openxmlformats-officedocument.presentationml.presentation"),
+    ).toBe(true)
     expect(isPptxArtifact("/tmp/slides.pdf", "application/pdf")).toBe(false)
   })
 })

@@ -136,16 +136,16 @@ HTTP 与 SSE 控制 sidecar；DWeis Next 提供 Agent 契约、模型、权限�
 
 最重要的扩展点：
 
-| 方向                                  | 入口                                                          |
-| ------------------------------------- | ------------------------------------------------------------- |
-| Agent 身份与运行契约                  | [`electron/agent/system-prompt.ts`](electron/agent/system-prompt.ts) |
-| Agent 模式、模型、工具与权限          | [`electron/agent/config.ts`](electron/agent/config.ts)               |
-| 自定义工具、Skills 与 MCP 工具源      | [`electron/agent/tool-sources.ts`](electron/agent/tool-sources.ts)   |
-| 内置与自定义模型支持                  | [`electron/models/`](electron/models/)                               |
-| 聊天、产物与浏览器体验                | [`src/routes/Chat/`](src/routes/Chat/)                               |
-| Skills 管理                            | [`src/routes/Skills/`](src/routes/Skills/)                           |
-| 全部产品设置                          | [`src/routes/Settings/`](src/routes/Settings/)                       |
-| 应用身份                              | [`electron/branding.ts`](electron/branding.ts)                       |
+| 方向                             | 入口                                                                 |
+| -------------------------------- | -------------------------------------------------------------------- |
+| Agent 身份与运行契约             | [`electron/agent/system-prompt.ts`](electron/agent/system-prompt.ts) |
+| Agent 模式、模型、工具与权限     | [`electron/agent/config.ts`](electron/agent/config.ts)               |
+| 自定义工具、Skills 与 MCP 工具源 | [`electron/agent/tool-sources.ts`](electron/agent/tool-sources.ts)   |
+| 内置与自定义模型支持             | [`electron/models/`](electron/models/)                               |
+| 聊天、产物与浏览器体验           | [`src/routes/Chat/`](src/routes/Chat/)                               |
+| Skills 管理                      | [`src/routes/Skills/`](src/routes/Skills/)                           |
+| 全部产品设置                     | [`src/routes/Settings/`](src/routes/Settings/)                       |
+| 应用身份                         | [`electron/branding.ts`](electron/branding.ts)                       |
 
 Agent 能力是一个产品契约，由三处共同表达：启用的工具、权限规则与系统提示词。改它们时要一起改，让
 运行时行为、安全性与 UI 预期保持一致。改动这些边界前请阅读
@@ -196,14 +196,14 @@ DWeis Next 避免在模型上下文里注册大量 provider 特定的工具。�
 
 ## 项目地图
 
-| 路径                                       | 作用                                                               |
-| ------------------------------------------ | ------------------------------------------------------------------ |
-| [`electron/`](electron/)                   | 主进程、preload、Agent 运行时与桌面服务                             |
-| [`src/`](src/)                             | React 渲染层、路由、hooks 与 UI 组件                              |
-| [`scripts/`](scripts/)                     | 开发、二进制准备、打包与发布支持                                  |
-| [`resources/`](resources/)                 | 与应用一起打包的品牌与资源                                          |
-| [`docs/`](docs/)                           | 产品、架构、开发、约定与决策记录                                  |
-| [`.github/workflows/`](.github/workflows/) | PR 与发布自动化                                                    |
+| 路径                                       | 作用                                    |
+| ------------------------------------------ | --------------------------------------- |
+| [`electron/`](electron/)                   | 主进程、preload、Agent 运行时与桌面服务 |
+| [`src/`](src/)                             | React 渲染层、路由、hooks 与 UI 组件    |
+| [`scripts/`](scripts/)                     | 开发、二进制准备、打包与发布支持        |
+| [`resources/`](resources/)                 | 与应用一起打包的品牌与资源              |
+| [`docs/`](docs/)                           | 产品、架构、开发、约定与决策记录        |
+| [`.github/workflows/`](.github/workflows/) | PR 与发布自动化                         |
 
 ## 文档
 

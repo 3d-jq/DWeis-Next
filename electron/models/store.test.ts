@@ -5,7 +5,7 @@ import path from "node:path"
 import { test } from "vitest"
 import { externalModelProviderBaseUrls } from "../domain.ts"
 import { ModelCredentialStore } from "./credential-store.ts"
-import { customModelDisplayName, defaultModelChoice, ModelsStore, sanitizeBaseUrl } from "./store.ts"
+import { customModelDisplayName, ModelsStore, sanitizeBaseUrl } from "./store.ts"
 
 const providerBaseUrls = externalModelProviderBaseUrls
 
@@ -26,16 +26,13 @@ test("ModelsStore returns default catalog on missing file", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "dweis-models-"))
   const { store } = createStore(dir)
   const catalog = await store.catalog()
-  assert.deepEqual(catalog.selected, defaultModelChoice())
-  assert.deepEqual(
-    catalog.builtins.map((model) => model.id),
-    ["oopilot", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "qwen3.7-plus", "qwen3.7-max"],
-  )
+  assert.equal(catalog.selected, undefined)
+  assert.deepEqual(catalog.builtins, [])
   assert.equal(catalog.customModels.length, 0)
   assert.ok(catalog.providers.some((provider) => provider.id === "deepseek"))
 })
 
-test("ModelsStore falls back to Auto when a removed DeepSeek built-in was selected", async () => {
+test("ModelsStore falls back to no selection when a removed legacy built-in was selected", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "dweis-models-"))
   writeFileSync(
     path.join(dir, "models.json"),
@@ -46,10 +43,10 @@ test("ModelsStore falls back to Auto when a removed DeepSeek built-in was select
   )
   const { store } = createStore(dir)
 
-  assert.deepEqual((await store.catalog()).selected, defaultModelChoice())
+  assert.equal((await store.catalog()).selected, undefined)
 })
 
-test("ModelsStore falls back to Auto when the removed GPT 5.5 built-in was selected", async () => {
+test("ModelsStore falls back to no selection when a removed legacy GPT built-in was selected", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "dweis-models-"))
   writeFileSync(
     path.join(dir, "models.json"),
@@ -60,7 +57,7 @@ test("ModelsStore falls back to Auto when the removed GPT 5.5 built-in was selec
   )
   const { store } = createStore(dir)
 
-  assert.deepEqual((await store.catalog()).selected, defaultModelChoice())
+  assert.equal((await store.catalog()).selected, undefined)
 })
 
 test("ModelsStore exposes provider default URLs and model options", async () => {
@@ -80,12 +77,7 @@ test("ModelsStore exposes provider default URLs and model options", async () => 
   assert.deepEqual(
     providers
       .get("gemini")
-      ?.modelOptions?.map((model) => [
-        model.id,
-        model.supportsImages,
-        model.supportsToolCalls,
-        model.contextWindow,
-      ]),
+      ?.modelOptions?.map((model) => [model.id, model.supportsImages, model.supportsToolCalls, model.contextWindow]),
     [
       ["gemini-3.5-flash", true, true, 1_114_112],
       ["gemini-3.1-pro-preview", true, true, 1_114_112],
@@ -113,13 +105,7 @@ test("ModelsStore exposes provider default URLs and model options", async () => 
   assert.equal(providers.get("zhipu")?.supportsImages, false)
   assert.equal(providers.get("zhipu")?.supportsToolCalls, true)
   assert.deepEqual(
-    providers
-      .get("zhipu")
-      ?.modelOptions?.map((model) => [
-        model.id,
-        model.contextWindow,
-        model.reasoningVariants,
-      ]),
+    providers.get("zhipu")?.modelOptions?.map((model) => [model.id, model.contextWindow, model.reasoningVariants]),
     [["glm-5.2", 1_000_000, ["high", "max"]]],
   )
   assert.equal(providers.get("kimi")?.baseUrl, providerBaseUrls.kimiCn)
@@ -130,12 +116,7 @@ test("ModelsStore exposes provider default URLs and model options", async () => 
   assert.deepEqual(
     providers
       .get("kimi")
-      ?.modelOptions?.map((model) => [
-        model.id,
-        model.supportsImages,
-        model.contextWindow,
-        model.reasoningVariants,
-      ]),
+      ?.modelOptions?.map((model) => [model.id, model.supportsImages, model.contextWindow, model.reasoningVariants]),
     [["kimi-k3", true, 1_000_000, ["low", "high", "max"]]],
   )
   assert.equal(providers.get("kimi")?.supportsToolCalls, true)
@@ -145,13 +126,7 @@ test("ModelsStore exposes provider default URLs and model options", async () => 
     { id: "global", baseUrl: providerBaseUrls.minimaxGlobal },
   ])
   assert.deepEqual(
-    providers
-      .get("minimax")
-      ?.modelOptions?.map((model) => [
-        model.id,
-        model.supportsImages,
-        model.contextWindow,
-      ]),
+    providers.get("minimax")?.modelOptions?.map((model) => [model.id, model.supportsImages, model.contextWindow]),
     [["MiniMax-M3", true, 1_000_000]],
   )
   assert.equal(providers.get("minimax")?.supportsToolCalls, true)
@@ -180,13 +155,7 @@ test("ModelsStore exposes provider default URLs and model options", async () => 
     },
   ])
   assert.deepEqual(
-    providers
-      .get("qwen")
-      ?.modelOptions?.map((model) => [
-        model.id,
-        model.supportsImages,
-        model.contextWindow,
-      ]),
+    providers.get("qwen")?.modelOptions?.map((model) => [model.id, model.supportsImages, model.contextWindow]),
     [
       ["qwen3.7-plus", true, 1_000_000],
       ["qwen3.7-max", true, 1_000_000],
@@ -209,9 +178,7 @@ test("ModelsStore exposes provider default URLs and model options", async () => 
     },
   ])
   assert.deepEqual(
-    providers
-      .get("xiaomi")
-      ?.modelOptions?.map((model) => [model.id, model.supportsImages, model.contextWindow]),
+    providers.get("xiaomi")?.modelOptions?.map((model) => [model.id, model.supportsImages, model.contextWindow]),
     [
       ["mimo-v2.5-pro", false, 1_000_000],
       ["mimo-v2.5", true, 1_000_000],
@@ -388,7 +355,7 @@ test("legacy migration keeps the plaintext source when secure credential writing
 
   const catalog = await store.catalog()
 
-  assert.ok(catalog.builtins.length > 0)
+  assert.deepEqual(catalog.builtins, [])
   assert.equal(readFileSync(modelsFile, "utf8").includes("only-copy"), true)
 })
 
@@ -419,7 +386,7 @@ test("legacy migration retains both copies when metadata cleanup fails after sec
 
   const catalog = await store.catalog()
 
-  assert.ok(catalog.builtins.length > 0)
+  assert.deepEqual(catalog.builtins, [])
   assert.equal(readFileSync(modelsFile, "utf8").includes("migration-secret"), true)
   assert.equal(await credentials.get("legacy"), "migration-secret")
 })
@@ -453,7 +420,7 @@ test("credential lookup failures preserve builtin catalog and omit unavailable c
   const catalog = await store.catalog()
   const runtime = await store.runtimeModels()
 
-  assert.ok(catalog.builtins.length > 0)
+  assert.deepEqual(catalog.builtins, [])
   assert.equal(catalog.customModels[0]?.id, "locked-model")
   assert.deepEqual(runtime.customModels, [])
   assert.deepEqual(runtime.selected, { kind: "custom", id: "locked-model" })

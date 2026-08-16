@@ -1,7 +1,5 @@
 // @vitest-environment happy-dom
 
-import type { UseAuth } from "@/hooks/useAuth"
-
 // React 19 要求显式声明 act 环境，否则 happy-dom 下每次渲染都会警告。
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -139,7 +137,7 @@ vi.mock("@/hooks/useProjectGit", () => ({
 
 vi.mock("@/hooks/useRuntimeCapabilities", () => ({
   useRuntimeCapabilities: () => ({
-    capabilities: { mode: "self-managed" },
+    capabilities: { mode: "local" },
     error: null,
   }),
 }))
@@ -174,24 +172,6 @@ vi.mock("@/hooks/useSessions", () => ({
   }),
 }))
 
-vi.mock("@/hooks/useTeamWorkspace", () => ({
-  useTeamWorkspace: () => ({
-    activeWorkspace: { canManage: false, kind: "local", team: null, teamId: "", role: null },
-    error: null,
-    getTeamCanManage: () => false,
-    getTeamRole: () => "member",
-    hasLoaded: true,
-    loading: false,
-    teams: [],
-    teamAvatarPreviewUrls: {},
-    clearTeamAvatarPreview: vi.fn(),
-    refresh: vi.fn(async () => undefined),
-    selectTeam: vi.fn(),
-    syncOverview: vi.fn(),
-    upsertTeam: vi.fn(),
-  }),
-}))
-
 // 懒加载路由桩：外壳测试只验证壳本身，聊天区/任务弹窗用哨兵与空实现替代。
 vi.mock("@/routes/Chat", () => ({
   ChatArea: () => "stub:chat-area",
@@ -199,15 +179,6 @@ vi.mock("@/routes/Chat", () => ({
 vi.mock("@/routes/Tasks", () => ({
   TasksDialog: () => null,
 }))
-
-const auth: UseAuth = {
-  state: { status: "authenticated", account: { id: "account-1", name: "test" }, updatedAt: "2026-01-01T00:00:00Z" },
-  loggingIn: false,
-  loggingOut: false,
-  error: null,
-  login: vi.fn(async () => undefined),
-  logout: vi.fn(async () => undefined),
-}
 
 async function renderAppShell() {
   const host = document.createElement("div")
@@ -224,7 +195,7 @@ async function renderAppShell() {
             t: (key, vars) => translate("zh-CN", key, vars),
           },
         },
-        React.createElement(AppShell, { auth }),
+        React.createElement(AppShell),
       ),
     )
   })

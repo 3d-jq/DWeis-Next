@@ -6,7 +6,19 @@ import type { ComposerPaletteItem } from "./ComposerPalette.tsx"
 import type { TranslateFn } from "@/i18n/i18n"
 import type { ArtifactSelection } from "@/routes/Chat/GeneratedArtifacts"
 
-import { Bug, File, FileImage, Folder, LibraryBig, Minimize2, Package, Redo2, Search, SlidersHorizontal, Sparkles, Undo2 } from "lucide-react"
+import {
+  Bug,
+  File,
+  FileImage,
+  Folder,
+  LibraryBig,
+  Minimize2,
+  Package,
+  Redo2,
+  Search,
+  Sparkles,
+  Undo2,
+} from "lucide-react"
 import * as React from "react"
 import { KNOWLEDGE_LIBRARY_CONTEXT_ID } from "../../../electron/knowledge/common.ts"
 import { normalizeSkillIconSource } from "@/components/skill-icon-source"
@@ -24,7 +36,6 @@ export type SlashCommandAction =
   | "attach-file-or-folder"
   | "attach-file"
   | "attach-folder"
-  | "billing"
   | "bug-report"
   | "compact"
   | "custom"
@@ -173,10 +184,6 @@ export function filterComposerPaletteItems<TItem extends ComposerPaletteItem>(
 function installedSkillHostCount(group: ManagedSkillGroup): number {
   return group.runtimeHosts.filter((host) => host.status === "installed").length
 }
-
-
-
-
 
 function skillKindMeta(group: ManagedSkillGroup): string {
   if (builtInSkillIds.has(group.id)) {
@@ -369,12 +376,7 @@ export function buildContextPaletteItems({
   knowledgeItems?: Array<KnowledgeLibraryPaletteItem | KnowledgePaletteItem>
   platform?: NodeJS.Platform
   t: TranslateFn
-}): Array<
-  | ArtifactPaletteItem
-  | AttachmentPaletteItem
-  | KnowledgeLibraryPaletteItem
-  | KnowledgePaletteItem
-> {
+}): Array<ArtifactPaletteItem | AttachmentPaletteItem | KnowledgeLibraryPaletteItem | KnowledgePaletteItem> {
   const attachmentItems: AttachmentPaletteItem[] = supportsCombinedAttachmentPicker(platform)
     ? [
         {
@@ -496,12 +498,10 @@ export function buildArtifactPaletteItems(selection: ArtifactSelection | null, t
 }
 
 export function slashCommandItems({
-  canViewBilling,
   hasMessages,
   platform,
   t,
 }: {
-  canViewBilling: boolean
   hasMessages: boolean
   platform?: NodeJS.Platform
   t: TranslateFn
@@ -612,19 +612,6 @@ export function slashCommandItems({
       title: t("chat.commandBugReport"),
     },
     ...attachmentItems,
-    ...(canViewBilling
-      ? [
-          {
-            action: "billing" as const,
-            description: t("chat.commandBillingDescription"),
-            icon: React.createElement(SlidersHorizontal, { className: "size-4" }),
-            id: "billing",
-            kind: "slash" as const,
-            meta: "ui" as const,
-            title: t("chat.commandBilling"),
-          },
-        ]
-      : []),
   ]
 }
 

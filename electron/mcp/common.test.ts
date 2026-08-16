@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest"
 import type { McpServerEntry } from "./common.ts"
+
+import { describe, expect, it } from "vitest"
 import {
   fromOpencodeMcpConfig,
   mcpEntryFromJson,
@@ -93,7 +94,9 @@ describe("toOpencodeMcpConfig", () => {
   })
 
   it("converts http/sse to remote configs", () => {
-    expect(toOpencodeMcpConfig({ id: "mcp-2", name: "r", type: "sse", url: "https://x/mcp/sse", enabled: true })).toEqual({
+    expect(
+      toOpencodeMcpConfig({ id: "mcp-2", name: "r", type: "sse", url: "https://x/mcp/sse", enabled: true }),
+    ).toEqual({
       type: "remote",
       url: "https://x/mcp/sse",
     })

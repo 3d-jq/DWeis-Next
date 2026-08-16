@@ -1,6 +1,6 @@
-import type { SessionPromptAsyncData } from "@opencode-ai/sdk/v2/client"
 import type { AgentManager } from "../agent/manager.ts"
 import type { MemoryContent } from "./common.ts"
+import type { SessionPromptAsyncData } from "@opencode-ai/sdk/v2/client"
 
 import { DWEIS_GENERAL_SUBAGENT_NAME } from "../agent/mode.ts"
 
@@ -65,7 +65,10 @@ export class MemoryReviewer {
     if (!enabled) {
       return
     }
-    const clampedInterval = Math.min(Math.max(Math.trunc(interval) || REVIEW_INTERVAL_MIN, REVIEW_INTERVAL_MIN), REVIEW_INTERVAL_MAX)
+    const clampedInterval = Math.min(
+      Math.max(Math.trunc(interval) || REVIEW_INTERVAL_MIN, REVIEW_INTERVAL_MIN),
+      REVIEW_INTERVAL_MAX,
+    )
     const count = (this.turnCounts.get(input.sessionId) ?? 0) + 1
     this.turnCounts.set(input.sessionId, count)
     if (count % clampedInterval !== 0) {

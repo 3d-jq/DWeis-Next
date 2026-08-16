@@ -85,9 +85,12 @@ export function useArtifactsPanelState({
     [artifactsPanelMaxWidthValue],
   )
 
-  const applyRightPanelWidth = React.useCallback((width: number): void => {
-    appChromeRef.current?.style.setProperty("--right-panel-width", `${width}px`)
-  }, [appChromeRef])
+  const applyRightPanelWidth = React.useCallback(
+    (width: number): void => {
+      appChromeRef.current?.style.setProperty("--right-panel-width", `${width}px`)
+    },
+    [appChromeRef],
+  )
 
   const clearArtifactsPanelContentWidth = React.useCallback((): void => {
     const element = artifactsPanelContentRef.current

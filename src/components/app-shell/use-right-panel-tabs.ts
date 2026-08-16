@@ -1,3 +1,4 @@
+import type { RightPanelTab, RightPanelTabSource } from "./right-panel-tabs.ts"
 import type { ArtifactSelection } from "@/routes/Chat/GeneratedArtifacts"
 import type { TurnOutputSelection } from "@/routes/Chat/TurnOutputs"
 
@@ -11,7 +12,6 @@ import {
   updateTabTitle,
   upsertTab,
 } from "./right-panel-tabs.ts"
-import type { RightPanelTab, RightPanelTabSource } from "./right-panel-tabs.ts"
 
 interface UseRightPanelTabsOptions {
   /** 会话切换时清空全部标签（与原面板行为一致）。 */
@@ -70,7 +70,13 @@ export function useRightPanelTabs({ activeSessionId }: UseRightPanelTabsOptions)
     if (source === "auto") {
       setLatestArtifactSelection(selection)
     }
-    const tab: RightPanelTab = { id: artifactTabId(selection), kind: "artifact", selection, source, title: DEFAULT_ARTIFACT_TITLE }
+    const tab: RightPanelTab = {
+      id: artifactTabId(selection),
+      kind: "artifact",
+      selection,
+      source,
+      title: DEFAULT_ARTIFACT_TITLE,
+    }
     setTabs((current) => {
       const exists = current.some((candidate) => candidate.id === tab.id)
       if (!exists && source === "auto") {
@@ -85,7 +91,13 @@ export function useRightPanelTabs({ activeSessionId }: UseRightPanelTabsOptions)
   }, [])
 
   const openTurnOutput = React.useCallback((selection: TurnOutputSelection, source: RightPanelTabSource) => {
-    const tab: RightPanelTab = { id: turnOutputTabId(selection), kind: "turn-output", selection, source, title: DEFAULT_TURNOUTPUT_TITLE }
+    const tab: RightPanelTab = {
+      id: turnOutputTabId(selection),
+      kind: "turn-output",
+      selection,
+      source,
+      title: DEFAULT_TURNOUTPUT_TITLE,
+    }
     setTabs((current) => {
       const exists = current.some((candidate) => candidate.id === tab.id)
       if (!exists && source === "auto") {

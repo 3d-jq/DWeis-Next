@@ -1,5 +1,4 @@
 import type { AttentionService } from "../../electron/attention/common.ts"
-import type { AuthService } from "../../electron/auth/common.ts"
 import type { AutomationService } from "../../electron/automation/common.ts"
 import type { BrowserService } from "../../electron/browser/common.ts"
 import type { ChatService } from "../../electron/chat/common.ts"
@@ -11,8 +10,8 @@ import type { ModelsService } from "../../electron/models/common.ts"
 import type { SessionService } from "../../electron/session/common.ts"
 import type { SettingsService } from "../../electron/settings/common.ts"
 import type { SkillService } from "../../electron/skills/common.ts"
-import type { UpdateService } from "../../electron/update/common.ts"
 import type { UsageService } from "../../electron/stats/common.ts"
+import type { UpdateService } from "../../electron/update/common.ts"
 import type { ConnectionClientService } from "@oomol/connection"
 
 import * as React from "react"
@@ -30,7 +29,6 @@ export interface AppContextValue {
   skillService: ConnectionClientService<SkillService>
   modelsService: ConnectionClientService<ModelsService>
   settingsService: ConnectionClientService<SettingsService>
-  authService: ConnectionClientService<AuthService>
   updateService: ConnectionClientService<UpdateService>
   usageService: ConnectionClientService<UsageService>
 }
@@ -91,10 +89,6 @@ export function useMcpService(): ConnectionClientService<McpService> {
 
 export function useMemoryService(): ConnectionClientService<MemoryService> {
   return useAppContext().memoryService
-}
-
-export function useAuthService(): ConnectionClientService<AuthService> {
-  return useAppContext().authService
 }
 
 export function useUpdateService(): ConnectionClientService<UpdateService> {

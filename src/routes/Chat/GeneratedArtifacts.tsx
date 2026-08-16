@@ -11,7 +11,6 @@ import type { ArtifactContextMenuState } from "./ArtifactContextMenu.tsx"
 import type { ArtifactPreviewMode } from "./ArtifactPreviewPane.tsx"
 
 import { ExternalLink, FolderOpen, TriangleAlert } from "lucide-react"
-import { PanelHeader } from "@/components/app-shell/PanelHeader.tsx"
 import * as React from "react"
 import { toast } from "sonner"
 import {
@@ -28,6 +27,7 @@ import { ArtifactPreview, ArtifactsEmptyState } from "./ArtifactPreviewPane.tsx"
 import { FileKindTile } from "./file-type-icons.tsx"
 import { OutputShelfCard } from "./OutputShelfCard.tsx"
 import { useArtifactFileActions } from "./use-artifact-file-actions.ts"
+import { PanelHeader } from "@/components/app-shell/PanelHeader.tsx"
 import { useChatService } from "@/components/AppContext"
 import { useT } from "@/i18n/i18n"
 import { reportRendererHandledError } from "@/lib/renderer-diagnostics"
@@ -582,20 +582,24 @@ export function ArtifactsPanel({ maximized, selection, onToggleMaximized, onSetT
           }
           setBrowseLevels(browseLevels.slice(0, index + 1))
         }}
-        actions={selectedItem ? [
-          {
-            id: "show-in-folder",
-            icon: <FolderOpen className="size-4" />,
-            label: t("artifacts.showInFolder"),
-            onClick: () => showParent(selectedItem.path),
-          },
-          {
-            id: "open-file",
-            icon: <ExternalLink className="size-4" />,
-            label: t("artifacts.openFile"),
-            onClick: () => openPath(selectedItem.path),
-          },
-        ] : undefined}
+        actions={
+          selectedItem
+            ? [
+                {
+                  id: "show-in-folder",
+                  icon: <FolderOpen className="size-4" />,
+                  label: t("artifacts.showInFolder"),
+                  onClick: () => showParent(selectedItem.path),
+                },
+                {
+                  id: "open-file",
+                  icon: <ExternalLink className="size-4" />,
+                  label: t("artifacts.openFile"),
+                  onClick: () => openPath(selectedItem.path),
+                },
+              ]
+            : undefined
+        }
         maximized={maximized}
         onToggleMaximized={onToggleMaximized}
       />

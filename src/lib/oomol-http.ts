@@ -99,4 +99,3 @@ export async function oomolFetchJson<T>(input: string | URL, options: OomolFetch
   }
   return (text ? (JSON.parse(text) as T) : undefined) as T
 }
-

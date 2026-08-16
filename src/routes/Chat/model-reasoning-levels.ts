@@ -6,13 +6,14 @@ import { DWEIS_REASONING_LEVELS, DWEIS_REASONING_VARIANT_LEVELS } from "../../..
 const reasoningLevelOptions: readonly ReasoningLevel[] = DWEIS_REASONING_LEVELS
 
 export function selectedModelReasoningLevels(catalog: ModelCatalog | null): ReasoningLevel[] {
-  if (!catalog) {
+  if (!catalog || !catalog.selected) {
     return [...reasoningLevelOptions]
   }
+  const selected = catalog.selected
   const variants =
-    catalog.selected.kind === "custom"
-      ? catalog.customModels.find((model) => model.id === catalog.selected.id)?.reasoningVariants
-      : catalog.builtins.find((model) => model.id === catalog.selected.id)?.reasoningVariants
+    selected.kind === "custom"
+      ? catalog.customModels.find((model) => model.id === selected.id)?.reasoningVariants
+      : undefined
   const supported = new Set(variants ?? [])
   return ["default", ...DWEIS_REASONING_VARIANT_LEVELS.filter((level) => supported.has(level))]
 }

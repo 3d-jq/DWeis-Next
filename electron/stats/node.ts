@@ -1,8 +1,8 @@
+import type { ActivityStatsResult, TokenStatsResult, UsageService } from "./common.ts"
 import type { IConnectionService } from "@oomol/connection"
 
 import { ConnectionService } from "@oomol/connection"
 import { DatabaseSync } from "node:sqlite"
-import type { ActivityStatsResult, TokenStatsResult, UsageService } from "./common.ts"
 import { UsageService as UsageServiceName } from "./common.ts"
 
 /** 活跃统计的时间窗口（近一年，热力图 52 周铺满）。 */
@@ -30,7 +30,15 @@ export class UsageServiceImpl extends ConnectionService<UsageService> implements
 
   private queryTokenStats(): TokenStatsResult {
     const empty = (): TokenStatsResult => ({
-      total: { cacheReadTokens: 0, cacheWriteTokens: 0, cost: 0, inputTokens: 0, outputTokens: 0, reasoningTokens: 0, sessions: 0 },
+      total: {
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+        cost: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        reasoningTokens: 0,
+        sessions: 0,
+      },
       byModel: [],
     })
     const db = this.openDatabase()
@@ -102,7 +110,15 @@ export class UsageServiceImpl extends ConnectionService<UsageService> implements
           reasoningTokens: acc.reasoningTokens + row.reasoningTokens,
           sessions: acc.sessions + row.sessions,
         }),
-        { cacheReadTokens: 0, cacheWriteTokens: 0, cost: 0, inputTokens: 0, outputTokens: 0, reasoningTokens: 0, sessions: 0 },
+        {
+          cacheReadTokens: 0,
+          cacheWriteTokens: 0,
+          cost: 0,
+          inputTokens: 0,
+          outputTokens: 0,
+          reasoningTokens: 0,
+          sessions: 0,
+        },
       )
       return { byModel, total }
     } catch (error) {

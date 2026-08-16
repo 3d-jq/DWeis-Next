@@ -30,7 +30,15 @@ function withTestProviders(
     { value: { chatService: { invoke } } as unknown as AppContextValue },
     React.createElement(
       ThemeContext.Provider,
-      { value: { effectiveTheme: "light", palette: "default", preference: "light", setPalette: () => undefined, setPreference: () => undefined } },
+      {
+        value: {
+          effectiveTheme: "light",
+          palette: "default",
+          preference: "light",
+          setPalette: () => undefined,
+          setPreference: () => undefined,
+        },
+      },
       React.createElement(
         I18nContext.Provider,
         {

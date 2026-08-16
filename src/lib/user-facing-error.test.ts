@@ -5,7 +5,7 @@ describe("resolveUserFacingError", () => {
   it("classifies auth, rate limit, and server errors", () => {
     expect(resolveUserFacingError("HTTP 401 unauthorized", { area: "auth" })).toMatchObject({
       kind: "auth_required",
-      titleKey: "error.authRequired.title",
+      titleKey: "chatError.modelAuthRequired.title",
     })
     expect(resolveUserFacingError('{"status":429,"message":"too many requests"}')).toMatchObject({
       kind: "rate_limited",
@@ -17,19 +17,17 @@ describe("resolveUserFacingError", () => {
     })
   })
 
-  it("classifies the billing session-expiry sentinel as a recoverable, billing-scoped sign-in prompt", () => {
-    // billing.ts 在会话 token 缺失/401 时抛出该消息：必须归类为可恢复的 auth_required（info），
-    // 且用账单专属文案（聊天不受影响），而非全局"登录已失效"，否则会误导成整个账号登出。
+  it("classifies 401 as a model-credential prompt regardless of area", () => {
+    // 纯本地模式无会话/账单概念：401 一律按模型凭据问题提示。
     expect(resolveUserFacingError("Sign in is required.", { area: "billing" })).toMatchObject({
       kind: "auth_required",
       severity: "info",
-      titleKey: "error.billingSessionExpired.title",
-      descriptionKey: "error.billingSessionExpired.description",
+      titleKey: "chatError.modelAuthRequired.title",
+      descriptionKey: "chatError.modelAuthRequired.description",
     })
-    // 非 billing 作用域（如语音）仍走通用登录文案。
     expect(resolveUserFacingError("HTTP 401 unauthorized", { area: "voice" })).toMatchObject({
       kind: "auth_required",
-      titleKey: "error.authRequired.title",
+      titleKey: "chatError.modelAuthRequired.title",
     })
   })
 
@@ -65,7 +63,7 @@ describe("resolveUserFacingError", () => {
     })
     expect(resolveUserFacingError("HTTP 401 unauthorized", { area: "agent" })).toMatchObject({
       kind: "auth_required",
-      titleKey: "error.authRequired.title",
+      titleKey: "chatError.modelAuthRequired.title",
     })
     expect(resolveUserFacingError("request cancelled", { area: "agent" })).toMatchObject({
       kind: "cancelled",

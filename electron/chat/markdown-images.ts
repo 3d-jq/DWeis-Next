@@ -23,10 +23,7 @@ const angleBracketLocalPathPattern = new RegExp(
 )
 
 function stripAngleBracketLocalPaths(markdown: string): string {
-  return markdown.replace(
-    angleBracketLocalPathPattern,
-    (_match, alt: string, path: string) => `![${alt}](${path})`,
-  )
+  return markdown.replace(angleBracketLocalPathPattern, (_match, alt: string, path: string) => `![${alt}](${path})`)
 }
 
 function fenceStart(line: string): { character: "`" | "~"; length: number } | null {

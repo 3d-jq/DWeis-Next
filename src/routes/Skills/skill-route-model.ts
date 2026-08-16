@@ -239,7 +239,6 @@ function getPackageOwner(packageName: string | undefined): string | undefined {
   return normalizedPackageName
 }
 
-
 export function isImageIcon(icon: string | undefined): boolean {
   return Boolean(icon?.startsWith("https://"))
 }

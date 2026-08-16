@@ -27,8 +27,6 @@ const translations: Record<string, string> = {
   "chat.commandAttachFileOrFolderDescription": "Add a file or folder from disk as context",
   "chat.commandAttachFolder": "Attach folder",
   "chat.commandAttachFolderDescription": "Add a folder from disk as context",
-  "chat.commandBilling": "Billing",
-  "chat.commandBillingDescription": "View credits and subscription",
   "chat.commandBugReport": "Bug report",
   "chat.commandBugReportDescription": "Generate a Markdown report for DWeis developers from this task",
   "chat.commandBrowserSkill": "Browser",
@@ -132,7 +130,7 @@ function runtimeSkillGroup(
 
 describe("composer palette items", () => {
   it("lists slash commands without prompt inserts", () => {
-    const items = slashCommandItems({ canViewBilling: true, hasMessages: true, t })
+    const items = slashCommandItems({ hasMessages: true, t })
 
     expect(items.map((item) => item.id)).toEqual([
       "skills",
@@ -144,13 +142,12 @@ describe("composer palette items", () => {
       "bug-report",
       "attach-file",
       "attach-folder",
-      "billing",
     ])
     expect(items.some((item) => ["summarize", "status"].includes(item.id))).toBe(false)
   })
 
   it("merges file and folder slash commands on macOS", () => {
-    const items = slashCommandItems({ canViewBilling: true, hasMessages: true, platform: "darwin", t })
+    const items = slashCommandItems({ hasMessages: true, platform: "darwin", t })
 
     expect(items.map((item) => item.id)).toEqual([
       "skills",
@@ -161,31 +158,14 @@ describe("composer palette items", () => {
       "redo",
       "bug-report",
       "attach-file-or-folder",
-      "billing",
-    ])
-  })
-
-  it("hides the billing slash command when billing is unavailable", () => {
-    const items = slashCommandItems({ canViewBilling: false, hasMessages: true, t })
-
-    expect(items.map((item) => item.id)).toEqual([
-      "skills",
-      "init",
-      "review",
-      "compact",
-      "undo",
-      "redo",
-      "bug-report",
-      "attach-file",
-      "attach-folder",
     ])
   })
 
   it("disables the compact command when the session has no messages", () => {
-    const empty = slashCommandItems({ canViewBilling: true, hasMessages: false, t })
+    const empty = slashCommandItems({ hasMessages: false, t })
     expect(empty.find((item) => item.id === "compact")?.disabled).toBe(true)
 
-    const withHistory = slashCommandItems({ canViewBilling: true, hasMessages: true, t })
+    const withHistory = slashCommandItems({ hasMessages: true, t })
     expect(withHistory.find((item) => item.id === "compact")?.disabled).toBe(false)
   })
 
@@ -229,7 +209,6 @@ describe("composer palette items", () => {
     expect(items.map((item) => item.skillId)).toEqual(["zeta"])
   })
 
-
   it("marks built-in oo skills consistently in the skill palette", () => {
     const items = buildSkillPaletteItems(
       [
@@ -265,7 +244,7 @@ describe("composer palette items", () => {
   })
 
   it("lists all skills under the /skills palette and keeps slash root to commands only", () => {
-    const slashItems = slashCommandItems({ canViewBilling: true, hasMessages: true, t })
+    const slashItems = slashCommandItems({ hasMessages: true, t })
     const skillItems = buildSkillPaletteItems(
       [
         runtimeSkillGroup(creatorSkillId),

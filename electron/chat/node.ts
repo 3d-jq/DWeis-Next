@@ -6,7 +6,6 @@ import type { SessionProjectStore } from "../session/project-store.ts"
 import type { ArtifactBundleStore, ArtifactBundles } from "./artifact-bundles.ts"
 import type { AuthorizationOverlayStore } from "./authorization.ts"
 import type {
-  ActiveLinkRuntime,
   AgentRuntimeStatus,
   AgentPermissionMode,
   ArtifactBundle,
@@ -43,7 +42,6 @@ import type {
   SendMessageRequest,
   SaveLocalImageAsResult,
   SetChatPermissionModeRequest,
-  SetAgentTeamRequest,
   ShowLocalPathInFolderRequest,
   ToolCallResultEvent,
   ToolCallStartedEvent,
@@ -68,15 +66,15 @@ import { ActivityMetrics } from "../activity-metrics.ts"
 import { translateOpencodeEvent } from "../agent/event-translator.ts"
 import { createOpencodeMessageId } from "../agent/opencode-id.ts"
 import { logDiagnostic } from "../diagnostics-log.ts"
-import { isMissingFileError } from "../store-diagnostics.ts"
 import { captureGitTurnBaseline } from "../git/turn-diff.ts"
 import { resolveRuntimeCapabilities } from "../runtime/common.ts"
 import { ServiceEvent } from "../service-events.ts"
 import { normalizeSessionScopeValue } from "../session/common.ts"
+import { isMissingFileError } from "../store-diagnostics.ts"
 import { ActiveRunRegistry } from "./active-run-registry.ts"
 import { captureArtifactSessionBaseline } from "./artifact-bundles.ts"
-import { resolveAtMentionPaths } from "./at-mention.ts"
 import { normalizeLocalPathCandidate } from "./artifacts.ts"
+import { resolveAtMentionPaths } from "./at-mention.ts"
 import { applyAuthorizationOverlays } from "./authorization.ts"
 import {
   BUG_REPORT_FILE_NAME,
@@ -85,8 +83,6 @@ import {
   parseBugReportCommand,
 } from "./bug-report.ts"
 import { ChatService as ChatServiceName } from "./common.ts"
-import { initCommandTemplate } from "./init-command-template.ts"
-import { reviewCommandTemplate } from "./review-command-template.ts"
 import {
   buildContextMentionsSystem as buildContextMentionsSystemPrompt,
   buildPermissionModeSystem,
@@ -96,12 +92,14 @@ import {
 } from "./context-system.ts"
 import { normalizeChatError } from "./error.ts"
 import { GenerationRegistry } from "./generation-registry.ts"
+import { initCommandTemplate } from "./init-command-template.ts"
 import { evaluateLocalAccessRequest, localAccessGrantForRequest } from "./local-access-policy.ts"
 import { directoryArtifacts, fileArtifact, localArtifactItem, readArtifactPack } from "./local-artifacts.ts"
 import { OutputPersistence } from "./output-persistence.ts"
 import { PermissionState } from "./permission-state.ts"
 import { attachmentPreview, localArtifactPreview } from "./previews.ts"
 import { detectResponseLanguage } from "./response-language.ts"
+import { reviewCommandTemplate } from "./review-command-template.ts"
 import { applyStoppedGenerations } from "./stopped-generations.ts"
 import { ChatStreamEventBuffer } from "./stream-event-buffer.ts"
 import { SubagentSessions } from "./subagent-sessions.ts"
@@ -236,11 +234,6 @@ function createMessageErrorPayload(
   }
 }
 
-function teamNameFromRequest(req: SendMessageRequest): string | undefined {
-  const teamName = req.scope.kind === "team" ? req.scope.teamName.trim() : ""
-  return teamName ? teamName : undefined
-}
-
 function runWorkspaceFromRequest(req: SendMessageRequest): ChatRunWorkspace {
   const scope = normalizeSessionScopeValue(req.scope)
   if (!scope) throw new Error("Workspace scope is invalid")
@@ -291,10 +284,6 @@ interface ChatServiceDeps {
     appVersion: string
     platform: NodeJS.Platform
   }
-  /** 渲染层切换团队 workspace 时，同步 agent 的团队作用域（main 持有 agent 与 activeAgentTeamName）。 */
-  onSetAgentTeam?: (teamName: string | undefined) => Promise<void> | void
-  /** OOMOL runtime 的模型/工具请求收到 401 时使全局 session 失效；local provider 401 不调用。 */
-  onOomolAuthRequired?: () => Promise<void> | void
   /** 权限模式由 ChatService 统一提交，避免 renderer 分别写运行态与会话元数据。 */
   onPermissionModeChanged?: (sessionId: string, permissionMode: AgentPermissionMode) => Promise<void> | void
   /** 正常完成且产物已收尾后通知主进程 attention 域；停止和错误路径不触发。 */
@@ -341,10 +330,8 @@ export class ChatServiceImpl extends ConnectionService<ChatService> implements I
     mode: "local",
     localAgentAvailable: false,
   })
-  private activeLinkRuntime: ActiveLinkRuntime = "none"
   private readonly outputPersistence: OutputPersistence
   private scopeMutationQueue: Promise<void> = Promise.resolve()
-  private desiredWorkspaceTeamName: string | undefined
   private streamEventBuffer: ChatStreamEventBuffer | null = null
   private startedMessages = new Set<string>()
   private readonly completionChecks = new Set<string>()
@@ -407,7 +394,6 @@ export class ChatServiceImpl extends ConnectionService<ChatService> implements I
     this.subagentSessions.clear()
     this.permissions.clear()
     this.outputPersistence.reset()
-    this.desiredWorkspaceTeamName = undefined
     this.startedMessages.clear()
     this.internalMessageIds.clear()
     this.compactingSessions.clear()
@@ -434,10 +420,6 @@ export class ChatServiceImpl extends ConnectionService<ChatService> implements I
       console.warn("[dweis] failed to emit runtime capabilities:", error)
       logDiagnostic("chat-service", "failed to emit runtime capabilities", { error, mode: capabilities.mode }, "warn")
     })
-  }
-
-  public setLinkRuntime(runtime: ActiveLinkRuntime): void {
-    this.activeLinkRuntime = runtime
   }
 
   public hasActiveGeneration(): boolean {
@@ -775,12 +757,6 @@ export class ChatServiceImpl extends ConnectionService<ChatService> implements I
       return
     }
     const payload = createMessageErrorPayload(sessionId, message, this.runtimeCapabilities.mode, messageId)
-    if (payload.errorKind === "auth_required") {
-      void Promise.resolve(this.deps.onOomolAuthRequired?.()).catch((error: unknown) => {
-        console.warn("[dweis] failed to expire OOMOL session after chat 401:", error)
-        logDiagnostic("chat-service", "failed to expire OOMOL session after chat 401", { error }, "warn")
-      })
-    }
     this.sendBestEffort(emit, "messageError", payload, {
       messageId,
       sessionId,
@@ -905,7 +881,6 @@ export class ChatServiceImpl extends ConnectionService<ChatService> implements I
     const taskProcessRoot = activeGenerationId ? this.turnOutputs.get(activeGenerationId)?.processRoot : undefined
     const decision = evaluateLocalAccessRequest(request, {
       activeGenerationId,
-      linkRuntime: this.activeLinkRuntime,
       permissionMode: this.sessionPermissionMode(request.sessionId),
       sessionGrants: this.permissions.sessionGrants(request.sessionId),
       ...(taskProcessRoot ? { taskProcessRoot } : {}),
@@ -1106,13 +1081,12 @@ export class ChatServiceImpl extends ConnectionService<ChatService> implements I
       this.activeRuns.delete(sessionId, generation.id)
       this.emitSessionActivity(sessionId)
       this.sendBestEffort(emit, "messageCompleted", { sessionId }, { sessionId })
-      void Promise.resolve(
-        this.deps.onTurnCompleted?.({ sessionId, messageId: messageId ?? undefined }),
-      ).catch((error: unknown) => {
-        console.warn("[dweis] failed to notify turn completion:", error)
-      })
-      // 本地会话与团队会话完成都通知 attention 域（本地无 teamId，传空串）；
-      // 修复前仅 team 会话触发，本地完成通知从未弹出。
+      void Promise.resolve(this.deps.onTurnCompleted?.({ sessionId, messageId: messageId ?? undefined })).catch(
+        (error: unknown) => {
+          console.warn("[dweis] failed to notify turn completion:", error)
+        },
+      )
+      // 完成通知进 attention 域（本地作用域无 teamId，传空串）。
       if (completedRun) {
         void Promise.resolve(
           this.deps.onSessionCompleted?.({
@@ -1154,7 +1128,13 @@ export class ChatServiceImpl extends ConnectionService<ChatService> implements I
       logDiagnostic(
         "chat-service",
         "turn completion verification: assistant message not found",
-        { sessionId, userMessageId: generation.userMessageId, userIndex, assistantId: assistantId ?? null, messageCount: messages.length },
+        {
+          sessionId,
+          userMessageId: generation.userMessageId,
+          userIndex,
+          assistantId: assistantId ?? null,
+          messageCount: messages.length,
+        },
         "warn",
       )
       return false
@@ -1163,7 +1143,12 @@ export class ChatServiceImpl extends ConnectionService<ChatService> implements I
       logDiagnostic(
         "chat-service",
         "turn completion verification: assistant lacks finish marker",
-        { sessionId, assistantId: assistant.id, finishReason: assistant.finishReason ?? null, completedAt: assistant.completedAt ?? null },
+        {
+          sessionId,
+          assistantId: assistant.id,
+          finishReason: assistant.finishReason ?? null,
+          completedAt: assistant.completedAt ?? null,
+        },
         "warn",
       )
       return false
@@ -1245,7 +1230,6 @@ export class ChatServiceImpl extends ConnectionService<ChatService> implements I
     const agent = this.agent
     if (agent) {
       void Promise.all([
-        agent.clearSessionTeamName(sessionId),
         agent.clearSessionKnowledgeBaseIds(sessionId),
         ...childSessionIds.map((childSessionId) => agent.clearSessionKnowledgeBaseIds(childSessionId)),
       ]).catch((error: unknown) => {
@@ -1502,7 +1486,6 @@ export class ChatServiceImpl extends ConnectionService<ChatService> implements I
       req.permissionModeVersion,
     )
     const userMessageId = createOpencodeMessageId()
-    const teamName = teamNameFromRequest(req)
     const bugReport = parseBugReportCommand(req.text)
     let generation: SessionGeneration | undefined
     let artifactDir: string | undefined
@@ -1536,10 +1519,7 @@ export class ChatServiceImpl extends ConnectionService<ChatService> implements I
       const knowledgeBaseIds = (req.contextMentions ?? []).flatMap((mention) =>
         mention.kind === "knowledge" && mention.id.trim() ? [mention.id.trim()] : [],
       )
-      await Promise.all([
-        this.agent.setSessionTeamName(req.sessionId, teamName),
-        this.agent.setSessionKnowledgeBaseIds(req.sessionId, knowledgeBaseIds),
-      ])
+      await this.agent.setSessionKnowledgeBaseIds(req.sessionId, knowledgeBaseIds)
       if (!this.isCurrentGeneration(req.sessionId, activeGeneration.id) || activeGeneration.controller.signal.aborted) {
         this.clearSessionGeneration(req.sessionId, activeGeneration.id)
         await removeUnsubmittedTurnDirectories(artifactDir, processDir)
@@ -1636,7 +1616,6 @@ export class ChatServiceImpl extends ConnectionService<ChatService> implements I
           mode: execution.mode,
           messageId: userMessageId,
           model: req.model,
-          teamName,
           reasoningLevel: req.reasoningLevel,
           signal: promptGeneration.controller.signal,
           system: mergeSystemPrompts(
@@ -2018,22 +1997,8 @@ export class ChatServiceImpl extends ConnectionService<ChatService> implements I
   }
 
   public async openExternalUrl(req: OpenExternalUrlRequest): Promise<void> {
-    // 渲染层（额度中心等）已自行解析好目标 URL；主进程只校验 http/https 后外开，绝不在窗口内导航。
+    // 渲染层已自行解析好目标 URL；主进程只校验 http/https 后外开，绝不在窗口内导航。
     await shell.openExternal(ensureExternalHttpUrl(req.url))
-  }
-
-  public async setAgentTeam(req: SetAgentTeamRequest): Promise<void> {
-    const teamName = req.teamName.trim()
-    if (!teamName) {
-      throw new Error("Team name is required")
-    }
-    this.desiredWorkspaceTeamName = teamName
-    await this.runWithScopeMutation(async () => {
-      if (this.desiredWorkspaceTeamName !== teamName) {
-        return
-      }
-      await this.deps.onSetAgentTeam?.(teamName)
-    })
   }
 
   public async stopGeneration(sessionId: string): Promise<void> {

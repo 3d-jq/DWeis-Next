@@ -1,13 +1,8 @@
-import type {
-  AgentPermissionMode,
-  AgentRuntimeStatus,
-} from "../../../electron/chat/common.ts"
+import type { AgentPermissionMode, AgentRuntimeStatus } from "../../../electron/chat/common.ts"
 import type { SessionInfo } from "../../../electron/session/common.ts"
 import type { Persona } from "../../../electron/settings/common.ts"
 import type { AppShellRoute as Route, SettingsCategory } from "./app-shell-types.ts"
 import type { SidebarTaskSortMode } from "./sidebar-persistence.ts"
-import type { BillingDetailsTarget } from "@/components/app-shell/BillingUsagePopover"
-import type { UseAuth } from "@/hooks/useAuth"
 import type { KnowledgeBaseIdsUpdate } from "@/hooks/useSessions"
 import type { ComposerState } from "@/routes/Chat/composer-state"
 import type { ArtifactSelection } from "@/routes/Chat/GeneratedArtifacts"
@@ -17,6 +12,7 @@ import type { ChatStatus } from "ai"
 import * as React from "react"
 import { toast } from "sonner"
 import { APP_COMMANDS } from "../../../electron/app-command.ts"
+import { DEFAULT_LOCAL_WORKSPACE } from "../../../electron/session/common.ts"
 import {
   activeProjectIdForComposer,
   existingSessionComposerDraftKey,
@@ -25,26 +21,20 @@ import {
   NO_DRAFT_PROJECT_ID,
   projectContextFromProject,
   projectContextControlsDisabled,
-  routeAvailableForRuntime,
   sessionRecordScopeKey,
-  sessionScopeFromWorkspace,
   sessionScopeKey,
-  workspaceSelectionSwitchKey,
 } from "./app-shell-model.ts"
 import { AppShellMainTitlebar } from "./AppShellMainTitlebar.tsx"
 import { AppShellNavigationSidebar } from "./AppShellNavigationSidebar.tsx"
 import { AppShellRightPanel } from "./AppShellRightPanel.tsx"
 import { AppShellSessionProjectDialogs } from "./AppShellSessionProjectDialogs.tsx"
 import { isPendingChatCaughtUp, pendingChatTransitionForActiveSession } from "./pending-chat.ts"
-import {
-  readStoredTaskSortMode,
-  writeStoredTaskSortMode,
-} from "./sidebar-persistence.ts"
+import { readStoredTaskSortMode, writeStoredTaskSortMode } from "./sidebar-persistence.ts"
 import { useAppShellAttention } from "./use-app-shell-attention.ts"
-import { useAppShellKnowledge } from "./use-app-shell-knowledge.tsx"
-import { useAppShellRuntimeCleanup } from "./use-app-shell-runtime-cleanup.ts"
 import { useAppShellChatHandlers } from "./use-app-shell-chat-handlers.ts"
 import { useAppShellCommands } from "./use-app-shell-commands.ts"
+import { useAppShellKnowledge } from "./use-app-shell-knowledge.tsx"
+import { useAppShellRuntimeCleanup } from "./use-app-shell-runtime-cleanup.ts"
 import { useAppShellSessionSelection } from "./use-app-shell-session-selection.ts"
 import { useAppShellSidebarSessions } from "./use-app-shell-sidebar-sessions.ts"
 import { useArtifactsPanelState } from "./use-artifacts-panel-state.ts"
@@ -53,14 +43,13 @@ import { useBrowserPanelState } from "./use-browser-panel-state.ts"
 import { useChatQueueState } from "./use-chat-queue-state.ts"
 import { useComposerNavigation } from "./use-composer-navigation.ts"
 import { useComposerSubmission } from "./use-composer-submission.ts"
-import { useRightPanelTabs } from "./use-right-panel-tabs.ts"
 import { useProjectActions } from "./use-project-actions.ts"
 import { useProjectSidebarCollapseState } from "./use-project-sidebar-collapse-state.ts"
+import { useRightPanelTabs } from "./use-right-panel-tabs.ts"
 import { useSessionActions } from "./use-session-actions.ts"
 import { useSessionTitleGeneration } from "./use-session-title-generation.ts"
 import { useSidebarChromeState } from "./use-sidebar-chrome-state.ts"
 import { useUpdateReadyToast } from "./use-update-ready-toast.ts"
-import { useWorkspaceActivation } from "./use-workspace-activation.ts"
 import { ProjectContextBar } from "@/components/app-shell/ProjectContextBar"
 import { useAttentionService, useBrowserService, useChatService } from "@/components/AppContext"
 import { AppUpdateTitlebarEntry } from "@/components/AppUpdateTitlebarEntry"
@@ -70,28 +59,20 @@ import { useAttention } from "@/hooks/useAttention"
 import { useChat } from "@/hooks/useChat"
 import { useKnowledgeBases } from "@/hooks/useKnowledgeBases"
 import { useProjectGit } from "@/hooks/useProjectGit"
-import { useRuntimeCapabilities } from "@/hooks/useRuntimeCapabilities"
 import { useSessions } from "@/hooks/useSessions"
-import { useTeamWorkspace } from "@/hooks/useTeamWorkspace"
 import { useT } from "@/i18n/i18n"
 import { appCommandShortcutLabel, labelWithShortcut } from "@/lib/app-shortcuts"
-import { billingRequestScopeForWorkspace } from "@/lib/billing-scope"
 import { reportRendererHandledError } from "@/lib/renderer-diagnostics"
 import { resolveUserFacingError, userFacingErrorDescription } from "@/lib/user-facing-error"
 import { cn } from "@/lib/utils"
 import { releaseAttachmentSnapshots } from "@/routes/Chat/chat-attachment-utils"
-import {
-  chatTurnAllowsDirectSend,
-  chatTurnQueuesNewMessage,
-  resolveChatTurnState,
-} from "@/routes/Chat/chat-turn-state"
+import { chatTurnAllowsDirectSend, chatTurnQueuesNewMessage, resolveChatTurnState } from "@/routes/Chat/chat-turn-state"
 import { hasComposerDraftContent, toCachedComposerState } from "@/routes/Chat/composer-state"
 import { knowledgeBreadcrumbs, normalizeKnowledgePath } from "@/routes/Knowledge/knowledge-route-model.ts"
 
 const ArchivedRoute = React.lazy(() =>
   import("@/routes/Archived").then((module) => ({ default: module.ArchivedRoute })),
 )
-const BillingRoute = React.lazy(() => import("@/routes/Billing").then((module) => ({ default: module.BillingRoute })))
 const ChatArea = React.lazy(() => import("@/routes/Chat").then((module) => ({ default: module.ChatArea })))
 const PlanSummaryPanel = React.lazy(() =>
   import("@/routes/Chat/PlanSummaryPanel").then((module) => ({ default: module.PlanSummaryPanel })),
@@ -123,7 +104,7 @@ function RouteLoadingFallback({ className }: { className?: string }) {
   return <div className={cn("h-full min-h-0 bg-background", className)} />
 }
 
-export function AppShell({ auth }: { auth: UseAuth }) {
+export function AppShell() {
   const t = useT()
   const attentionService = useAttentionService()
   const browserService = useBrowserService()
@@ -132,26 +113,13 @@ export function AppShell({ auth }: { auth: UseAuth }) {
   const attention = useAttention()
   const appUpdate = useAppUpdate()
   const appSettings = useAppSettings()
-  const runtimeCapabilities = useRuntimeCapabilities().capabilities
-  const authenticated = auth.state?.status === "authenticated"
-  const oomolEnabled = authenticated && runtimeCapabilities?.mode === "oomol"
-  React.useEffect(() => {
-    if (auth.error?.kind === "auth_required") {
-      toast.info(userFacingErrorDescription(auth.error, t), { id: "auth-session-expired" })
-    }
-  }, [auth.error, t])
   const [ready, setReady] = React.useState(false)
-  const [billingInitialTarget, setBillingInitialTarget] = React.useState<BillingDetailsTarget | null>(null)
   const [tasksDialogOpen, setTasksDialogOpen] = React.useState(false)
   const [agentStatus, setAgentStatus] = React.useState<AgentRuntimeStatus>({ status: "starting" })
-  const accountId = oomolEnabled ? auth.state?.account?.id : undefined
-  const teamWorkspace = useTeamWorkspace(accountId)
   const knowledgeBaseBetaEnabled = appSettings.settings.knowledgeBaseBetaEnabled
   const knowledgeLibrary = useKnowledgeBases(knowledgeBaseBetaEnabled)
-  const sessionScope = React.useMemo(
-    () => sessionScopeFromWorkspace(teamWorkspace.activeWorkspace),
-    [teamWorkspace.activeWorkspace],
-  )
+  // 纯本地 self-managed：单一本地工作区，无团队/账号切换。
+  const sessionScope = DEFAULT_LOCAL_WORKSPACE
   const sessionsEnabled = sessionScope !== null
   const {
     sessions,
@@ -184,24 +152,7 @@ export function AppShell({ auth }: { auth: UseAuth }) {
     readStoredTaskSortMode(globalThis.localStorage),
   )
   const currentScopeKey = sessionScopeKey(sessionScope)
-  const activeWorkspaceKey = workspaceSelectionSwitchKey(teamWorkspace.activeWorkspace)
-  const {
-    activationBlocked: workspaceActivationBlocked,
-    activationState: workspaceActivationState,
-    handleSwitchStart: handleWorkspaceSwitchStart,
-    navigationSwitching: workspaceNavigationSwitching,
-  } = useWorkspaceActivation({
-    activationInput: {
-      cloudWorkspaceRequired: oomolEnabled,
-      currentScopeKey,
-      loadedSessionScopeKey: sessionsLoadedScopeKey,
-      workspaceMetadataError: teamWorkspace.error,
-    },
-    activeWorkspaceKey,
-    hasLoadedTeams: teamWorkspace.hasLoaded,
-    loadingTeams: teamWorkspace.loading,
-    teamIds: teamWorkspace.teams.map((team) => team.id),
-  })
+  const activeWorkspaceKey = currentScopeKey
   const sessionsSettledForCurrentScope = sessionsLoaded && sessionsLoadedScopeKey === currentScopeKey
   const visibleSessions = React.useMemo(
     () => (sessionsSettledForCurrentScope ? sessions : []),
@@ -220,11 +171,6 @@ export function AppShell({ auth }: { auth: UseAuth }) {
     [projects, sessionsSettledForCurrentScope],
   )
   const [route, setRoute] = React.useState<Route>(initialRoute)
-  React.useEffect(() => {
-    if (!routeAvailableForRuntime(route, oomolEnabled)) {
-      setRoute("chat")
-    }
-  }, [oomolEnabled, route])
   const {
     activeChatSessionId,
     activeKnowledgeBaseIds,
@@ -473,7 +419,6 @@ export function AppShell({ auth }: { auth: UseAuth }) {
     }
   }, [activeProjectId, route])
   const { collapsedProjectIds, handleProjectSidebarExpandedChange } = useProjectSidebarCollapseState({
-    accountId: auth.state?.account?.id,
     projects: visibleProjects,
     sessionScope,
     sessionsLoaded: sessionsSettledForCurrentScope,
@@ -537,14 +482,7 @@ export function AppShell({ auth }: { auth: UseAuth }) {
   const agentStartupError =
     agentStatus.status === "error" ? resolveUserFacingError(agentStatus.message, { area: "agent" }) : null
   const modelRequired = agentStatus.status === "model_required"
-  const workspaceStartupError = workspaceActivationState.status === "failed" ? workspaceActivationState.error : null
-  const startupError = agentStartupError ?? workspaceStartupError ?? sessionSnapshotError
-  const retryWorkspaceActivation = React.useCallback(() => {
-    if (workspaceActivationState.status !== "failed") {
-      return
-    }
-    void teamWorkspace.refresh({ forceRefresh: true })
-  }, [teamWorkspace.refresh, workspaceActivationState])
+  const startupError = agentStartupError ?? sessionSnapshotError
   const hasVisibleLoadedSession = Boolean(activeChatSessionId && messagesLoaded)
   const chatBootstrapping =
     !startupError &&
@@ -553,7 +491,7 @@ export function AppShell({ auth }: { auth: UseAuth }) {
       !sessionsSettledForCurrentScope ||
       needsDefaultSessionSelection ||
       Boolean(activeChatSessionId && !messagesLoaded && !activePendingChatTransition))
-  const chatSubmitDisabled = !ready || chatBootstrapping || workspaceActivationBlocked || !sessionScope
+  const chatSubmitDisabled = !ready || chatBootstrapping || !sessionScope
   const showChatEmptyState =
     (ready || modelRequired) &&
     sessionsSettledForCurrentScope &&
@@ -596,17 +534,15 @@ export function AppShell({ auth }: { auth: UseAuth }) {
   const titlebarTitle =
     route === "settings" || route.startsWith("settings/")
       ? t("settings.title")
-      : route === "billing"
-        ? t("billing.title")
-        : route === "skills"
-          ? t("skills.title")
-          : route === "automation"
-            ? t("automation.title")
-            : route === "knowledge" && knowledgeBaseBetaEnabled
+      : route === "skills"
+        ? t("skills.title")
+        : route === "automation"
+          ? t("automation.title")
+          : route === "knowledge" && knowledgeBaseBetaEnabled
             ? t("knowledge.title")
             : route === "archived"
-                  ? t("archived.title")
-                  : (activeSession?.title ?? t("chat.newSession"))
+              ? t("archived.title")
+              : (activeSession?.title ?? t("chat.newSession"))
   const titlebarEditable = route === "chat" && Boolean(activeSession)
   // 人群模式从侧边栏视图派生：Work（任务视图）= 办公人设，Code（项目视图）= 编码人设。
   // 顶部 Work/Code 切换同时驱动视图与人设；视图每次启动默认 Work，persona 随之收敛。
@@ -968,7 +904,14 @@ export function AppShell({ auth }: { auth: UseAuth }) {
       openArtifact(latestArtifactSelection, "manual")
     }
     setArtifactsPanelOpen(true)
-  }, [closeBrowserPanel, latestArtifactSelection, openArtifact, rightPanelTabs.length, rightPanelVisible, setArtifactsPanelOpen])
+  }, [
+    closeBrowserPanel,
+    latestArtifactSelection,
+    openArtifact,
+    rightPanelTabs.length,
+    rightPanelVisible,
+    setArtifactsPanelOpen,
+  ])
   // AI 请求浏览器（browserRequested）时自动打开浏览器标签并展开面板；
   // 浏览器入口统一走右侧面板标签，标题栏不再提供独立开关。
   React.useEffect(() => {
@@ -1052,10 +995,6 @@ export function AppShell({ auth }: { auth: UseAuth }) {
     [activeChatSessionId, persistPermissionMode],
   )
 
-  const handleViewBilling = React.useCallback((target?: BillingDetailsTarget) => {
-    setBillingInitialTarget(target ?? null)
-    setRoute("billing")
-  }, [])
   const handleCompact = React.useCallback((): void => {
     if (!activeChatSessionId) {
       return
@@ -1090,13 +1029,6 @@ export function AppShell({ auth }: { auth: UseAuth }) {
       })
     },
     [activeChatSessionId, runShellCommand],
-  )
-  const billingWorkspaceCacheScope = teamWorkspace.activeWorkspace.teamId    ? `team:${teamWorkspace.activeWorkspace.teamId}`
-    : "workspace-loading"
-  const billingCacheScope = `${accountId ?? "local"}:${billingWorkspaceCacheScope}`
-  const billingRequestScope = React.useMemo(
-    () => billingRequestScopeForWorkspace(teamWorkspace.activeWorkspace),
-    [teamWorkspace.activeWorkspace],
   )
   const newChatShortcut = appCommandShortcutLabel(APP_COMMANDS.newChat)
   const newChatLabel = labelWithShortcut(
@@ -1193,22 +1125,6 @@ export function AppShell({ auth }: { auth: UseAuth }) {
     )
   }
 
-  if (route === "billing" && oomolEnabled) {
-    return (
-      <>
-        <React.Suspense fallback={<RouteLoadingFallback />}>
-          <BillingRoute
-            cacheScope={billingCacheScope}
-            initialTarget={billingInitialTarget}
-            titlebarActions={<AppUpdateTitlebarEntry update={appUpdate} />}
-            workspace={teamWorkspace.activeWorkspace}
-            onBack={() => setRoute("chat")}
-          />
-        </React.Suspense>
-      </>
-    )
-  }
-
   if (route === "archived") {
     return (
       <>
@@ -1258,8 +1174,6 @@ export function AppShell({ auth }: { auth: UseAuth }) {
         sidebarSessionGroups={sidebarSessionGroups}
         taskSessions={visibleTaskSessions}
         width={sidebarWidth}
-        workspace={teamWorkspace}
-        workspaceSwitching={workspaceNavigationSwitching}
         onArchiveProjectRequest={projectActions.requestArchive}
         onArchiveSessionRequest={sessionActions.requestArchive}
         onManageTasks={() => setTasksDialogOpen(true)}
@@ -1271,7 +1185,6 @@ export function AppShell({ auth }: { auth: UseAuth }) {
         onProjectExpandedChange={handleProjectSidebarExpandedChange}
         onRemoveProjectRequest={projectActions.requestRemove}
         onRenameProjectRequest={projectActions.requestRename}
-        onWorkspaceSwitchStart={handleWorkspaceSwitchStart}
         onRenameSessionRequest={sessionActions.requestRename}
         onSelectProjectDraft={handleOpenProjectDraft}
         onSelectProjectFolder={handleSelectProjectFolder}
@@ -1290,7 +1203,6 @@ export function AppShell({ auth }: { auth: UseAuth }) {
         <AppShellMainTitlebar
           activeSession={activeSession ?? null}
           appUpdate={appUpdate}
-          billingCacheScope={billingCacheScope}
           isSidebarRestoring={isSidebarRestoring}
           rightPanelOpen={rightPanelVisible}
           rightPanelToggleLabel={rightPanelVisible ? t("artifacts.collapse") : t("artifacts.expand")}
@@ -1298,7 +1210,6 @@ export function AppShell({ auth }: { auth: UseAuth }) {
           titlebarEditable={titlebarEditable}
           titlebarBreadcrumbs={titlebarBreadcrumbs}
           titlebarTitle={titlebarTitle}
-          workspace={teamWorkspace.activeWorkspace}
           onOpenSearch={handleOpenSearch}
           onRenameSession={sessionActions.handleRename}
           onRightPanelToggle={handleArtifactsToggle}
@@ -1308,7 +1219,6 @@ export function AppShell({ auth }: { auth: UseAuth }) {
           }}
           onTogglePlanPanel={() => setPlanPanelOpen((value) => !value)}
           onToggleSidebar={handleToggleSidebar}
-          onViewBilling={oomolEnabled ? handleViewBilling : undefined}
           planPanelOpen={planPanelOpen}
         />
         <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
@@ -1331,8 +1241,6 @@ export function AppShell({ auth }: { auth: UseAuth }) {
                   <div className="min-w-0 flex-1 overflow-hidden">
                     <ChatArea
                       activeSessionId={activeChatSessionId}
-                      billingCacheScope={billingCacheScope}
-                      billingRequestScope={billingRequestScope}
                       composerDraftKey={activeComposerDraftKey}
                       messages={bridgeInitialSendPending ? [] : messages}
                       knowledgeBaseIds={activeKnowledgeBaseIds}
@@ -1351,17 +1259,11 @@ export function AppShell({ auth }: { auth: UseAuth }) {
                       showEmptyState={showChatEmptyState}
                       bootstrapping={chatBootstrapping}
                       startupError={startupError}
-                      onStartupRetry={
-                        workspaceStartupError
-                          ? retryWorkspaceActivation
-                          : sessionSnapshotError
-                            ? retrySessionSnapshot
-                            : undefined
-                      }
+                      onStartupRetry={sessionSnapshotError ? retrySessionSnapshot : undefined}
                       error={error}
                       emptyTitle={chatEmptyTitle}
                       generatedArtifacts={latestArtifactSelection}
-                      historyScope={billingCacheScope}
+                      historyScope="local"
                       submitDisabled={chatSubmitDisabled}
                       willQueueMessage={Boolean(
                         activeChatSessionId && (!chatTurnAllowsDirectSend(activeChatTurnState) || isSendInFlight()),
@@ -1369,11 +1271,6 @@ export function AppShell({ auth }: { auth: UseAuth }) {
                       initialComposerState={initialComposerState}
                       initialSendPending={initialSendPending}
                       composerFocusRequest={composerFocusRequest}
-                      cloudModelsEnabled={runtimeCapabilities?.oomolCloudModels === true}
-                      voiceEnabled={runtimeCapabilities?.voice === true}
-                      teamSkillEntryVisible={false}
-                      teamSkillShowcaseItems={[]}
-                      teamSkillPendingInstallCount={0}
                       queueHeld={activeQueueHeld}
                       queuedMessages={activeQueuedMessages}
                       contextBar={composerProjectContext}
@@ -1407,9 +1304,7 @@ export function AppShell({ auth }: { auth: UseAuth }) {
                       onTurnOutputOpen={handleTurnOutputOpen}
                       onTurnOutputAvailable={handleTurnOutputAvailable}
                       onOpenKnowledgeLibrary={handleOpenKnowledgeLibrary}
-                      onOpenTeams={undefined}
                       onSelectKnowledgeBase={handleAddKnowledgeBaseReference}
-                      onViewBilling={oomolEnabled ? handleViewBilling : undefined}
                       onCompact={handleCompact}
                       onUndo={handleUndo}
                       onRedo={handleRedo}
@@ -1434,33 +1329,29 @@ export function AppShell({ auth }: { auth: UseAuth }) {
             ) : null}
           </main>
 
-        <AppShellRightPanel
-          activeTab={activeRightPanelTab}
-          activeTabId={activeRightPanelTabId}
-          artifactSelection={
-            activeRightPanelTab?.kind === "artifact" ? activeRightPanelTab.selection : null
-          }
-          artifactsPanelContentRef={artifactsPanelContentRef}
-          artifactsPanelIsMaximized={artifactsPanelIsMaximized}
-          artifactsPanelMaxWidthState={artifactsPanelMaxWidthState}
-          artifactsPanelShellRef={artifactsPanelShellRef}
-          browserService={browserService}
-          browserState={browserState}
-          handleArtifactsPanelResizeKeyDown={handleArtifactsPanelResizeKeyDown}
-          handleArtifactsPanelResizeStart={handleArtifactsPanelResizeStart}
-          isArtifactsPanelResizing={isArtifactsPanelResizing}
-          onActivateTab={setActiveTabId}
-          onAddTab={handleAddRightPanelTab}
-          onCloseTab={handleCloseRightPanelTab}
-          rightPanelVisible={rightPanelVisible}
-          setArtifactsPanelMaximizedState={setArtifactsPanelMaximizedState}
-          tabs={rightPanelTabs}
-          turnOutputSelection={
-            activeRightPanelTab?.kind === "turn-output" ? activeRightPanelTab.selection : null
-          }
-          visibleRightPanelWidth={visibleRightPanelWidth}
-          onSetTabTitle={setTabTitle}
-        />
+          <AppShellRightPanel
+            activeTab={activeRightPanelTab}
+            activeTabId={activeRightPanelTabId}
+            artifactSelection={activeRightPanelTab?.kind === "artifact" ? activeRightPanelTab.selection : null}
+            artifactsPanelContentRef={artifactsPanelContentRef}
+            artifactsPanelIsMaximized={artifactsPanelIsMaximized}
+            artifactsPanelMaxWidthState={artifactsPanelMaxWidthState}
+            artifactsPanelShellRef={artifactsPanelShellRef}
+            browserService={browserService}
+            browserState={browserState}
+            handleArtifactsPanelResizeKeyDown={handleArtifactsPanelResizeKeyDown}
+            handleArtifactsPanelResizeStart={handleArtifactsPanelResizeStart}
+            isArtifactsPanelResizing={isArtifactsPanelResizing}
+            onActivateTab={setActiveTabId}
+            onAddTab={handleAddRightPanelTab}
+            onCloseTab={handleCloseRightPanelTab}
+            rightPanelVisible={rightPanelVisible}
+            setArtifactsPanelMaximizedState={setArtifactsPanelMaximizedState}
+            tabs={rightPanelTabs}
+            turnOutputSelection={activeRightPanelTab?.kind === "turn-output" ? activeRightPanelTab.selection : null}
+            visibleRightPanelWidth={visibleRightPanelWidth}
+            onSetTabTitle={setTabTitle}
+          />
         </div>
       </div>
 

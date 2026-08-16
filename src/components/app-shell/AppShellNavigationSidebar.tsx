@@ -3,7 +3,6 @@ import type { AppShellRoute as Route } from "./app-shell-types.ts"
 import type { ProjectSidebarGroup } from "./app-sidebar-model.ts"
 import type { SidebarSegment, SidebarTaskSortMode } from "./sidebar-persistence.ts"
 import type { SidebarSessionGroups } from "./sidebar-sessions.ts"
-import type { UseTeamWorkspace } from "@/hooks/useTeamWorkspace"
 import type { UserFacingError } from "@/lib/user-facing-error"
 
 import {
@@ -15,11 +14,12 @@ import {
   LibraryBig,
   ListChecks,
   Package,
+  Settings,
   SquarePen,
   Timer,
 } from "lucide-react"
-import * as React from "react"
 import { AnimatePresence, motion } from "motion/react"
+import * as React from "react"
 import { APP_COMMANDS } from "../../../electron/app-command.ts"
 import { branding } from "../../../electron/branding.ts"
 import { SIDEBAR_MAX_WIDTH_PX, SIDEBAR_MIN_WIDTH_PX } from "./app-shell-model.ts"
@@ -31,12 +31,8 @@ import {
   SidebarSegmentControl,
   SidebarTitlebarActions,
 } from "./AppShellSidebar.tsx"
-import {
-  readStoredSidebarCategoriesCollapsed,
-  writeStoredSidebarCategoriesCollapsed,
-} from "./sidebar-persistence.ts"
+import { readStoredSidebarCategoriesCollapsed, writeStoredSidebarCategoriesCollapsed } from "./sidebar-persistence.ts"
 import { limitSidebarSessionGroups, runningProjectIds } from "./sidebar-sessions.ts"
-import { SidebarFooterControls } from "./SidebarAccountControls.tsx"
 import { ErrorNotice } from "@/components/ErrorNotice"
 import {
   DropdownMenu,
@@ -80,7 +76,6 @@ export const AppShellNavigationSidebar = React.memo(function AppShellNavigationS
   onSidebarResizeKeyDown,
   onSidebarResizeStart,
   onToggleSidebar,
-  onWorkspaceSwitchStart,
   projectPinnedGroups,
   projectPinnedSessions,
   projectRegularGroups,
@@ -94,8 +89,6 @@ export const AppShellNavigationSidebar = React.memo(function AppShellNavigationS
   taskSessions,
   taskSortMode,
   width,
-  workspace,
-  workspaceSwitching,
 }: {
   activeRoute: Route
   collapsed: boolean
@@ -124,7 +117,6 @@ export const AppShellNavigationSidebar = React.memo(function AppShellNavigationS
   onSidebarResizeKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => void
   onSidebarResizeStart: (event: React.PointerEvent<HTMLDivElement>) => void
   onToggleSidebar: () => void
-  onWorkspaceSwitchStart: (targetScopeKey: string) => void
   projectPinnedGroups: ProjectSidebarGroup[]
   projectPinnedSessions: SessionInfo[]
   projectRegularGroups: ProjectSidebarGroup[]
@@ -138,8 +130,6 @@ export const AppShellNavigationSidebar = React.memo(function AppShellNavigationS
   taskSessions: SessionInfo[]
   taskSortMode: SidebarTaskSortMode
   width: number
-  workspace: UseTeamWorkspace
-  workspaceSwitching: boolean
 }) {
   const t = useT()
   const sidebarHidden = collapsed || restoring
@@ -158,7 +148,7 @@ export const AppShellNavigationSidebar = React.memo(function AppShellNavigationS
   }, [])
   React.useEffect(() => {
     setTaskSessionLimit(taskSessionPageSize)
-  }, [workspace.activeWorkspace.teamId])
+  }, [])
   React.useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 60_000)
     return () => window.clearInterval(id)
@@ -228,13 +218,13 @@ export const AppShellNavigationSidebar = React.memo(function AppShellNavigationS
       </header>
 
       <div className="oo-sidebar-content flex min-h-0 flex-1 flex-col">
-      <nav aria-label="primary" className="grid gap-1 px-3 pt-0 pb-3 [-webkit-app-region:no-drag]">
-        <div className="pb-1">
-          <SidebarSegmentControl value={sidebarSegment} onChange={onSetSidebarSegment} />
-        </div>
-        <button
-          type="button"
-          onClick={onNewSession}
+        <nav aria-label="primary" className="grid gap-1 px-3 pt-0 pb-3 [-webkit-app-region:no-drag]">
+          <div className="pb-1">
+            <SidebarSegmentControl value={sidebarSegment} onChange={onSetSidebarSegment} />
+          </div>
+          <button
+            type="button"
+            onClick={onNewSession}
             title={newChatLabel}
             aria-label={newChatLabel}
             aria-keyshortcuts={appCommandAriaShortcut(APP_COMMANDS.newChat)}
@@ -290,161 +280,155 @@ export const AppShellNavigationSidebar = React.memo(function AppShellNavigationS
                 exit={{ opacity: 0, y: -6 }}
                 transition={{ duration: 0.16, ease: "easeOut" }}
               >
-            {sidebarSegment === "tasks" ? (
-              <div className="group mb-2 flex h-7 items-center justify-between px-3">
-                <div className="oo-sidebar-section-heading oo-text-caption">{t("sidebar.tasks")}</div>
-                <div className="pointer-events-none -mr-1 flex items-center gap-0.5 text-sidebar-foreground/45 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100 has-[[data-state=open]]:pointer-events-auto has-[[data-state=open]]:opacity-100">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
+                {sidebarSegment === "tasks" ? (
+                  <div className="group mb-2 flex h-7 items-center justify-between px-3">
+                    <div className="oo-sidebar-section-heading oo-text-caption">{t("sidebar.tasks")}</div>
+                    <div className="pointer-events-none -mr-1 flex items-center gap-0.5 text-sidebar-foreground/45 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100 has-[[data-state=open]]:pointer-events-auto has-[[data-state=open]]:opacity-100">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            title={t("tasks.moreActions")}
+                            aria-label={t("tasks.moreActions")}
+                            className="flex size-6 items-center justify-center rounded hover:bg-sidebar-accent/60 hover:text-sidebar-foreground/75"
+                          >
+                            <Ellipsis className="size-3.5" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="min-w-48">
+                          <DropdownMenuItem onSelect={onManageTasks}>
+                            <ListChecks className="size-4" />
+                            {t("tasks.organize")}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onSelect={() => onNavigate("archived")}>
+                            <Archive className="size-4" />
+                            {t("tasks.viewArchived")}
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuLabel>{t("tasks.sortLabel")}</DropdownMenuLabel>
+                          {(
+                            [
+                              ["updatedAt", t("tasks.sortUpdated")],
+                              ["createdAt", t("tasks.sortCreated")],
+                              ["title", t("tasks.sortTitle")],
+                            ] satisfies Array<[SidebarTaskSortMode, string]>
+                          ).map(([value, label]) => (
+                            <DropdownMenuItem key={value} onSelect={() => onSetTaskSortMode(value)}>
+                              <span>{label}</span>
+                              {taskSortMode === value ? <Check className="ml-auto size-4" /> : null}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                       <button
                         type="button"
-                        title={t("tasks.moreActions")}
-                        aria-label={t("tasks.moreActions")}
+                        title={t("project.selectFolder")}
+                        aria-label={t("project.selectFolder")}
+                        onClick={() => {
+                          onSetSidebarSegment("projects")
+                          onSelectProjectFolder()
+                        }}
                         className="flex size-6 items-center justify-center rounded hover:bg-sidebar-accent/60 hover:text-sidebar-foreground/75"
                       >
-                        <Ellipsis className="size-3.5" />
+                        <FolderPlus className="size-3.5" />
                       </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="min-w-48">
-                      <DropdownMenuItem onSelect={onManageTasks}>
-                        <ListChecks className="size-4" />
-                        {t("tasks.organize")}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => onNavigate("archived")}>
-                        <Archive className="size-4" />
-                        {t("tasks.viewArchived")}
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuLabel>{t("tasks.sortLabel")}</DropdownMenuLabel>
-                      {(
-                        [
-                          ["updatedAt", t("tasks.sortUpdated")],
-                          ["createdAt", t("tasks.sortCreated")],
-                          ["title", t("tasks.sortTitle")],
-                        ] satisfies Array<[SidebarTaskSortMode, string]>
-                      ).map(([value, label]) => (
-                        <DropdownMenuItem key={value} onSelect={() => onSetTaskSortMode(value)}>
-                          <span>{label}</span>
-                          {taskSortMode === value ? <Check className="ml-auto size-4" /> : null}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                  <button
-                    type="button"
-                    title={t("project.selectFolder")}
-                    aria-label={t("project.selectFolder")}
-                    onClick={() => {
-                      onSetSidebarSegment("projects")
-                      onSelectProjectFolder()
-                    }}
-                    className="flex size-6 items-center justify-center rounded hover:bg-sidebar-accent/60 hover:text-sidebar-foreground/75"
-                  >
-                    <FolderPlus className="size-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    title={newChatLabel}
-                    aria-label={newChatLabel}
-                    aria-keyshortcuts={appCommandAriaShortcut(APP_COMMANDS.newChat)}
-                    onClick={onNewSession}
-                    className="flex size-6 items-center justify-center rounded hover:bg-sidebar-accent/60 hover:text-sidebar-foreground/75"
-                  >
-                    <SquarePen className="size-3.5" />
-                  </button>
-                </div>
-              </div>
-            ) : null}
-            {sessionsError ? (
-              <ErrorNotice error={sessionsError} compact className="mx-0" />
-            ) : taskSessions.length > 0 || projectSessions.length > 0 ? (
-              <div className="grid gap-1">
-                {/* 对话分类：任务会话（Work/Code 视图共用同一结构，persona 过滤由服务端完成） */}
-                <SidebarCategoryHeader
-                  label={t("sidebar.conversations")}
-                  collapsed={categoriesCollapsed.conversations}
-                  onToggle={() => toggleCategory("conversations")}
-                />
-                {!categoriesCollapsed.conversations ? (
-                  <div className="grid gap-0.5">
-                    {visibleTaskSessionGroups.pinned.length > 0 ? (
-                      <div className="grid gap-0.5">
-                        <div className="oo-sidebar-section-heading oo-text-caption px-3 pt-1 pb-1">
-                          {t("sidebar.pinned")}
-                        </div>
-                        {visibleTaskSessionGroups.pinned.map(renderSession)}
-                      </div>
-                    ) : null}
-                    {visibleTaskSessionGroups.regular.length > 0 ? (
-                      <div className="grid gap-0.5">{visibleTaskSessionGroups.regular.map(renderSession)}</div>
-                    ) : null}
-                    {visibleTaskSessionGroups.hiddenCount > 0 ? (
                       <button
                         type="button"
-                        className="oo-text-control mx-3 h-8 rounded-md px-3 text-left text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                        onClick={() => setTaskSessionLimit((current) => current + taskSessionPageSize)}
+                        title={newChatLabel}
+                        aria-label={newChatLabel}
+                        aria-keyshortcuts={appCommandAriaShortcut(APP_COMMANDS.newChat)}
+                        onClick={onNewSession}
+                        className="flex size-6 items-center justify-center rounded hover:bg-sidebar-accent/60 hover:text-sidebar-foreground/75"
                       >
-                        {t("sidebar.showMoreTasks", {
-                          count: Math.min(taskSessionPageSize, visibleTaskSessionGroups.hiddenCount),
-                        })}
+                        <SquarePen className="size-3.5" />
                       </button>
-                    ) : null}
+                    </div>
                   </div>
                 ) : null}
-
-                {/* 项目分类：项目会话（按项目分组），头部带添加项目按钮 */}
-                <SidebarCategoryHeader
-                  label={t("sidebar.projectSessions")}
-                  collapsed={categoriesCollapsed.projects}
-                  onToggle={() => toggleCategory("projects")}
-                  trailing={
-                    <button
-                      type="button"
-                      title={t("project.selectFolder")}
-                      aria-label={t("project.selectFolder")}
-                      className="pointer-events-none flex size-5 items-center justify-center rounded opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:pointer-events-auto focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground focus-visible:opacity-100"
-                      onClick={(event) => {
-                        event.currentTarget.blur()
-                        onSelectProjectFolder()
-                      }}
-                    >
-                      <FolderPlus className="size-3.5" />
-                    </button>
-                  }
-                />
-                {!categoriesCollapsed.projects ? (
+                {sessionsError ? (
+                  <ErrorNotice error={sessionsError} compact className="mx-0" />
+                ) : taskSessions.length > 0 || projectSessions.length > 0 ? (
                   <div className="grid gap-1">
-                    {projectPinnedGroups.length > 0 || projectPinnedSessions.length > 0 ? (
-                      <div className="grid gap-1">
-                        <div className="oo-sidebar-section-heading oo-text-caption px-3 pt-1 pb-1">
-                          {t("sidebar.pinned")}
-                        </div>
-                        {projectPinnedGroups.map(renderProjectGroup)}
-                        {projectPinnedSessions.map(renderSession)}
+                    {/* 对话分类：任务会话（Work/Code 视图共用同一结构，persona 过滤由服务端完成） */}
+                    <SidebarCategoryHeader
+                      label={t("sidebar.conversations")}
+                      collapsed={categoriesCollapsed.conversations}
+                      onToggle={() => toggleCategory("conversations")}
+                    />
+                    {!categoriesCollapsed.conversations ? (
+                      <div className="grid gap-0.5">
+                        {visibleTaskSessionGroups.pinned.length > 0 ? (
+                          <div className="grid gap-0.5">
+                            <div className="oo-sidebar-section-heading oo-text-caption px-3 pt-1 pb-1">
+                              {t("sidebar.pinned")}
+                            </div>
+                            {visibleTaskSessionGroups.pinned.map(renderSession)}
+                          </div>
+                        ) : null}
+                        {visibleTaskSessionGroups.regular.length > 0 ? (
+                          <div className="grid gap-0.5">{visibleTaskSessionGroups.regular.map(renderSession)}</div>
+                        ) : null}
+                        {visibleTaskSessionGroups.hiddenCount > 0 ? (
+                          <button
+                            type="button"
+                            className="oo-text-control mx-3 h-8 rounded-md px-3 text-left text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                            onClick={() => setTaskSessionLimit((current) => current + taskSessionPageSize)}
+                          >
+                            {t("sidebar.showMoreTasks", {
+                              count: Math.min(taskSessionPageSize, visibleTaskSessionGroups.hiddenCount),
+                            })}
+                          </button>
+                        ) : null}
                       </div>
                     ) : null}
-                    {projectRegularGroups.length > 0 ? (
-                      <div className="grid gap-1">{projectRegularGroups.map(renderProjectGroup)}</div>
+
+                    {/* 项目分类：项目会话（按项目分组），头部带添加项目按钮 */}
+                    <SidebarCategoryHeader
+                      label={t("sidebar.projectSessions")}
+                      collapsed={categoriesCollapsed.projects}
+                      onToggle={() => toggleCategory("projects")}
+                      trailing={
+                        <button
+                          type="button"
+                          title={t("project.selectFolder")}
+                          aria-label={t("project.selectFolder")}
+                          className="pointer-events-none flex size-5 items-center justify-center rounded opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:pointer-events-auto focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground focus-visible:opacity-100"
+                          onClick={(event) => {
+                            event.currentTarget.blur()
+                            onSelectProjectFolder()
+                          }}
+                        >
+                          <FolderPlus className="size-3.5" />
+                        </button>
+                      }
+                    />
+                    {!categoriesCollapsed.projects ? (
+                      <div className="grid gap-1">
+                        {projectPinnedGroups.length > 0 || projectPinnedSessions.length > 0 ? (
+                          <div className="grid gap-1">
+                            <div className="oo-sidebar-section-heading oo-text-caption px-3 pt-1 pb-1">
+                              {t("sidebar.pinned")}
+                            </div>
+                            {projectPinnedGroups.map(renderProjectGroup)}
+                            {projectPinnedSessions.map(renderSession)}
+                          </div>
+                        ) : null}
+                        {projectRegularGroups.length > 0 ? (
+                          <div className="grid gap-1">{projectRegularGroups.map(renderProjectGroup)}</div>
+                        ) : null}
+                      </div>
                     ) : null}
                   </div>
-                ) : null}
-              </div>
-            ) : sidebarSegment === "projects" ? (
-              <ProjectSidebarEmptyState onSelectFolder={onSelectProjectFolder} />
-            ) : (
-              <SidebarEmptyState />
-            )}
+                ) : sidebarSegment === "projects" ? (
+                  <ProjectSidebarEmptyState onSelectFolder={onSelectProjectFolder} />
+                ) : (
+                  <SidebarEmptyState />
+                )}
               </motion.div>
             </AnimatePresence>
           </div>
 
-      <SidebarFooterControls
-        activeRoute={activeRoute}
-        onNavigate={onNavigate}
-        onWorkspaceSwitchStart={onWorkspaceSwitchStart}
-        workspace={workspace}
-        workspaceSwitching={workspaceSwitching}
-      />
+          <SidebarFooterNav activeRoute={activeRoute} onNavigate={onNavigate} />
         </nav>
       </div>
       <div
@@ -464,6 +448,41 @@ export const AppShellNavigationSidebar = React.memo(function AppShellNavigationS
   )
 })
 
+/** 侧边栏底部导航：本地 self-managed 模式的固定入口（设置 / 归档）。 */
+function SidebarFooterNav({ activeRoute, onNavigate }: { activeRoute: Route; onNavigate: (route: Route) => void }) {
+  const t = useT()
+  const settingsActive = activeRoute === "settings" || activeRoute.startsWith("settings/")
+  return (
+    <nav
+      aria-label="footer"
+      className="oo-border-divider flex items-center gap-1 border-t px-3 py-2 [-webkit-app-region:no-drag]"
+    >
+      <button
+        type="button"
+        onClick={() => onNavigate("settings")}
+        className={cn(
+          "oo-sidebar-nav-item oo-text-body flex h-8 flex-1 items-center justify-center gap-2 rounded-md px-2",
+          settingsActive && "bg-sidebar-accent text-sidebar-accent-foreground",
+        )}
+      >
+        <Settings className="size-4 shrink-0" />
+        <span className="oo-sidebar-nav-label truncate">{t("settings.title")}</span>
+      </button>
+      <button
+        type="button"
+        onClick={() => onNavigate("archived")}
+        className={cn(
+          "oo-sidebar-nav-item oo-text-body flex h-8 flex-1 items-center justify-center gap-2 rounded-md px-2",
+          activeRoute === "archived" && "bg-sidebar-accent text-sidebar-accent-foreground",
+        )}
+      >
+        <Archive className="size-4 shrink-0" />
+        <span className="oo-sidebar-nav-label truncate">{t("archived.navTitle")}</span>
+      </button>
+    </nav>
+  )
+}
+
 /** 侧边栏分类头：「对话 / 项目」可折叠分区（chevron + 标题，可带尾部操作按钮）。 */
 function SidebarCategoryHeader({
   collapsed,
@@ -482,7 +501,7 @@ function SidebarCategoryHeader({
         type="button"
         aria-expanded={!collapsed}
         onClick={onToggle}
-        className="flex min-w-0 items-center gap-0.5 rounded text-sidebar-foreground/70 transition-colors hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex min-w-0 items-center gap-0.5 rounded text-sidebar-foreground/70 transition-colors hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
       >
         <ChevronRight className={cn("size-3.5 shrink-0 transition-transform", !collapsed && "rotate-90")} />
         <span className="oo-sidebar-section-heading oo-text-caption truncate">{label}</span>

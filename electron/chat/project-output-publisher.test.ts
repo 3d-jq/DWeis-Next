@@ -122,14 +122,17 @@ describe("publishArtifactBundleToProject", () => {
   // 注：openPlainArtifactFile 的 dev/ino/size/mtime 指纹防的是 open() 与 stat() 之间的
   // TOCTOU 替换（发布内容取自句柄），单进程测试无法在该窗口插入替换，故此处验证
   // 正常路径在 win32 上不误判（现有 4 个用例已在 win32 本地覆盖该语义）。
-  it.runIf(process.platform === "win32")("publishes unchanged sources without false fingerprint rejection", async () => {
-    const artifactRoot = await temporaryRoot("dweis-managed-output-")
-    const projectRoot = await temporaryRoot("dweis-project-output-")
-    await writeFile(path.join(artifactRoot, "result.txt"), "stable content")
+  it.runIf(process.platform === "win32")(
+    "publishes unchanged sources without false fingerprint rejection",
+    async () => {
+      const artifactRoot = await temporaryRoot("dweis-managed-output-")
+      const projectRoot = await temporaryRoot("dweis-project-output-")
+      await writeFile(path.join(artifactRoot, "result.txt"), "stable content")
 
-    const result = await publishArtifactBundleToProject(await bundleFor(artifactRoot), artifactRoot, projectRoot)
+      const result = await publishArtifactBundleToProject(await bundleFor(artifactRoot), artifactRoot, projectRoot)
 
-    expect(result.bundle.status).toBe("ready")
-    await expect(readFile(path.join(projectRoot, "result.txt"), "utf8")).resolves.toBe("stable content")
-  })
+      expect(result.bundle.status).toBe("ready")
+      await expect(readFile(path.join(projectRoot, "result.txt"), "utf8")).resolves.toBe("stable content")
+    },
+  )
 })

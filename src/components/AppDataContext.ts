@@ -1,11 +1,9 @@
-import type { AuthState } from "../../electron/auth/common.ts"
 import type { SkillInventory } from "../../electron/skills/common.ts"
 
 import * as React from "react"
 import { ResourceStore } from "@/lib/resource-store"
 
 export interface AppDataResources {
-  authState: ResourceStore<AuthState>
   skillInventory: ResourceStore<SkillInventory>
 }
 

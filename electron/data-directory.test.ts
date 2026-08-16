@@ -15,8 +15,8 @@ vi.mock("electron", () => ({
   },
 }))
 
-import { SettingsServiceImpl } from "./settings/node.ts"
 import type { SettingsStore } from "./settings/store.ts"
+
 import {
   applyPersistedDataDirectory,
   defaultDataDirectory,
@@ -24,6 +24,7 @@ import {
   validateDataDirectoryTarget,
   writeDataDirectoryRecord,
 } from "./data-directory.ts"
+import { SettingsServiceImpl } from "./settings/node.ts"
 
 const temporaryDirectories: string[] = []
 

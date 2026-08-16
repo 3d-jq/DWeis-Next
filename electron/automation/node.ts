@@ -1,4 +1,3 @@
-import type { IConnectionService } from "@oomol/connection"
 import type {
   AutomationService,
   AutomationTask,
@@ -6,12 +5,13 @@ import type {
   AutomationRunRecord,
   ParsedTaskDraft,
 } from "./common.ts"
+import type { AutomationStore } from "./store.ts"
+import type { IConnectionService } from "@oomol/connection"
 
-import { randomUUID } from "node:crypto"
 import { ConnectionService } from "@oomol/connection"
+import { randomUUID } from "node:crypto"
 import { AutomationService as AutomationServiceName } from "./common.ts"
 import { nextRunAtInTimezone } from "./schedule.ts"
-import type { AutomationStore } from "./store.ts"
 
 export interface AutomationServiceDeps {
   store: AutomationStore

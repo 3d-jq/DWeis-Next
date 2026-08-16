@@ -149,16 +149,16 @@ Agent 契約、モデル、権限、ツール、Skills、MCP、セッション�
 
 最も重要な拡張ポイント：
 
-| 領域                                       | まずここを見る                                                    |
-| ------------------------------------------ | ----------------------------------------------------------------- |
-| Agent アイデンティティと実行契約           | [`electron/agent/system-prompt.ts`](electron/agent/system-prompt.ts) |
-| Agent モード、モデル、ツール、権限         | [`electron/agent/config.ts`](electron/agent/config.ts)               |
-| 独自ツール、Skills、MCP ツールソース       | [`electron/agent/tool-sources.ts`](electron/agent/tool-sources.ts)   |
-| 内蔵モデルと独自モデルのサポート           | [`electron/models/`](electron/models/)                               |
-| チャット、成果物、ブラウザ体験              | [`src/routes/Chat/`](src/routes/Chat/)                               |
-| Skills 管理                                 | [`src/routes/Skills/`](src/routes/Skills/)                           |
-| すべての製品設定                           | [`src/routes/Settings/`](src/routes/Settings/)                       |
-| アプリケーションのアイデンティティ           | [`electron/branding.ts`](electron/branding.ts)                       |
+| 領域                                 | まずここを見る                                                       |
+| ------------------------------------ | -------------------------------------------------------------------- |
+| Agent アイデンティティと実行契約     | [`electron/agent/system-prompt.ts`](electron/agent/system-prompt.ts) |
+| Agent モード、モデル、ツール、権限   | [`electron/agent/config.ts`](electron/agent/config.ts)               |
+| 独自ツール、Skills、MCP ツールソース | [`electron/agent/tool-sources.ts`](electron/agent/tool-sources.ts)   |
+| 内蔵モデルと独自モデルのサポート     | [`electron/models/`](electron/models/)                               |
+| チャット、成果物、ブラウザ体験       | [`src/routes/Chat/`](src/routes/Chat/)                               |
+| Skills 管理                          | [`src/routes/Skills/`](src/routes/Skills/)                           |
+| すべての製品設定                     | [`src/routes/Settings/`](src/routes/Settings/)                       |
+| アプリケーションのアイデンティティ   | [`electron/branding.ts`](electron/branding.ts)                       |
 
 Agent の能力は一つの製品契約であり、有効化されたツール、権限ルール、システムプロンプトの三つで
 表現されます。実行時の挙動、安全性、UI の期待値を揃えるために三つを一緒に変更してください。
@@ -214,14 +214,14 @@ MCP サーバーはそれぞれ小さく明示的な契約であり、認可失�
 
 ## プロジェクトマップ
 
-| パス                                        | 役割                                                              |
-| ------------------------------------------- | ----------------------------------------------------------------- |
-| [`electron/`](electron/)                   | メインプロセス、preload、Agent ランタイム、デスクトップサービス     |
-| [`src/`](src/)                             | React レンダラ、ルート、hooks、UI コンポーネント                    |
-| [`scripts/`](scripts/)                     | 開発、バイナリ準備、パッケージング、配布サポート                    |
-| [`resources/`](resources/)                 | アプリに同梱されるブランディングとリソース                          |
-| [`docs/`](docs/)                           | 製品、アーキテクチャ、開発、規約、意思決定の記録                    |
-| [`.github/workflows/`](.github/workflows/) | PR とリリースの自動化                                              |
+| パス                                       | 役割                                                            |
+| ------------------------------------------ | --------------------------------------------------------------- |
+| [`electron/`](electron/)                   | メインプロセス、preload、Agent ランタイム、デスクトップサービス |
+| [`src/`](src/)                             | React レンダラ、ルート、hooks、UI コンポーネント                |
+| [`scripts/`](scripts/)                     | 開発、バイナリ準備、パッケージング、配布サポート                |
+| [`resources/`](resources/)                 | アプリに同梱されるブランディングとリソース                      |
+| [`docs/`](docs/)                           | 製品、アーキテクチャ、開発、規約、意思決定の記録                |
+| [`.github/workflows/`](.github/workflows/) | PR とリリースの自動化                                           |
 
 ## ドキュメント
 

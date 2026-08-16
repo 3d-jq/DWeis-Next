@@ -17,10 +17,7 @@ export function useUsageStats(): {
 
   const refresh = React.useCallback(() => {
     setLoading(true)
-    void Promise.all([
-      service.invoke("getTokenStats"),
-      service.invoke("getActivityStats"),
-    ])
+    void Promise.all([service.invoke("getTokenStats"), service.invoke("getActivityStats")])
       .then(([tokenStats, activityStats]) => {
         setTokens(tokenStats)
         setActivity(activityStats)

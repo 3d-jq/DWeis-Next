@@ -2,7 +2,6 @@ import assert from "node:assert/strict"
 import { test } from "vitest"
 import { assertSkillOperationSucceeded, createDeleteSkillArgs } from "./actions.ts"
 
-
 test("assertSkillOperationSucceeded accepts completed and noop json results", () => {
   assert.doesNotThrow(() =>
     assertSkillOperationSucceeded(JSON.stringify({ command: "skills.update", status: "completed" }), "skills.update"),

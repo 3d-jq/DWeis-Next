@@ -8,8 +8,8 @@ import type {
   SessionScope,
   SessionsChangedEvent,
 } from "../../electron/session/common.ts"
-import type { UserFacingError } from "../lib/user-facing-error.ts"
 import type { Persona } from "../../electron/settings/common.ts"
+import type { UserFacingError } from "../lib/user-facing-error.ts"
 
 import * as React from "react"
 import { DEFAULT_LOCAL_WORKSPACE } from "../../electron/session/common.ts"

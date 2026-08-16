@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process"
-import { access, copyFile, mkdir, mkdtemp, rm, stat } from "node:fs/promises"
 import { createHash } from "node:crypto"
+import { access, copyFile, mkdir, mkdtemp, rm, stat } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { logDiagnostic } from "../diagnostics-log.ts"
@@ -23,10 +23,7 @@ function fileUrl(filePath: string): string {
  * 供产物预览复用 pdfjs 查看器。首次运行初始化隔离 profile 较慢（5-15s），
  * 之后按内容缓存（mtime+size 哈希），同一文件只转换一次。
  */
-export function createPptxConverter(options: {
-  sofficeCandidates: string[]
-  cacheDir: string
-}): PptxConverter {
+export function createPptxConverter(options: { sofficeCandidates: string[]; cacheDir: string }): PptxConverter {
   let resolvedSoffice: string | null | undefined
 
   const resolveSoffice = async (): Promise<string | null> => {

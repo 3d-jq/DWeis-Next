@@ -49,10 +49,12 @@ describe("resolveChatError", () => {
   })
 
   it("assigns every chat error to an explicit recovery path", () => {
-    expect(chatErrorRecoveryKind("payment_required")).toBe("billing")
+    // 纯本地模式：账单错误只展示、无恢复入口。
+    expect(chatErrorRecoveryKind("payment_required")).toBeNull()
     expect(chatErrorRecoveryKind("content_filtered")).toBe("fresh_task")
     expect(chatErrorRecoveryKind("auth_required")).toBe("reauthenticate")
     expect(chatErrorRecoveryKind("permission_denied")).toBe("reauthenticate")
+    expect(chatErrorRecoveryKind("model_auth_required")).toBeNull()
     for (const kind of [
       "timeout",
       "connection_interrupted",

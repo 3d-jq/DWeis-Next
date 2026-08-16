@@ -1,6 +1,7 @@
+import type { TrustedIpcSenderOptions } from "./ipc-guard.ts"
+
 import { clipboard, ipcMain } from "electron"
 import { WRITE_CLIPBOARD_TEXT_CHANNEL } from "./clipboard-common.ts"
-import type { TrustedIpcSenderOptions } from "./ipc-guard.ts"
 import { isTrustedIpcSender } from "./ipc-guard.ts"
 
 export function registerClipboardHandler(guard: TrustedIpcSenderOptions): void {

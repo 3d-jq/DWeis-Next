@@ -19,18 +19,19 @@ Node >= 22.22.2 and `pnpm@9.14.4` via corepack — run commands as `corepack pnp
 - `dev:worktree` — preferred dev launch: per-worktree Vite port and isolated `./dweis` userData
   (initialized once from the canonical repo when missing/empty). `dev` — source checkout; Vite is
   fixed on port 5273 with `strictPort`, so a second instance fails fast instead of hopping ports.
-- `auth:clean` — reset the current checkout to a signed-out profile (start here for login /
-  sign-out / first-run work). `auth:status` — report profile and cookie state without printing
-  credentials. `auth:capture` / `auth:save` / `auth:restore` are deprecated.
+- Product runs local self-managed only: no cloud login/account — first-run setup goes straight to
+  the custom model configuration (`operatingMode` is `self-managed` after setup). Reset dev state by
+  deleting `./dweis` (or `dweis/` for source-checkout dev).
 - Scripts run directly with `node --experimental-strip-types` (no build step): TS parameter
   properties are unsupported (use explicit fields + constructor assignment), and relative imports
   must carry a `.ts` extension. Renderer alias `@/` → `src/` (tsconfig paths + vite).
 - Endpoint and branding are single sources of truth: `electron/domain.ts` and `electron/branding.ts`.
-  The `__OO_ENDPOINT__` define must stay in sync between `vite.config.ts` and `vitest.config.ts`.
+  The `__OO_ENDPOINT__` define must stay in sync between `vite.config.ts` and `vitest.config.ts`
+  (both read `DWEIS_ENDPOINT`).
 - `electron/agent/` must stay electron-free so headless smoke tests can construct an
   `AgentManager` directly. Never use synchronous fs APIs in the Electron main process — use
-  `node:fs/promises` (a few one-off exceptions exist in `electron/auth/store.ts` and
-  `electron/settings/store.ts`; do not spread them).
+  `node:fs/promises` (a few one-off exceptions exist in `electron/settings/store.ts` and
+  `electron/data-directory.ts`; do not spread them).
 - English everywhere: comments, docs, commit messages, branch/PR copy. i18n is flat dot keys with
   a zh-CN baseline + en mirror — new copy must be added to both locales.
 - Never delete the two `@source` lines in `src/styles/theme.css` (Tailwind v4 does not scan

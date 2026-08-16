@@ -1,17 +1,16 @@
-import type { ServiceName } from "@oomol/connection"
-
 import type { DWeisReasoningLevel } from "../agent/reasoning.ts"
+import type { ServiceName } from "@oomol/connection"
 
 import { serviceName } from "../branding.ts"
 
 export type ThemeSource = "system" | "light" | "dark"
 export type CompletionNotificationCondition = "never" | "background" | "always"
-export type OperatingMode = "oomol" | "self-managed" | "unselected"
+export type OperatingMode = "self-managed" | "unselected"
 /** 人群模式：work=办公（文档/信息搜集/对话导向），code=编码导向。 */
 export type Persona = "work" | "code"
 
-/** 子代智能体模型选择（宽松形式，id 不限定 builtin 字面量）。 */
-export type SubagentModelChoice = { kind: "builtin" | "custom"; id: string }
+/** 子代智能体模型选择（本地自定义模型）。 */
+export type SubagentModelChoice = { kind: "custom"; id: string }
 
 /** AI 生成（图片/视频）工具配置：用户自定义生成模型（OpenAI 兼容 images API）。apiKey 不落 settings.json，走 ModelCredentialStore（safeStorage 密文）。 */
 export interface GenerationConfig {

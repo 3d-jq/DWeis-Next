@@ -1,12 +1,14 @@
+import type { DWeisReasoningLevel } from "./agent/reasoning.ts"
 import type { AppCommand } from "./app-command.ts"
 import type { AppLocale } from "./app-locale.ts"
-import type { AuthRuntimeAccount } from "./auth/store.ts"
+import type { ParsedTaskDraft } from "./automation/common.ts"
 import type { BrowserControlConnection } from "./browser/control-server.ts"
+import type { SubagentModelChoice } from "./settings/common.ts"
 import type { AppUpdateState } from "./update/common.ts"
+import type { Config } from "@opencode-ai/sdk/v2/client"
 
 import { ConnectionServer } from "@oomol/connection"
 import { ElectronServerAdapter } from "@oomol/connection-electron-adapter/server"
-import { isTrustedIpcSender } from "./ipc-guard.ts"
 import {
   app,
   BrowserWindow,
@@ -20,8 +22,8 @@ import {
   session,
   shell,
 } from "electron"
-import path from "node:path"
 import { writeFile } from "node:fs/promises"
+import path from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import { AgentRefreshScheduler } from "./agent-refresh-scheduler.ts"
 import {
@@ -36,6 +38,7 @@ import {
   resolveDevOpencodeBin,
 } from "./agent/binaries.ts"
 import { AgentManager } from "./agent/manager.ts"
+import { opencodeReasoningVariant } from "./agent/reasoning.ts"
 import { AgentRetirementPool } from "./agent/retirement.ts"
 import { APP_COMMAND_CHANNEL } from "./app-command.ts"
 import { APP_LOCALE_CHANNEL, isAppLocale, normalizeAppLocale } from "./app-locale.ts"
@@ -48,32 +51,7 @@ import {
 import { registerAttachmentDialogHandlers } from "./attachment-dialog-handlers.ts"
 import { AttentionServiceImpl } from "./attention/node.ts"
 import { AttentionStore } from "./attention/store.ts"
-import { AuthManager, AuthServiceImpl } from "./auth/node.ts"
-import { AuthStore } from "./auth/store.ts"
-import { branding } from "./branding.ts"
-import { BrowserControlServer } from "./browser/control-server.ts"
-import { BrowserManager, BrowserServiceImpl } from "./browser/node.ts"
-import { ArtifactBundleStore } from "./chat/artifact-bundles.ts"
-import { AuthorizationOverlayStore } from "./chat/authorization.ts"
-import { ChatServiceImpl } from "./chat/node.ts"
-import { createPptxConverter } from "./chat/pptx-converter.ts"
-import { removeSessionOutputDirectories } from "./chat/output-directory-cleanup.ts"
-import { SpreadsheetPreviewWorkerClient } from "./chat/spreadsheet-preview-worker-client.ts"
-import { StoppedGenerationStore } from "./chat/stopped-generations.ts"
-import { TurnOutputStore } from "./chat/turn-outputs.ts"
-import { UserAttachmentStore } from "./chat/user-attachments.ts"
-import { registerClipboardHandler } from "./clipboard-handler.ts"
-import { configureDiagnosticsLog, flushDiagnosticsLog, logDiagnostic } from "./diagnostics-log.ts"
-import { applyPersistedDataDirectory } from "./data-directory.ts"
-import { GitServiceImpl } from "./git/node.ts"
-import { KnowledgeServiceImpl } from "./knowledge/node.ts"
-import { isAudioOnlyMediaRequest, isTrustedRendererUrl } from "./media-permission-policy.ts"
-import type { Config } from "@opencode-ai/sdk/v2/client"
-import type { DWeisReasoningLevel } from "./agent/reasoning.ts"
-import { opencodeReasoningVariant } from "./agent/reasoning.ts"
-import type { SubagentModelChoice } from "./settings/common.ts"
 import { AutomationServiceImpl } from "./automation/node.ts"
-import type { ParsedTaskDraft } from "./automation/common.ts"
 import {
   cronToSchedule,
   defaultTimezone,
@@ -82,17 +60,34 @@ import {
   scheduleToCron,
 } from "./automation/schedule.ts"
 import { AutomationStore } from "./automation/store.ts"
-import { ModelCredentialStore } from "./models/credential-store.ts"
+import { branding } from "./branding.ts"
+import { BrowserControlServer } from "./browser/control-server.ts"
+import { BrowserManager, BrowserServiceImpl } from "./browser/node.ts"
+import { ArtifactBundleStore } from "./chat/artifact-bundles.ts"
+import { AuthorizationOverlayStore } from "./chat/authorization.ts"
+import { ChatServiceImpl } from "./chat/node.ts"
+import { removeSessionOutputDirectories } from "./chat/output-directory-cleanup.ts"
+import { createPptxConverter } from "./chat/pptx-converter.ts"
+import { SpreadsheetPreviewWorkerClient } from "./chat/spreadsheet-preview-worker-client.ts"
+import { StoppedGenerationStore } from "./chat/stopped-generations.ts"
+import { TurnOutputStore } from "./chat/turn-outputs.ts"
+import { UserAttachmentStore } from "./chat/user-attachments.ts"
+import { registerClipboardHandler } from "./clipboard-handler.ts"
+import { applyPersistedDataDirectory } from "./data-directory.ts"
+import { configureDiagnosticsLog, flushDiagnosticsLog, logDiagnostic } from "./diagnostics-log.ts"
+import { GitServiceImpl } from "./git/node.ts"
+import { isTrustedIpcSender } from "./ipc-guard.ts"
+import { KnowledgeServiceImpl } from "./knowledge/node.ts"
+import { toOpencodeMcpConfig } from "./mcp/common.ts"
 import { McpServiceImpl } from "./mcp/node.ts"
 import { McpStore } from "./mcp/store.ts"
-import { toOpencodeMcpConfig } from "./mcp/common.ts"
+import { isAudioOnlyMediaRequest, isTrustedRendererUrl } from "./media-permission-policy.ts"
+import { MemoryServiceImpl } from "./memory/node.ts"
+import { MemoryReviewer } from "./memory/reviewer.ts"
+import { MemoryStore } from "./memory/store.ts"
+import { ModelCredentialStore } from "./models/credential-store.ts"
 import { ModelsServiceImpl } from "./models/node.ts"
 import { ModelsStore } from "./models/store.ts"
-import { MemoryServiceImpl } from "./memory/node.ts"
-import { MemoryStore } from "./memory/store.ts"
-import { MemoryReviewer } from "./memory/reviewer.ts"
-import { installOomolCorsShim } from "./net/oomol-cors.ts"
-// Teams 请求已整体搬到渲染层（src/lib/teams-client.ts），不再有对应主进程 service。
 import { listenProtocolUrls, registerProtocolClient, requestProtocolSingleInstanceLock } from "./protocol.ts"
 import { normalizeRendererErrorReport } from "./renderer-error-report.ts"
 import { resolveAgentRuntime } from "./runtime/agent-runtime.ts"
@@ -108,6 +103,7 @@ import { UsageServiceImpl } from "./stats/node.ts"
 import { ExpiringTrustedPathRegistry } from "./trusted-path-registry.ts"
 import { UpdateServiceImpl } from "./update/node.ts"
 import { buildApplicationMenuTemplate } from "./window/application-menu.ts"
+import { dismissSplashWindow, showSplashWindow, SPLASH_FALLBACK_MS, SPLASH_MIN_VISIBLE_MS } from "./window/splash.ts"
 import {
   buildWindowsTitleBarOverlay,
   nativeWindowFrameForPlatform,
@@ -117,7 +113,6 @@ import {
 } from "./window/title-bar-overlay.ts"
 import { createHideOnCloseHandler, revealMainWindow } from "./window/window-close-behavior.ts"
 import { createWindowsTrayLifecycle } from "./window/windows-tray-lifecycle.ts"
-import { dismissSplashWindow, showSplashWindow, SPLASH_FALLBACK_MS, SPLASH_MIN_VISIBLE_MS } from "./window/splash.ts"
 
 declare const __APP_COMMIT__: string | undefined
 
@@ -204,7 +199,6 @@ let agentRuntimeVersion = 0
 let appliedAgentRuntimeVersion = -1
 let runtimeInitialized = false
 
-const authStore = new AuthStore(app.getPath("userData"))
 const sessionActivityStore = new SessionActivityStore(app.getPath("userData"))
 const sessionMetadataStore = new SessionMetadataStore(app.getPath("userData"))
 const sessionProjectStore = new SessionProjectStore(app.getPath("userData"))
@@ -278,9 +272,7 @@ const chatService: ChatServiceImpl = new ChatServiceImpl(null, {
   userAttachmentStore,
   onPermissionModeChanged: (sessionId, permissionMode) =>
     sessionService.setPermissionMode({ id: sessionId, permissionMode }),
-  onOomolAuthRequired: () => authManager.expireSession().then(() => undefined),
   planDir: path.join(app.getPath("userData"), "agent", "workspace", ".opencode", "plans"),
-  onSetAgentTeam: handleAgentTeamChanged,
   onSessionCompleted: (input) => attentionService.completeSession(input),
   onTurnCompleted: (input) => memoryReviewer.onTurnCompleted(input),
 })
@@ -361,20 +353,13 @@ const automationService = new AutomationServiceImpl({
     return null
   },
 })
-// 凭证逻辑在未注册的 AuthManager；注册给渲染层的 AuthServiceImpl 只是薄门面（防 RPC 凭证泄露）。
-const authManager = new AuthManager({
-  store: authStore,
-  protocolScheme,
-  applyAccount: applyAuthAccount,
-})
 const agentRefreshScheduler = new AgentRefreshScheduler({
   canRefresh: () => runtimeInitialized,
   isBusy: () => chatService.hasActiveGeneration(),
   isQuitting: () => isQuitting,
   refresh: refreshAgentRuntime,
 })
-const authService = new AuthServiceImpl(authManager)
-const skillService = new SkillServiceImpl(authManager, {
+const skillService = new SkillServiceImpl({
   onRuntimeSkillsChanged: (reason) => agentRefreshScheduler.schedule(reason),
 })
 const settingsService = new SettingsServiceImpl({
@@ -468,18 +453,18 @@ async function parseTaskTextWithAgent(text: string, signal?: AbortSignal): Promi
   }
   const system = [
     "You are a schedule parser for a desktop AI assistant. The user describes a scheduled automation task in one sentence.",
-    'Reply with ONLY a JSON object, no markdown fences, no commentary, in this exact shape:',
-    '{',
+    "Reply with ONLY a JSON object, no markdown fences, no commentary, in this exact shape:",
+    "{",
     '  "name": "short task name (<= 24 chars)",',
     '  "prompt": "the instruction to execute when triggered, rewritten as a clear directive for an AI assistant",',
     '  "cron": "standard 5-field cron expression (minute hour day-of-month month day-of-week; day-of-week 0=Sunday, 7=Sunday)"',
-    '}',
+    "}",
     "Examples:",
     '"每天早上9点整理今日待办" -> {"name":"整理今日待办","prompt":"整理今天的待办事项清单","cron":"0 9 * * *"}',
     '"每周一和周五上午10点发周报" -> {"name":"发周报","prompt":"生成并发送本周工作报告","cron":"0 10 * * 1,5"}',
     '"每30分钟检查一次服务器状态" -> {"name":"检查服务器状态","prompt":"检查服务器运行状态并报告异常","cron":"*/30 * * * *"}',
     '"每个工作日9点打卡" -> {"name":"打卡","prompt":"完成今日打卡","cron":"0 9 * * 1-5"}',
-    "If the sentence has no time or frequency, reply {\"error\":\"no-schedule\"}.",
+    'If the sentence has no time or frequency, reply {"error":"no-schedule"}.',
   ].join("\n")
   const answer = await agent.parseStructuredText(system, text, signal)
   if (!answer) {
@@ -568,7 +553,6 @@ server.registerService(modelsService)
 server.registerService(settingsService)
 server.registerService(mcpService)
 server.registerService(automationService)
-server.registerService(authService)
 server.registerService(updateService)
 server.registerService(gitService)
 server.registerService(knowledgeService)
@@ -608,14 +592,10 @@ serverAdapterInternals._ipcEventHandler_ = (event, serviceName, payload) => {
   }
   connectionEventHandler(event, serviceName, payload)
 }
-registerAttachmentDialogHandlers(
-  trustedAttachmentPaths,
-  windowBoundsIpcGuard,
-  {
-    createSpreadsheetPreview: (filePath, mime, size) => spreadsheetPreviewWorker.preview(filePath, mime, size),
-    rememberProjectPath: (directoryPath) => trustedProjectPaths.add(directoryPath),
-  },
-)
+registerAttachmentDialogHandlers(trustedAttachmentPaths, windowBoundsIpcGuard, {
+  createSpreadsheetPreview: (filePath, mime, size) => spreadsheetPreviewWorker.preview(filePath, mime, size),
+  rememberProjectPath: (directoryPath) => trustedProjectPaths.add(directoryPath),
+})
 registerClipboardHandler(windowBoundsIpcGuard)
 registerAppLocaleHandler()
 registerRendererErrorHandler()
@@ -641,8 +621,6 @@ if (isLocked) {
     .then(() => {
       void browserControlConnection()
       installArtifactResourceProtocol(artifactResourceLeaseStore)
-      // 放行渲染进程对 *.<endpoint> 的已鉴权直连请求（凭证经会话 cookie 自动附带，token 不进渲染层）。
-      installOomolCorsShim(session.defaultSession)
       installApplicationMenu()
       createMainWindow()
       void attentionService.initialize().catch((error: unknown) => {
@@ -658,17 +636,10 @@ if (isLocked) {
       // 安装仍由用户点击重启或正常退出触发，避免打断 Agent 任务。
       updateService.startBackgroundChecks()
 
-      // 启动时一次性抹除磁盘上残留的旧长期 api-key（迁移到纯会话 token 后不再落盘任何凭证）。
-      authStore.purgeLegacy()
-      void authManager
-        .activeRuntimeAccount()
-        .then((account) => {
-          return applyAuthAccount(account)
-        })
-        .catch((error: unknown) => {
-          console.error("[dweis] agent sidecar failed to start:", error)
-          logMainError("agent sidecar failed to start", error)
-        })
+      void applyAuthAccount().catch((error: unknown) => {
+        console.error("[dweis] agent sidecar failed to start:", error)
+        logMainError("agent sidecar failed to start", error)
+      })
 
       app.on("activate", () => {
         if (mainWindow) {
@@ -918,53 +889,45 @@ function shouldRegisterProtocolClient(): boolean {
   return !value || !["1", "true", "yes", "on"].includes(value)
 }
 
-/** 凭证 → 运行时装配：替换 agent（重启 sidecar）。经 applyChain 串行执行。 */
-function applyAuthAccount(account: AuthRuntimeAccount | null): Promise<void> {
+/** 本地 self-managed 运行时装配：替换 agent（重启 sidecar）。经 applyChain 串行执行。 */
+function applyAuthAccount(): Promise<void> {
   if (isQuitting) {
     return Promise.resolve()
   }
   const next = applyChain.then(async () => {
     try {
-      await applyAuthAccountNow(account)
+      await applyAuthAccountNow()
     } finally {
-      // 无连接功能：连接器运行时已移除，无联动。
+      // 纯本地模式：无账号/连接器联动。
     }
   })
   applyChain = next.catch((error: unknown) => {
-    logMainError("auth account application failed", error)
+    logMainError("agent runtime application failed", error)
   })
   return next
 }
 
-/** 最近一次成功装配的账号：同凭证重复 apply 时短路，避免无谓的 sidecar 重启。 */
-let appliedAccount: AuthRuntimeAccount | null = null
+/** 最近一次成功装配的运行时身份 key：同配置重复 apply 时短路，避免无谓的 sidecar 重启。 */
 let appliedRuntimeKey: string | null = null
-// agent 的当前团队作用域：由渲染层切 workspace 时经 setAgentTeam IPC 更新；agent 重建时据此设初值。
-let activeAgentTeamName: string | undefined
 
-async function applyAuthAccountNow(account: AuthRuntimeAccount | null): Promise<void> {
+async function applyAuthAccountNow(): Promise<void> {
   if (isQuitting) {
     return
   }
-  await browserManager.setProfileScope(account?.id)
+  await browserManager.setProfileScope("local")
   runtimeInitialized = true
   const runtimeVersionAtStart = agentRuntimeVersion
   const runtimeModels = await modelsStore.runtimeModels()
-  const runtime = resolveAgentRuntime(account, runtimeModels.selected, runtimeModels.customModels)
-  // 连接功能已移除：无 Link 运行时，agent 始终以本地模式启动（恒 null）。
-  const linkRuntime = null
-  // 冷启动 deep-link、模型事件与 auth 广播可能重复触发；运行时身份和配置版本均未变化时短路。
+  const runtime = resolveAgentRuntime(runtimeModels.selected, runtimeModels.customModels)
+  // 冷启动 deep-link、模型事件可能重复触发；运行时身份和配置版本均未变化时短路。
   if (
     runtime &&
     appliedRuntimeKey === runtime.key &&
     agent?.isReady() &&
-    appliedAgentRuntimeVersion === agentRuntimeVersion &&
-    account?.id === appliedAccount?.id
+    appliedAgentRuntimeVersion === agentRuntimeVersion
   ) {
     return
   }
-  const previousAccountId = appliedAccount?.id
-  appliedAccount = null
   appliedRuntimeKey = null
   // 旧 sidecar 必须在新 sidecar 启动前完成回收，避免共享 workspace/isolation 的两个运行时短暂并存。
   const previousAgent = agent
@@ -972,7 +935,7 @@ async function applyAuthAccountNow(account: AuthRuntimeAccount | null): Promise<
   chatService.setAgent(null)
   chatService.setRuntimeCapabilities(
     resolveRuntimeCapabilities({
-      mode: account ? "oomol" : "local",
+      mode: "local",
       localAgentAvailable: Boolean(runtime),
     }),
   )
@@ -983,7 +946,7 @@ async function applyAuthAccountNow(account: AuthRuntimeAccount | null): Promise<
     try {
       await agentRetirementPool.retire(previousAgent)
     } catch (error) {
-      // 旧运行时未确认退出时不冒险启动第二个 sidecar；保持 appliedAccount 为空，允许后续重试。
+      // 旧运行时未确认退出时不冒险启动第二个 sidecar；保持空引用，允许后续重试。
       console.warn("[dweis] failed to retire previous agent runtime:", error)
       logMainError("failed to retire previous agent runtime", error)
       chatService.setAgentStatus({
@@ -995,18 +958,8 @@ async function applyAuthAccountNow(account: AuthRuntimeAccount | null): Promise<
   }
 
   if (!runtime || isQuitting) {
-    activeAgentTeamName = undefined
-    await attentionService.clearAll().catch((error: unknown) => {
-      console.warn("[dweis] failed to clear attention state during sign-out:", error)
-    })
-    if (!account) console.log("[dweis] local Agent requires a configured custom model")
+    if (!runtime) console.log("[dweis] local Agent requires a configured custom model")
     return
-  }
-  if (previousAccountId && previousAccountId !== account?.id) {
-    activeAgentTeamName = undefined
-    await attentionService.clearAll().catch((error: unknown) => {
-      console.warn("[dweis] failed to clear attention state during account switch:", error)
-    })
   }
 
   if (isQuitting) {
@@ -1015,10 +968,7 @@ async function applyAuthAccountNow(account: AuthRuntimeAccount | null): Promise<
   const nextAgent = new AgentManager({
     browserControl: browserControlConnection,
     defaultModel: runtime.defaultModel,
-    linkRuntime,
-    modelAccess: runtime.modelAccess,
     opencodeBinPath,
-    ooBinPath,
     wikiGraphCliPath,
     wikiGraphStateDir,
     bundledSkillsDir,
@@ -1040,7 +990,7 @@ async function applyAuthAccountNow(account: AuthRuntimeAccount | null): Promise<
   try {
     await nextAgent.start()
   } catch (error) {
-    // 启动失败不留僵尸 agent：清空引用并完成回收，下次登录可重试。
+    // 启动失败不留僵尸 agent：清空引用并完成回收，配置变更后可重试。
     await agentRetirementPool.retire(nextAgent)
     agent = null
     chatService.setAgent(null)
@@ -1057,7 +1007,6 @@ async function applyAuthAccountNow(account: AuthRuntimeAccount | null): Promise<
     }
     return
   }
-  appliedAccount = account
   appliedRuntimeKey = runtime.key
   appliedAgentRuntimeVersion = runtimeVersionAtStart
   chatService.startEventBridge()
@@ -1065,19 +1014,6 @@ async function applyAuthAccountNow(account: AuthRuntimeAccount | null): Promise<
   console.log("[dweis] agent sidecar ready at", nextAgent.url)
   if (agentRuntimeVersion !== runtimeVersionAtStart) {
     agentRefreshScheduler.schedule("runtime configuration changed during agent startup", 0)
-  }
-}
-
-async function handleAgentTeamChanged(teamName: string | undefined): Promise<void> {
-  const previousTeamName = activeAgentTeamName
-  const nextTeamName = teamName?.trim() ? teamName.trim() : undefined
-  activeAgentTeamName = nextTeamName
-  try {
-    await agent?.setTeamName(nextTeamName)
-  } catch (error: unknown) {
-    activeAgentTeamName = previousTeamName
-    console.error("[dweis] failed to update agent workspace scope:", error)
-    throw error
   }
 }
 
@@ -1100,10 +1036,7 @@ function syncAgentCustomModels(): Promise<void> {
 
 async function refreshAgentRuntime(_reason: string): Promise<void> {
   agentRuntimeVersion += 1
-  const account = await authManager.activeRuntimeAccount()
-  await applyAuthAccount(account)
-  // 会话中途过期：装配登出态后主动广播“未登录”，渲染层据此切回本地 workspace。
-  if (!account) await authManager.broadcastAuthState()
+  await applyAuthAccount()
 }
 function resolveOoBin(): string {
   if (process.env["DWEIS_OO_BIN"]) {
@@ -1485,7 +1418,9 @@ function handleAppUpdateStateChanged(state: AppUpdateState): void {
 
   const chinese = activeLocale() === "zh-CN"
   const notification = new Notification({
-    body: chinese ? `打开 ${branding.appName} 即可选择合适的时间重启。` : `Open ${branding.appName} to restart when you're ready.`,
+    body: chinese
+      ? `打开 ${branding.appName} 即可选择合适的时间重启。`
+      : `Open ${branding.appName} to restart when you're ready.`,
     groupId: "app-update",
     id: `app-update-${readyVersion}`,
     title: chinese ? `${branding.appName} ${readyVersion} 已准备好` : `${branding.appName} ${readyVersion} is ready`,
@@ -1509,13 +1444,10 @@ function handleAppUpdateStateChanged(state: AppUpdateState): void {
 }
 
 async function handleDeepLink(url: string): Promise<boolean> {
-  // 先聚焦窗口（登录回调的网络交换可能耗时数秒），再交给 auth 完成登录。
+  // 纯本地模式无登录回调；保留协议入口用于窗口唤起，无法识别的链接仅记录。
   showMainWindow()
-  const handled = await authManager.completeBrowserLoginCallback(url)
-  if (!handled) {
-    console.log("[dweis] unrecognized deep link:", redactDeepLink(url))
-  }
-  return handled
+  console.log("[dweis] unrecognized deep link:", redactDeepLink(url))
+  return false
 }
 
 /** 日志脱敏：deep link 的 query 可能携带 authID（可直接兑换凭证），只记 scheme/host/path。 */
@@ -1540,7 +1472,12 @@ async function writeToolConfigFile(
     current.searchConfig?.enabled ? credentials.get("tools:search") : undefined,
   ])
   const config: Record<string, unknown> = {}
-  if (current.generationConfig?.enabled && current.generationConfig.apiBase && current.generationConfig.modelName && generationKey) {
+  if (
+    current.generationConfig?.enabled &&
+    current.generationConfig.apiBase &&
+    current.generationConfig.modelName &&
+    generationKey
+  ) {
     config.generation = {
       enabled: true,
       apiBase: current.generationConfig.apiBase,

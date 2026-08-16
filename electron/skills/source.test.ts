@@ -18,96 +18,105 @@ async function writeRegistrySkill(rootPath: string, packageName: string): Promis
   ])
 }
 
-test.skipIf(process.platform === "win32")("readRegistrySkillSourceCandidates keeps canonical store as an explicit fallback", async () => {
-  const homePath = await mkdtemp(path.join(os.tmpdir(), "dweis-skill-source-home-"))
-  const cacheRoot = path.join(homePath, "dweis", "skills")
+test.skipIf(process.platform === "win32")(
+  "readRegistrySkillSourceCandidates keeps canonical store as an explicit fallback",
+  async () => {
+    const homePath = await mkdtemp(path.join(os.tmpdir(), "dweis-skill-source-home-"))
+    const cacheRoot = path.join(homePath, "dweis", "skills")
 
-  try {
-    assert.deepEqual(
-      readRegistrySkillSourceCandidates({
-        cacheSkillStoreRoot: cacheRoot,
-        env: {},
-        homeDirectory: homePath,
-        includeCanonicalStore: true,
-        platform: "darwin",
-        skillId: " gpt-image-2 ",
-      }),
-      [
-        path.join(cacheRoot, "registry", "gpt-image-2"),
-        path.join(homePath, "Library", "Application Support", "oo", "skills", "registry", "gpt-image-2"),
-      ],
+    try {
+      assert.deepEqual(
+        readRegistrySkillSourceCandidates({
+          cacheSkillStoreRoot: cacheRoot,
+          env: {},
+          homeDirectory: homePath,
+          includeCanonicalStore: true,
+          platform: "darwin",
+          skillId: " gpt-image-2 ",
+        }),
+        [
+          path.join(cacheRoot, "registry", "gpt-image-2"),
+          path.join(homePath, "Library", "Application Support", "oo", "skills", "registry", "gpt-image-2"),
+        ],
+      )
+    } finally {
+      await rm(homePath, { force: true, recursive: true })
+    }
+  },
+)
+
+test.skipIf(process.platform === "win32")(
+  "resolveUsableRegistrySkillSourcePath prefers DWeis cache over canonical oo store",
+  async () => {
+    const homePath = await mkdtemp(path.join(os.tmpdir(), "dweis-skill-source-prefer-"))
+    const cacheRoot = path.join(homePath, "dweis", "skills")
+    const isolatedSourcePath = path.join(cacheRoot, "registry", "gpt-image-2")
+    const canonicalSourcePath = path.join(
+      homePath,
+      "Library",
+      "Application Support",
+      "oo",
+      "skills",
+      "registry",
+      "gpt-image-2",
     )
-  } finally {
-    await rm(homePath, { force: true, recursive: true })
-  }
-})
 
-test.skipIf(process.platform === "win32")("resolveUsableRegistrySkillSourcePath prefers DWeis cache over canonical oo store", async () => {
-  const homePath = await mkdtemp(path.join(os.tmpdir(), "dweis-skill-source-prefer-"))
-  const cacheRoot = path.join(homePath, "dweis", "skills")
-  const isolatedSourcePath = path.join(cacheRoot, "registry", "gpt-image-2")
-  const canonicalSourcePath = path.join(
-    homePath,
-    "Library",
-    "Application Support",
-    "oo",
-    "skills",
-    "registry",
-    "gpt-image-2",
-  )
+    try {
+      await Promise.all([
+        writeRegistrySkill(isolatedSourcePath, "@alice/gpt-image-2"),
+        writeRegistrySkill(canonicalSourcePath, "@alice/gpt-image-2"),
+      ])
 
-  try {
-    await Promise.all([
-      writeRegistrySkill(isolatedSourcePath, "@alice/gpt-image-2"),
-      writeRegistrySkill(canonicalSourcePath, "@alice/gpt-image-2"),
-    ])
+      assert.equal(
+        await resolveUsableRegistrySkillSourcePath({
+          cacheSkillStoreRoot: cacheRoot,
+          env: {},
+          homeDirectory: homePath,
+          includeCanonicalStore: true,
+          packageName: "@alice/gpt-image-2",
+          platform: "darwin",
+          skillId: "gpt-image-2",
+        }),
+        isolatedSourcePath,
+      )
+    } finally {
+      await rm(homePath, { force: true, recursive: true })
+    }
+  },
+)
 
-    assert.equal(
-      await resolveUsableRegistrySkillSourcePath({
-        cacheSkillStoreRoot: cacheRoot,
-        env: {},
-        homeDirectory: homePath,
-        includeCanonicalStore: true,
-        packageName: "@alice/gpt-image-2",
-        platform: "darwin",
-        skillId: "gpt-image-2",
-      }),
-      isolatedSourcePath,
+test.skipIf(process.platform === "win32")(
+  "resolveUsableRegistrySkillSourcePath rejects canonical package mismatches",
+  async () => {
+    const homePath = await mkdtemp(path.join(os.tmpdir(), "dweis-skill-source-mismatch-"))
+    const cacheRoot = path.join(homePath, "dweis", "skills")
+    const canonicalSourcePath = path.join(
+      homePath,
+      "Library",
+      "Application Support",
+      "oo",
+      "skills",
+      "registry",
+      "gpt-image-2",
     )
-  } finally {
-    await rm(homePath, { force: true, recursive: true })
-  }
-})
 
-test.skipIf(process.platform === "win32")("resolveUsableRegistrySkillSourcePath rejects canonical package mismatches", async () => {
-  const homePath = await mkdtemp(path.join(os.tmpdir(), "dweis-skill-source-mismatch-"))
-  const cacheRoot = path.join(homePath, "dweis", "skills")
-  const canonicalSourcePath = path.join(
-    homePath,
-    "Library",
-    "Application Support",
-    "oo",
-    "skills",
-    "registry",
-    "gpt-image-2",
-  )
+    try {
+      await writeRegistrySkill(canonicalSourcePath, "@bob/gpt-image-2")
 
-  try {
-    await writeRegistrySkill(canonicalSourcePath, "@bob/gpt-image-2")
-
-    assert.equal(
-      await resolveUsableRegistrySkillSourcePath({
-        cacheSkillStoreRoot: cacheRoot,
-        env: {},
-        homeDirectory: homePath,
-        includeCanonicalStore: true,
-        packageName: "@alice/gpt-image-2",
-        platform: "darwin",
-        skillId: "gpt-image-2",
-      }),
-      undefined,
-    )
-  } finally {
-    await rm(homePath, { force: true, recursive: true })
-  }
-})
+      assert.equal(
+        await resolveUsableRegistrySkillSourcePath({
+          cacheSkillStoreRoot: cacheRoot,
+          env: {},
+          homeDirectory: homePath,
+          includeCanonicalStore: true,
+          packageName: "@alice/gpt-image-2",
+          platform: "darwin",
+          skillId: "gpt-image-2",
+        }),
+        undefined,
+      )
+    } finally {
+      await rm(homePath, { force: true, recursive: true })
+    }
+  },
+)

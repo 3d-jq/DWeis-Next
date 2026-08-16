@@ -3,11 +3,11 @@ import type { CreateSpreadsheetPreview } from "./chat/spreadsheet-agent-input.ts
 import type { TrustedIpcSenderOptions } from "./ipc-guard.ts"
 
 import { app, BrowserWindow, dialog, ipcMain } from "electron"
-import { branding } from "./branding.ts"
 import { randomUUID } from "node:crypto"
 import { chmod, copyFile, mkdir, rename, rm, stat } from "node:fs/promises"
 import path from "node:path"
 import { isAttachmentPickerKind } from "./attachment-picker.ts"
+import { branding } from "./branding.ts"
 import { mimeFromFile } from "./chat/artifacts.ts"
 import { saveClipboardAttachment } from "./chat/clipboard-attachment.ts"
 import { createSpreadsheetAgentInput } from "./chat/spreadsheet-agent-input.ts"

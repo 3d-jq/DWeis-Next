@@ -1,8 +1,4 @@
-import type {
-  AssistantActivityEvent,
-  ChatMessage,
-  TurnOutputRecord,
-} from "../../../electron/chat/common.ts"
+import type { AssistantActivityEvent, ChatMessage, TurnOutputRecord } from "../../../electron/chat/common.ts"
 import type { ChatErrorKind } from "../../../electron/chat/error.ts"
 import type { ResolvedArtifactGroup } from "./artifact-resolution.ts"
 import type { ChatTurn, ChatTurnRetrySource } from "./chat-turns.ts"
@@ -113,7 +109,6 @@ interface ChatTurnViewProps {
   artifactGroups: ResolvedArtifactGroup[]
   artifactGroupsByMessageId: ReadonlyMap<string, ResolvedArtifactGroup[]>
   turnOutputRecordsByMessage: ReadonlyMap<string, TurnOutputRecord>
-  billingCacheScope: string
   turnOutputRecord: TurnOutputRecord | null
   turn: ChatTurn
   activity: AssistantActivityEvent | null
@@ -127,7 +122,6 @@ interface ChatTurnViewProps {
   onArtifactsAvailable: (selection: ArtifactSelection) => void
   onArtifactsOpen: (selection: ArtifactSelection) => void
   onTurnOutputOpen: (selection: TurnOutputSelection) => void
-  onViewBilling?: () => void
 }
 
 function chatTurnViewPropsEqual(previous: ChatTurnViewProps, next: ChatTurnViewProps): boolean {
@@ -136,7 +130,6 @@ function chatTurnViewPropsEqual(previous: ChatTurnViewProps, next: ChatTurnViewP
     previous.artifactGroups === next.artifactGroups &&
     previous.artifactGroupsByMessageId === next.artifactGroupsByMessageId &&
     previous.turnOutputRecordsByMessage === next.turnOutputRecordsByMessage &&
-    previous.billingCacheScope === next.billingCacheScope &&
     previous.turnOutputRecord === next.turnOutputRecord &&
     previous.turn === next.turn &&
     previous.activity === next.activity &&
@@ -148,8 +141,7 @@ function chatTurnViewPropsEqual(previous: ChatTurnViewProps, next: ChatTurnViewP
     previous.onRetryFresh === next.onRetryFresh &&
     previous.onArtifactsAvailable === next.onArtifactsAvailable &&
     previous.onArtifactsOpen === next.onArtifactsOpen &&
-    previous.onTurnOutputOpen === next.onTurnOutputOpen &&
-    previous.onViewBilling === next.onViewBilling
+    previous.onTurnOutputOpen === next.onTurnOutputOpen
   )
 }
 
@@ -158,7 +150,6 @@ const ChatTurnView = React.memo(function ChatTurnView({
   artifactGroups,
   artifactGroupsByMessageId,
   turnOutputRecordsByMessage,
-  billingCacheScope,
   turnOutputRecord,
   turn,
   activity,
@@ -171,7 +162,6 @@ const ChatTurnView = React.memo(function ChatTurnView({
   onArtifactsAvailable,
   onArtifactsOpen,
   onTurnOutputOpen,
-  onViewBilling,
 }: ChatTurnViewProps) {
   // turnInFlight 是全局状态（当前回合在生成）：只有最新回合才被它算作活跃，
   // 历史回合必须保持"已处理"，不能跟着变成"处理中"。
@@ -231,9 +221,7 @@ const ChatTurnView = React.memo(function ChatTurnView({
       {turn.user ? (
         <MessageBubble
           message={turn.user}
-          billingCacheScope={billingCacheScope}
           smoothText={false}
-          onViewBilling={onViewBilling}
           assistantActionsText={null}
           onRecover={retrySource ? handleRecover : undefined}
           onRetryFresh={retrySource ? handleRetryFresh : undefined}
@@ -249,8 +237,8 @@ const ChatTurnView = React.memo(function ChatTurnView({
               const segmentArtifacts = segmentMessages.flatMap(
                 (message) => artifactGroupsByMessageId.get(message.id) ?? [],
               )
-              const segmentOutputRecords = segmentMessages.flatMap(
-                (message) => (turnOutputRecordsByMessage.get(message.id) ? [turnOutputRecordsByMessage.get(message.id)!] : []),
+              const segmentOutputRecords = segmentMessages.flatMap((message) =>
+                turnOutputRecordsByMessage.get(message.id) ? [turnOutputRecordsByMessage.get(message.id)!] : [],
               )
               const showSegmentArtifacts = !turnIsActive && segmentArtifacts.length > 0
               const showSegmentOutputs = !turnIsActive && segmentOutputRecords.length > 0
@@ -277,7 +265,6 @@ const ChatTurnView = React.memo(function ChatTurnView({
                 <AssistantTimelineMessage
                   key={segment.key}
                   blocks={segment.blocks}
-                  billingCacheScope={billingCacheScope}
                   smoothAssistantMessageId={smoothAssistantMessageId}
                   assistantActionsText={ownsTurnActions ? responseActionsText : null}
                   assistantCancelled={ownsTurnActions && assistantCancelled}
@@ -285,7 +272,6 @@ const ChatTurnView = React.memo(function ChatTurnView({
                   artifactsSlot={artifactsSlot}
                   onRecover={retrySource ? handleRecover : undefined}
                   onRetryFresh={retrySource ? handleRetryFresh : undefined}
-                  onViewBilling={onViewBilling}
                 />
               )
             }
@@ -324,11 +310,9 @@ const ChatTurnView = React.memo(function ChatTurnView({
                     blocks={segment.blocks}
                     process={segmentProcess}
                     live={processLive}
-                    billingCacheScope={billingCacheScope}
                     showTitle={showTitle}
                     onRecover={retrySource ? handleRecover : undefined}
                     onRetryFresh={retrySource ? handleRetryFresh : undefined}
-                    onViewBilling={onViewBilling}
                   />
                 </MessageContent>
                 {ownsTurnActions && (processActionsText || assistantCancelled) ? (
@@ -344,9 +328,7 @@ const ChatTurnView = React.memo(function ChatTurnView({
             <MessageBubble
               key={message.clientId ?? message.id}
               message={message}
-              billingCacheScope={billingCacheScope}
               smoothText={message.id === smoothAssistantMessageId}
-              onViewBilling={onViewBilling}
               assistantActionsText={assistantActionTextByMessageId.get(message.id) ?? null}
               liveTools={message.id === activeAssistantMessageId}
               onRecover={retrySource ? handleRecover : undefined}
@@ -365,7 +347,6 @@ function chatTurnHasAssistantMessage(turn: ChatTurn, messageId: string | undefin
 
 interface ChatTimelineProps {
   activeSessionId: string | null
-  billingCacheScope: string
   messages: ChatMessage[]
   status: ChatStatus
   activity: AssistantActivityEvent | null
@@ -376,12 +357,10 @@ interface ChatTimelineProps {
   onArtifactsAvailable: (selection: ArtifactSelection) => void
   onTurnOutputOpen: (selection: TurnOutputSelection) => void
   onTurnOutputAvailable: (selection: TurnOutputSelection) => void
-  onViewBilling?: () => void
 }
 
 export const ChatTimeline = React.memo(function ChatTimeline({
   activeSessionId,
-  billingCacheScope,
   messages,
   status,
   activity,
@@ -392,7 +371,6 @@ export const ChatTimeline = React.memo(function ChatTimeline({
   onArtifactsAvailable,
   onTurnOutputOpen,
   onTurnOutputAvailable,
-  onViewBilling,
 }: ChatTimelineProps) {
   const conversationRef = React.useRef<StickToBottomContext | null>(null)
   const lastAutoScrolledUserMessageIdRef = React.useRef<string | null>(null)
@@ -540,7 +518,6 @@ export const ChatTimeline = React.memo(function ChatTimeline({
                 artifactGroupsByMessageId={artifactGroupsByMessageId}
                 turnOutputRecordsByMessage={turnOutputRecordsByMessage}
                 turn={turn}
-                billingCacheScope={billingCacheScope}
                 turnOutputRecord={turnOutputRecordsByTurn.get(turn.id) ?? null}
                 activity={activityForChatTurn(turn, activity, activeAssistantMessageId, index === turns.length - 1)}
                 activeAssistantMessageId={turnActiveAssistantMessageId}
@@ -552,7 +529,6 @@ export const ChatTimeline = React.memo(function ChatTimeline({
                 onArtifactsOpen={onArtifactsOpen}
                 onArtifactsAvailable={publishArtifactAvailability ? onArtifactsAvailable : noopArtifactsAvailable}
                 onTurnOutputOpen={onTurnOutputOpen}
-                onViewBilling={onViewBilling}
               />
             </div>
           )

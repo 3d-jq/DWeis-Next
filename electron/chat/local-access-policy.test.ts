@@ -28,59 +28,10 @@ test("local access policy allows ordinary commands in default mode", () => {
   )
 })
 
-test("local access policy allows pure oo commands without a renderer prompt", () => {
-  assert.deepEqual(
-    evaluateLocalAccessRequest(permission({ metadata: { command: 'oo search "gmail" --json' } }), {
-      linkRuntime: "oomol",
-      permissionMode: "default",
-    }),
-    { type: "allow", reason: "oo_cli", kind: "command", highRisk: false },
-  )
-})
-
-test("local access policy allows direct and standard wrapped oo commands under OpenConnector", () => {
-  for (const command of [
-    "oo connector apps --json",
-    "bash -c 'oo connector apps --json'",
-    "/bin/bash -c 'oo connector apps --json'",
-    "sh -lc 'oo connector apps --json'",
-    'cmd.exe /c "oo connector apps --json"',
-    "cmd /c oo connector apps --json",
-    'pwsh -Command "oo connector apps --json"',
-  ]) {
-    assert.deepEqual(
-      evaluateLocalAccessRequest(permission({ metadata: { command } }), {
-        linkRuntime: "openconnector",
-        permissionMode: "full_access",
-      }),
-      { type: "allow", reason: "oo_cli", kind: "command", highRisk: false },
-      command,
-    )
-  }
-  assert.deepEqual(
-    evaluateLocalAccessRequest(permission({ metadata: { command: "oo connector run gmail list --json" } }), {
-      linkRuntime: "openconnector",
-      permissionMode: "default",
-    }),
-    { type: "allow", reason: "oo_cli", kind: "command", highRisk: false },
-  )
-  for (const command of ["zsh -c 'cd /tmp && oo connector apps --json'", "oo connector apps --json 2>&1 | head -80"]) {
-    assert.deepEqual(
-      evaluateLocalAccessRequest(permission({ metadata: { command } }), {
-        linkRuntime: "openconnector",
-        permissionMode: "default",
-      }),
-      { type: "allow", reason: "default_command", kind: "command", highRisk: false },
-      command,
-    )
-  }
-})
-
 test("local access policy does not prompt only because shell wrapper syntax is not fully modeled", () => {
   for (const command of ["bash -c '$SHELL_COMMAND'", "bash script.sh", "cmd /c %SHELL_COMMAND%"]) {
     assert.deepEqual(
       evaluateLocalAccessRequest(permission({ metadata: { command } }), {
-        linkRuntime: "openconnector",
         permissionMode: "full_access",
       }),
       { type: "allow", reason: "full_access", kind: "command", highRisk: false },
@@ -89,77 +40,9 @@ test("local access policy does not prompt only because shell wrapper syntax is n
   }
   assert.deepEqual(
     evaluateLocalAccessRequest(permission({ metadata: { command: "bash script.sh" } }), {
-      linkRuntime: "openconnector",
       permissionMode: "default",
     }),
     { type: "allow", reason: "default_command", kind: "command", highRisk: false },
-  )
-})
-
-test("full access auto-approves local oo commands even without an active Link runtime", () => {
-  assert.deepEqual(
-    evaluateLocalAccessRequest(permission({ metadata: { command: "oo connector apps --json" } }), {
-      permissionMode: "full_access",
-    }),
-    { type: "allow", reason: "full_access", kind: "command", highRisk: false },
-  )
-})
-
-test("local access policy rejects OpenConnector credential and configuration commands", () => {
-  for (const command of [
-    "oo connector login https://connector.example.test",
-    "oo connector logout",
-    "oo config set endpoint https://other.example.test",
-    "oo connector apps --endpoint https://other.example.test",
-    "oo connector apps --endpoint=https://other.example.test",
-    "oo connector apps && oo connector logout",
-    "bash -c 'oo connector login https://connector.example.test'",
-    "bash -ec 'oo auth login'",
-    "bash -c '$DWEIS_OO_BIN config set endpoint https://other.example.test'",
-    "sh -lc 'oo config set endpoint https://other.example.test'",
-    "zsh -c 'cd /tmp && oo connector apps --connector-token secret'",
-    'cmd /c "oo connector logout"',
-    "cmd /c oo auth login",
-    "cmd.exe /k oo connector logout",
-    'powershell.exe -Command "oo config set endpoint https://other.example.test"',
-    "powershell -Command oo config set endpoint https://other.example.test",
-    "pwsh -c oo connector apps --connector-token secret",
-    "OO_CONNECTOR_URL=https://other.example.test oo connector apps",
-    "printenv",
-    "bash -lc 'env'",
-    "echo $OO_CONNECTOR_TOKEN",
-    "echo ${OO_API_KEY}",
-  ]) {
-    assert.deepEqual(
-      evaluateLocalAccessRequest(permission({ metadata: { command } }), {
-        linkRuntime: "openconnector",
-        permissionMode: "full_access",
-      }),
-      { type: "deny", kind: "command", highRisk: false },
-      command,
-    )
-  }
-
-  assert.equal(
-    evaluateLocalAccessRequest(permission({ metadata: { command: "some-tool --data-dir /tmp/output" } }), {
-      linkRuntime: "openconnector",
-      permissionMode: "full_access",
-    }).type,
-    "allow",
-  )
-  assert.equal(
-    evaluateLocalAccessRequest(permission({ metadata: { command: "bash -c 'printf ok'" } }), {
-      linkRuntime: "openconnector",
-      permissionMode: "full_access",
-    }).type,
-    "allow",
-  )
-  assert.equal(
-    evaluateLocalAccessRequest(permission({ metadata: { command: "cmd /c echo ok" } }), {
-      linkRuntime: "openconnector",
-      permissionMode: "full_access",
-    }).type,
-    "allow",
   )
 })
 
@@ -228,113 +111,116 @@ test("local access policy separates dependency confirmation from genuinely high-
   )
 })
 
-test.skipIf(process.platform === "win32")("default access auto-approves direct Python requirements in bounded task or project environments", () => {
-  const processRoot = "/tmp/dweis-process/task-1"
-  const projectRoot = "/Users/example/code/customer-project"
-  assert.deepEqual(
-    evaluateLocalAccessRequest(
-      permission({
-        metadata: {
-          command: `${processRoot}/.wanta-python/bin/python -m pip install --upgrade 'pandas>=2' 'markitdown[pdf,docx,pptx,xlsx]'`,
-        },
-      }),
-      { permissionMode: "default", taskProcessRoot: processRoot },
-    ),
-    { type: "allow", reason: "trusted_dependency", kind: "command", highRisk: false },
-  )
-  assert.deepEqual(
-    evaluateLocalAccessRequest(
-      permission({
-        metadata: {
-          command:
-            `python3 -m venv "${processRoot}/.wanta-python" 2>&1 && ` +
-            `"${processRoot}/.wanta-python/bin/python" -m pip install python-docx`,
-        },
-      }),
-      { permissionMode: "default", taskProcessRoot: processRoot },
-    ),
-    { type: "allow", reason: "trusted_dependency", kind: "command", highRisk: false },
-  )
-  assert.deepEqual(
-    evaluateLocalAccessRequest(
-      permission({
-        metadata: {
-          command:
-            `python3 -m venv "${processRoot}/.wanta-python" && ` +
-            `"${processRoot}/.wanta-python/bin/python" -m pip install python-docx 2>&1`,
-        },
-      }),
-      { permissionMode: "default", taskProcessRoot: processRoot },
-    ),
-    { type: "allow", reason: "trusted_dependency", kind: "command", highRisk: false },
-  )
-  assert.deepEqual(
-    evaluateLocalAccessRequest(
-      permission({
-        metadata: { command: `${processRoot}/.wanta-python/bin/python -m pip install fitz` },
-      }),
-      { permissionMode: "default", taskProcessRoot: processRoot },
-    ),
-    { type: "allow", reason: "trusted_dependency", kind: "command", highRisk: false },
-  )
-  assert.deepEqual(
-    evaluateLocalAccessRequest(
-      permission({
-        metadata: { command: "/tmp/other/.wanta-python/bin/python -m pip install pandas" },
-      }),
-      { permissionMode: "default", taskProcessRoot: processRoot },
-    ),
-    { type: "prompt", kind: "command", highRisk: false },
-  )
-  for (const command of [
-    `${projectRoot}/.venv/bin/python -m pip install --compile 'pandas>=2'`,
-    `${projectRoot}/venv/bin/python3 -m pip install --use-feature fast-deps weasyprint`,
-    `uv pip install --python ${projectRoot}/.venv/bin/python pypdf`,
-    `uv pip install --python=${projectRoot}/venv/bin/python3 reportlab`,
-  ]) {
+test.skipIf(process.platform === "win32")(
+  "default access auto-approves direct Python requirements in bounded task or project environments",
+  () => {
+    const processRoot = "/tmp/dweis-process/task-1"
+    const projectRoot = "/Users/example/code/customer-project"
     assert.deepEqual(
-      evaluateLocalAccessRequest(permission({ metadata: { command } }), {
-        permissionMode: "default",
-        trustedProjectRoot: projectRoot,
-      }),
+      evaluateLocalAccessRequest(
+        permission({
+          metadata: {
+            command: `${processRoot}/.wanta-python/bin/python -m pip install --upgrade 'pandas>=2' 'markitdown[pdf,docx,pptx,xlsx]'`,
+          },
+        }),
+        { permissionMode: "default", taskProcessRoot: processRoot },
+      ),
       { type: "allow", reason: "trusted_dependency", kind: "command", highRisk: false },
-      command,
     )
-  }
-  assert.deepEqual(
-    evaluateLocalAccessRequest(
-      permission({
-        metadata: {
-          command:
-            `cd "${projectRoot}" && python3 -m venv .venv && ` + `.venv/bin/python -m pip install python-docx 2>&1`,
-        },
-      }),
-      { permissionMode: "default", trustedProjectRoot: projectRoot },
-    ),
-    { type: "allow", reason: "trusted_dependency", kind: "command", highRisk: false },
-  )
-  for (const command of [
-    "pip install pandas",
-    "python3 -m pip install pandas",
-    `${projectRoot}/.venv/bin/python -m pip install --user pandas`,
-    `${projectRoot}/.venv/bin/python -m pip install -r requirements.txt`,
-    `${projectRoot}/.venv/bin/python -m pip install git+https://example.test/package.git`,
-    `uv pip install --python /tmp/other/.venv/bin/python pandas`,
-  ]) {
     assert.deepEqual(
-      evaluateLocalAccessRequest(permission({ metadata: { command } }), {
-        permissionMode: "default",
-        trustedProjectRoot: projectRoot,
-      }),
-      {
-        type: "prompt",
-        kind: "command",
-        highRisk: command.includes("git+"),
-      },
-      command,
+      evaluateLocalAccessRequest(
+        permission({
+          metadata: {
+            command:
+              `python3 -m venv "${processRoot}/.wanta-python" 2>&1 && ` +
+              `"${processRoot}/.wanta-python/bin/python" -m pip install python-docx`,
+          },
+        }),
+        { permissionMode: "default", taskProcessRoot: processRoot },
+      ),
+      { type: "allow", reason: "trusted_dependency", kind: "command", highRisk: false },
     )
-  }
-})
+    assert.deepEqual(
+      evaluateLocalAccessRequest(
+        permission({
+          metadata: {
+            command:
+              `python3 -m venv "${processRoot}/.wanta-python" && ` +
+              `"${processRoot}/.wanta-python/bin/python" -m pip install python-docx 2>&1`,
+          },
+        }),
+        { permissionMode: "default", taskProcessRoot: processRoot },
+      ),
+      { type: "allow", reason: "trusted_dependency", kind: "command", highRisk: false },
+    )
+    assert.deepEqual(
+      evaluateLocalAccessRequest(
+        permission({
+          metadata: { command: `${processRoot}/.wanta-python/bin/python -m pip install fitz` },
+        }),
+        { permissionMode: "default", taskProcessRoot: processRoot },
+      ),
+      { type: "allow", reason: "trusted_dependency", kind: "command", highRisk: false },
+    )
+    assert.deepEqual(
+      evaluateLocalAccessRequest(
+        permission({
+          metadata: { command: "/tmp/other/.wanta-python/bin/python -m pip install pandas" },
+        }),
+        { permissionMode: "default", taskProcessRoot: processRoot },
+      ),
+      { type: "prompt", kind: "command", highRisk: false },
+    )
+    for (const command of [
+      `${projectRoot}/.venv/bin/python -m pip install --compile 'pandas>=2'`,
+      `${projectRoot}/venv/bin/python3 -m pip install --use-feature fast-deps weasyprint`,
+      `uv pip install --python ${projectRoot}/.venv/bin/python pypdf`,
+      `uv pip install --python=${projectRoot}/venv/bin/python3 reportlab`,
+    ]) {
+      assert.deepEqual(
+        evaluateLocalAccessRequest(permission({ metadata: { command } }), {
+          permissionMode: "default",
+          trustedProjectRoot: projectRoot,
+        }),
+        { type: "allow", reason: "trusted_dependency", kind: "command", highRisk: false },
+        command,
+      )
+    }
+    assert.deepEqual(
+      evaluateLocalAccessRequest(
+        permission({
+          metadata: {
+            command:
+              `cd "${projectRoot}" && python3 -m venv .venv && ` + `.venv/bin/python -m pip install python-docx 2>&1`,
+          },
+        }),
+        { permissionMode: "default", trustedProjectRoot: projectRoot },
+      ),
+      { type: "allow", reason: "trusted_dependency", kind: "command", highRisk: false },
+    )
+    for (const command of [
+      "pip install pandas",
+      "python3 -m pip install pandas",
+      `${projectRoot}/.venv/bin/python -m pip install --user pandas`,
+      `${projectRoot}/.venv/bin/python -m pip install -r requirements.txt`,
+      `${projectRoot}/.venv/bin/python -m pip install git+https://example.test/package.git`,
+      `uv pip install --python /tmp/other/.venv/bin/python pandas`,
+    ]) {
+      assert.deepEqual(
+        evaluateLocalAccessRequest(permission({ metadata: { command } }), {
+          permissionMode: "default",
+          trustedProjectRoot: projectRoot,
+        }),
+        {
+          type: "prompt",
+          kind: "command",
+          highRisk: command.includes("git+"),
+        },
+        command,
+      )
+    }
+  },
+)
 
 test("bounded Python bootstrap approval preserves the nearest protected boundaries", () => {
   const processRoot = "/tmp/dweis-process/task-1"
@@ -455,46 +341,49 @@ test("default access auto-approves standard registry Node dependencies in bounde
   }
 })
 
-test.skipIf(process.platform === "win32")("default access applies one scope-and-boundary policy across Node.js and Python", () => {
-  const projectRoot = "/Users/example/code/customer-project"
-  const context = { permissionMode: "default" as const, trustedProjectRoot: projectRoot }
-  for (const command of [
-    `cd ${projectRoot} && npm install --unknown-option report-tool`,
-    `${projectRoot}/.venv/bin/python -m pip install --compile report-tool`,
-    `cd ${projectRoot} && .venv/bin/python -m pip install report-tool 2>&1 | tail -5`,
-    `uv --no-progress pip install --python=${projectRoot}/.venv/bin/python report-tool 2>&1 | tail -5`,
-  ]) {
-    assert.deepEqual(
-      evaluateLocalAccessRequest(permission({ metadata: { command } }), context),
-      { type: "allow", reason: "trusted_dependency", kind: "command", highRisk: false },
-      command,
-    )
-  }
-  for (const command of ["npm install report-tool", "pip install report-tool"]) {
-    assert.deepEqual(
-      evaluateLocalAccessRequest(permission({ metadata: { command } }), context),
-      { type: "prompt", kind: "command", highRisk: false },
-      command,
-    )
-  }
-  for (const command of ["pipx install black", "uv tool install ruff"]) {
-    assert.deepEqual(
-      evaluateLocalAccessRequest(permission({ metadata: { command } }), context),
-      { type: "prompt", kind: "command", highRisk: false },
-      command,
-    )
-  }
-  for (const command of [
-    `cd ${projectRoot} && npm install report-tool --registry https://example.test`,
-    `${projectRoot}/.venv/bin/python -m pip install report-tool --index-url https://example.test/simple`,
-  ]) {
-    assert.deepEqual(
-      evaluateLocalAccessRequest(permission({ metadata: { command } }), context),
-      { type: "prompt", kind: "command", highRisk: true },
-      command,
-    )
-  }
-})
+test.skipIf(process.platform === "win32")(
+  "default access applies one scope-and-boundary policy across Node.js and Python",
+  () => {
+    const projectRoot = "/Users/example/code/customer-project"
+    const context = { permissionMode: "default" as const, trustedProjectRoot: projectRoot }
+    for (const command of [
+      `cd ${projectRoot} && npm install --unknown-option report-tool`,
+      `${projectRoot}/.venv/bin/python -m pip install --compile report-tool`,
+      `cd ${projectRoot} && .venv/bin/python -m pip install report-tool 2>&1 | tail -5`,
+      `uv --no-progress pip install --python=${projectRoot}/.venv/bin/python report-tool 2>&1 | tail -5`,
+    ]) {
+      assert.deepEqual(
+        evaluateLocalAccessRequest(permission({ metadata: { command } }), context),
+        { type: "allow", reason: "trusted_dependency", kind: "command", highRisk: false },
+        command,
+      )
+    }
+    for (const command of ["npm install report-tool", "pip install report-tool"]) {
+      assert.deepEqual(
+        evaluateLocalAccessRequest(permission({ metadata: { command } }), context),
+        { type: "prompt", kind: "command", highRisk: false },
+        command,
+      )
+    }
+    for (const command of ["pipx install black", "uv tool install ruff"]) {
+      assert.deepEqual(
+        evaluateLocalAccessRequest(permission({ metadata: { command } }), context),
+        { type: "prompt", kind: "command", highRisk: false },
+        command,
+      )
+    }
+    for (const command of [
+      `cd ${projectRoot} && npm install report-tool --registry https://example.test`,
+      `${projectRoot}/.venv/bin/python -m pip install report-tool --index-url https://example.test/simple`,
+    ]) {
+      assert.deepEqual(
+        evaluateLocalAccessRequest(permission({ metadata: { command } }), context),
+        { type: "prompt", kind: "command", highRisk: true },
+        command,
+      )
+    }
+  },
+)
 
 test("default access allows package runners unless they cross an explicit confirmation boundary", () => {
   const prettierProbe =
@@ -530,43 +419,46 @@ test("default access allows package runners unless they cross an explicit confir
   )
 })
 
-test.skipIf(process.platform === "win32")("task-scoped managed Python grants only cover the approved packages in the task environment", () => {
-  const processRoot = "/tmp/dweis-process/task-1"
-  const grant = localAccessGrantForRequest(
-    permission({
-      metadata: { command: `${processRoot}/.wanta-python/bin/python -m pip install openpyxl fpdf2` },
-    }),
-    { managedPythonProcessRoot: processRoot },
-  )
+test.skipIf(process.platform === "win32")(
+  "task-scoped managed Python grants only cover the approved packages in the task environment",
+  () => {
+    const processRoot = "/tmp/dweis-process/task-1"
+    const grant = localAccessGrantForRequest(
+      permission({
+        metadata: { command: `${processRoot}/.wanta-python/bin/python -m pip install openpyxl fpdf2` },
+      }),
+      { managedPythonProcessRoot: processRoot },
+    )
 
-  assert.deepEqual(grant, {
-    action: "bash",
-    kind: "python_dependency_install",
-    patterns: ["openpyxl", "fpdf2"],
-    processRoot,
-  })
-  assert.deepEqual(
-    evaluateLocalAccessRequest(
-      permission({ metadata: { command: `${processRoot}/.wanta-python/bin/python -m pip install openpyxl` } }),
-      { permissionMode: "default", sessionGrants: [grant] },
-    ),
-    { type: "allow", reason: "session_grant", kind: "command", highRisk: false },
-  )
-  assert.deepEqual(
-    evaluateLocalAccessRequest(
-      permission({ metadata: { command: `${processRoot}/.wanta-python/bin/python -m pip install requests` } }),
-      { permissionMode: "default", sessionGrants: [grant] },
-    ),
-    { type: "prompt", kind: "command", highRisk: false },
-  )
-  assert.deepEqual(
-    evaluateLocalAccessRequest(
-      permission({ metadata: { command: `pip3 install --break-system-packages --user openpyxl` } }),
-      { permissionMode: "default", sessionGrants: [grant] },
-    ),
-    { type: "prompt", kind: "command", highRisk: false },
-  )
-})
+    assert.deepEqual(grant, {
+      action: "bash",
+      kind: "python_dependency_install",
+      patterns: ["openpyxl", "fpdf2"],
+      processRoot,
+    })
+    assert.deepEqual(
+      evaluateLocalAccessRequest(
+        permission({ metadata: { command: `${processRoot}/.wanta-python/bin/python -m pip install openpyxl` } }),
+        { permissionMode: "default", sessionGrants: [grant] },
+      ),
+      { type: "allow", reason: "session_grant", kind: "command", highRisk: false },
+    )
+    assert.deepEqual(
+      evaluateLocalAccessRequest(
+        permission({ metadata: { command: `${processRoot}/.wanta-python/bin/python -m pip install requests` } }),
+        { permissionMode: "default", sessionGrants: [grant] },
+      ),
+      { type: "prompt", kind: "command", highRisk: false },
+    )
+    assert.deepEqual(
+      evaluateLocalAccessRequest(
+        permission({ metadata: { command: `pip3 install --break-system-packages --user openpyxl` } }),
+        { permissionMode: "default", sessionGrants: [grant] },
+      ),
+      { type: "prompt", kind: "command", highRisk: false },
+    )
+  },
+)
 
 test("task-scoped project dependency grants cover only the active project task", () => {
   const root = "/Users/example/code/dweis"
@@ -774,12 +666,7 @@ test("local access policy keeps project dev grants compatible but prompts unsafe
 
 test("local access policy does not treat here-document payload as filesystem access", () => {
   // 复现 opencode #311：here-doc 内容（Python 除法 /、HTML、注释）被误判为访问文件系统根 /。
-  const hereDocCommand = [
-    "python <<'EOF'",
-    "result = monthly_new / (1 - retention)",
-    "print(result)",
-    "EOF",
-  ].join("\n")
+  const hereDocCommand = ["python <<'EOF'", "result = monthly_new / (1 - retention)", "print(result)", "EOF"].join("\n")
   assert.deepEqual(
     evaluateLocalAccessRequest(permission({ metadata: { command: hereDocCommand } }), { permissionMode: "default" }),
     { type: "allow", reason: "default_command", kind: "command", highRisk: false },

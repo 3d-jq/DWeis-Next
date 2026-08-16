@@ -207,7 +207,11 @@ export async function localArtifactPreview(
 
   if (isBinaryDataPreviewArtifact(item.path, item.mime) && size <= richPreviewMaxBytes) {
     let verifiedDocxBytes: Buffer | undefined
-    if (isPdfArtifact(item.path, item.mime) || isDocxArtifact(item.path, item.mime) || isPptxArtifact(item.path, item.mime)) {
+    if (
+      isPdfArtifact(item.path, item.mime) ||
+      isDocxArtifact(item.path, item.mime) ||
+      isPptxArtifact(item.path, item.mime)
+    ) {
       if (isDocxArtifact(item.path, item.mime)) {
         const validation = await safeDocxBytes(item.path).catch(() => ({ reason: "read_failed" as const }))
         if (!("bytes" in validation)) {
@@ -251,7 +255,7 @@ export async function localArtifactPreview(
     try {
       const bytes =
         isDocxArtifact(item.path, item.mime) || isPptxArtifact(item.path, item.mime)
-          ? verifiedDocxBytes ?? await readFile(item.path)
+          ? (verifiedDocxBytes ?? (await readFile(item.path)))
           : await readFile(item.path)
       if (!bytes) return { kind: "unsupported", mime: item.mime, size, reason: "read_failed" }
       const richPreview = binaryDataPreview(item.path, item.mime, size, bytes)

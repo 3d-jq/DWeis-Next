@@ -14,7 +14,6 @@ interface ObjectRowSkeletonProps {
   titleWidth?: string
 }
 
-
 export function SkeletonText({ className, ...props }: React.ComponentProps<typeof Skeleton>) {
   return <Skeleton className={cn("h-3 rounded-sm", className)} {...props} />
 }
@@ -64,4 +63,3 @@ export function ObjectRowSkeletonGroup({ count = 3, ...props }: ObjectRowSkeleto
     </ItemGroup>
   )
 }
-

@@ -28,7 +28,6 @@ export const ConversationContent = ({ className, scrollClassName, ...props }: Co
   />
 )
 
-
 export type ConversationScrollButtonProps = ComponentProps<typeof Button>
 
 export const ConversationScrollButton = ({ className, ...props }: ConversationScrollButtonProps) => {

@@ -8,7 +8,7 @@ import { I18nContext, translate } from "@/i18n/i18n"
 
 const t: TranslateFn = (key, vars) => translate("en", key, vars)
 
-function renderControls(voiceEnabled: boolean): string {
+function renderControls(): string {
   return renderToStaticMarkup(
     React.createElement(
       I18nContext.Provider,
@@ -20,7 +20,6 @@ function renderControls(voiceEnabled: boolean): string {
         modelCatalog: null,
         permissionMode: "default",
         reasoningLevel: "default",
-        voiceEnabled,
         onAddModel: () => undefined,
         onDeleteModel: () => undefined,
         onRequestFullAccessPermissionMode: () => undefined,
@@ -28,20 +27,16 @@ function renderControls(voiceEnabled: boolean): string {
         onSelectDefaultPermissionMode: () => undefined,
         onSelectModel: () => undefined,
         onSelectReasoningLevel: () => undefined,
-        onStartVoice: () => undefined,
       }),
     ),
   )
 }
 
 describe("ComposerModeControls", () => {
-  const voiceLabel = `aria-label="${t("chat.voiceInput")}"`
+  it("renders mode controls without any voice input button", () => {
+    const html = renderControls()
 
-  it("shows voice input when the runtime enables voice", () => {
-    expect(renderControls(true)).toContain(voiceLabel)
-  })
-
-  it("hides voice input when the runtime disables voice", () => {
-    expect(renderControls(false)).not.toContain(voiceLabel)
+    expect(html.toLowerCase()).not.toContain("voice")
+    expect(html).not.toContain("lucide-mic")
   })
 })

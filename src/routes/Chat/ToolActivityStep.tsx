@@ -226,13 +226,7 @@ function SearchGlobeIcon({ className }: { className?: string }) {
   )
 }
 
-function ToolStepIcon({
-  part,
-  stopped = false,
-}: {
-  part: ChatMessagePart
-  stopped?: boolean
-}) {
+function ToolStepIcon({ part, stopped = false }: { part: ChatMessagePart; stopped?: boolean }) {
   if (isWikigraphKnowledgeActivityPart(part) && part.status !== "error" && !stopped) {
     return <LibraryBig className="size-3.5 text-muted-foreground" />
   }

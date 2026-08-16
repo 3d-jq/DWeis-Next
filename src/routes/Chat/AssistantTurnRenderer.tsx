@@ -1,13 +1,10 @@
-import type {
-  AssistantActivityEvent,
-  ChatAttachment,
-  ChatMessagePart,
-} from "../../../electron/chat/common.ts"
+import type { AssistantActivityEvent, ChatAttachment, ChatMessagePart } from "../../../electron/chat/common.ts"
 import type { ChatErrorKind } from "../../../electron/chat/error.ts"
 import type { AssistantTimelineBlock } from "./assistant-timeline.ts"
 import type { AssistantBlockType } from "./assistant-turn-renderer-model.ts"
 import type { ChatTurnProcessStatus } from "./chat-turns.ts"
 import type { ProcessOpenPreference } from "./process-activity-open.ts"
+import type { RenderBlock } from "./render-blocks.ts"
 import type { TranslateFn } from "@/i18n/i18n"
 
 import { BrainIcon, ChevronRight } from "lucide-react"
@@ -27,10 +24,9 @@ import { formatWholeSecondDuration } from "./tool-activity.ts"
 import { toolActionSummary } from "./tool-display.ts"
 import { ToolActivityStep } from "./ToolActivityStep.tsx"
 import { groupedToolActivityParts } from "./wikigraph-tool-grouping.ts"
-import type { RenderBlock } from "./render-blocks.ts"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { MessageResponse } from "@/components/ai-elements/message"
 import { MarkdownImage } from "@/components/ai-elements/message-image"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { useT } from "@/i18n/i18n"
 
 /** 块级稳定 key：推理块按 message.id + "reasoning" 而非 partId——
@@ -137,19 +133,15 @@ export function TurnProcessActivity({
   blocks,
   process,
   live = false,
-  billingCacheScope,
   onRecover,
   onRetryFresh,
-  onViewBilling,
   showTitle = true,
 }: {
   blocks: AssistantTimelineBlock[]
   process: ReturnType<typeof summarizeTurnProcess>
   live?: boolean
-  billingCacheScope: string
   onRecover?: (kind: ChatErrorKind) => Promise<void> | void
   onRetryFresh?: () => Promise<void> | void
-  onViewBilling?: () => void
   /** 只渲染内容（思考/工具块），不渲染状态条标题：同一回合多个 process 段时只显示一次状态条。 */
   showTitle?: boolean
 }) {
@@ -204,13 +196,11 @@ export function TurnProcessActivity({
                 key={stableBlockKey(message, block)}
                 block={block}
                 blockClassName={assistantBlockClassName(renderBlocks, index)}
-                billingCacheScope={billingCacheScope}
                 smoothText={false}
                 settlingToolPartId={settlingPartId}
                 liveTools={live}
                 onRecover={onRecover}
                 onRetryFresh={onRetryFresh}
-                onViewBilling={onViewBilling}
               />
             ))}
           </div>
@@ -247,13 +237,11 @@ export function TurnProcessActivity({
               key={stableBlockKey(message, block)}
               block={block}
               blockClassName={assistantBlockClassName(renderBlocks, index)}
-              billingCacheScope={billingCacheScope}
               smoothText={false}
               settlingToolPartId={settlingPartId}
               liveTools={live}
               onRecover={onRecover}
               onRetryFresh={onRetryFresh}
-              onViewBilling={onViewBilling}
             />
           ))}
           {showLiveStatus ? <LiveStatusBar process={process} live={live} /> : null}
@@ -354,23 +342,19 @@ function statusPartText(t: TranslateFn, part: ChatMessagePart): string {
 export function AssistantBlock({
   block,
   blockClassName,
-  billingCacheScope,
   smoothText,
   settlingToolPartId,
   liveTools = true,
   onRecover,
   onRetryFresh,
-  onViewBilling,
 }: {
   block: AssistantBlockType
   blockClassName?: string
-  billingCacheScope: string
   smoothText: boolean
   settlingToolPartId?: string
   liveTools?: boolean
   onRecover?: (kind: ChatErrorKind) => Promise<void> | void
   onRetryFresh?: () => Promise<void> | void
-  onViewBilling?: () => void
 }) {
   const t = useT()
   return (
@@ -383,14 +367,11 @@ export function AssistantBlock({
         <ReasoningBlock part={block.part} />
       ) : block.kind === "error" ? (
         <ChatErrorNotice
-          autoOpenKey={block.part.partId}
-          billingCacheScope={billingCacheScope}
           errorCode={block.part.errorCode}
           errorKind={block.part.errorKind}
           message={block.part.errorText ?? block.part.error ?? t("chatError.failed.description")}
           onRecover={onRecover}
           onRetryFresh={onRetryFresh}
-          onViewBilling={onViewBilling}
         />
       ) : block.kind === "status" ? (
         <div className="text-sm leading-6 font-medium text-muted-foreground/80">{statusPartText(t, block.part)}</div>

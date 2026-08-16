@@ -2,8 +2,8 @@ import type { AppLocale } from "../app-locale.ts"
 import type { AgentPermissionMode, ChatContextMention, ChatProjectContext } from "./common.ts"
 import type { DetectedResponseLanguage } from "./response-language.ts"
 
-import { KNOWLEDGE_LIBRARY_CONTEXT_ID } from "../knowledge/common.ts"
 import { branding } from "../branding.ts"
+import { KNOWLEDGE_LIBRARY_CONTEXT_ID } from "../knowledge/common.ts"
 
 function quoted(value: string): string {
   return JSON.stringify(value)
@@ -65,7 +65,6 @@ export function buildContextMentionsSystem(mentions: ChatContextMention[] | unde
   }
   return lines.join("\n")
 }
-
 
 export function buildProjectContextSystem(project: ChatProjectContext | undefined): string | undefined {
   const projectPath = project?.path.trim()

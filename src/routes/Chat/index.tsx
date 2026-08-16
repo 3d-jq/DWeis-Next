@@ -13,15 +13,12 @@ import type { ComposerState } from "./composer-state.ts"
 import type { QuestionDraftStore } from "./question-fields.ts"
 import type { ChatSendRequest, ChatSendResult } from "@/components/app-shell/app-shell-model"
 import type { QueuedChatMessage, QueuedMessageMovePlacement } from "@/components/app-shell/chat-queue"
-import type { BillingRequestScope } from "@/lib/billing-client"
 import type { UserFacingError } from "@/lib/user-facing-error"
 import type { ArtifactSelection } from "@/routes/Chat/GeneratedArtifacts"
 import type { TurnOutputSelection } from "@/routes/Chat/TurnOutputs"
 import type { ChatStatus } from "ai"
 
-import { ChevronRight, Package } from "lucide-react"
 import * as React from "react"
-import { BillingRequestScopeContext } from "./billing-request-scope-context.ts"
 import { chatTurnShowsGenerating, resolveChatTurnState } from "./chat-turn-state.ts"
 import { ChatComposer } from "./ChatComposer.tsx"
 import { ChatTimeline } from "./ChatTimeline.tsx"
@@ -35,12 +32,8 @@ import { cn } from "@/lib/utils"
 
 interface ChatAreaProps {
   activeSessionId: string | null
-  billingCacheScope: string
-  billingRequestScope: BillingRequestScope | null
   composerDraftKey: string
   composerFocusRequest: number
-  cloudModelsEnabled?: boolean
-  voiceEnabled?: boolean
   messages: ChatMessage[]
   knowledgeBaseIds: string[]
   knowledgeEnabled: boolean
@@ -70,9 +63,6 @@ interface ChatAreaProps {
   placeholder: string
   contextBar?: React.ReactNode
   pinnedContextBar?: React.ReactNode
-  teamSkillEntryVisible?: boolean
-  teamSkillPendingInstallCount?: number
-  teamSkillShowcaseItems?: TeamSkillShowcaseItem[]
   onSend: (request: ChatSendRequest) => Promise<ChatSendResult>
   onPermissionModeChange: (mode: AgentPermissionMode) => void
   onAnswerQuestion: (requestId: string, answers: string[][]) => Promise<void>
@@ -91,8 +81,6 @@ interface ChatAreaProps {
   onTurnOutputOpen: (selection: TurnOutputSelection) => void
   onTurnOutputAvailable: (selection: TurnOutputSelection) => void
   onOpenKnowledgeLibrary?: () => void
-  onOpenTeams?: () => void
-  onViewBilling?: () => void
   onCompact?: () => void
   onUndo?: () => void
   onRedo?: () => void
@@ -102,117 +90,11 @@ interface ChatAreaProps {
 
 const CHAT_CONTENT_MAX_WIDTH_CLASS = "min-w-0 max-w-[50rem]"
 const EMPTY_COMPOSER_MAX_WIDTH_CLASS = "min-w-0 max-w-[47.5rem]"
-interface TeamSkillShowcaseItem {
-  id: string
-  name: string
-}
-
-function EmptyStateActions({
-  teamSkillEntryVisible = false,
-  teamSkillPendingInstallCount,
-  teamSkillShowcaseItems = [],
-  onOpenTeams,
-}: {
-  teamSkillEntryVisible?: boolean
-  teamSkillPendingInstallCount?: number
-  teamSkillShowcaseItems?: TeamSkillShowcaseItem[]
-  onOpenTeams?: () => void
-}) {
-  const t = useT()
-  if (!onOpenTeams) return null
-  const pendingTeamSkillCount = teamSkillPendingInstallCount ?? teamSkillShowcaseItems.length
-  const teamSkillMeta =
-    pendingTeamSkillCount > 0
-      ? t("chat.emptyTeamSkillsMeta", { count: pendingTeamSkillCount })
-      : t("chat.emptyTeamSkillsRecommendedMeta", { count: teamSkillShowcaseItems.length })
-  const teamSkillAction =
-    pendingTeamSkillCount > 0 ? t("chat.emptyTeamSkillsAction") : t("chat.emptyTeamSkillsViewAction")
-  const hasPendingTeamSkills = pendingTeamSkillCount > 0
-
-  return (
-    <div className="w-full pl-2 text-muted-foreground">
-      <div className="grid min-w-0 justify-start gap-1">
-        {teamSkillEntryVisible ? (
-          <EmptyCapabilityAction
-            icon={<Package className="size-4" />}
-            title={t("chat.emptyTeamSkillsTitle")}
-            meta={teamSkillMeta}
-            actionLabel={teamSkillAction}
-            ariaLabel={t("chat.emptyTeamSkillsAria")}
-            highlighted={hasPendingTeamSkills}
-            onClick={onOpenTeams}
-          />
-        ) : null}
-      </div>
-    </div>
-  )
-}
-
-function EmptyCapabilityAction({
-  actionLabel,
-  ariaLabel,
-  icon,
-  meta,
-  title,
-  highlighted = false,
-  onClick,
-}: {
-  actionLabel: string
-  ariaLabel: string
-  highlighted?: boolean
-  icon: React.ReactNode
-  meta: string
-  title: string
-  onClick?: () => void
-}) {
-  return (
-    <button
-      type="button"
-      className="group -ml-2 flex min-h-8 max-w-full min-w-0 items-center gap-2 rounded-md px-2 text-left transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-      aria-label={ariaLabel}
-      onClick={onClick}
-    >
-      <span
-        className="inline-flex size-6 shrink-0 items-center justify-center text-muted-foreground transition-colors group-hover:text-foreground"
-        aria-hidden="true"
-      >
-        {icon}
-      </span>
-      <span className="oo-text-control flex min-w-0 items-center gap-1.5 whitespace-nowrap">
-        <span className="font-medium">{title}</span>
-        <span className="shrink-0 opacity-60" aria-hidden="true">
-          ·
-        </span>
-        {highlighted ? (
-          <span className="oo-pending-skill-status">
-            <span className="oo-pending-skill-dot" aria-hidden="true" />
-            <span>{meta}</span>
-          </span>
-        ) : (
-          <span>{meta}</span>
-        )}
-      </span>
-      <span
-        className={cn(
-          "oo-text-control ml-1 shrink-0 font-medium opacity-80 transition-[color,opacity] group-hover:opacity-100",
-          highlighted && "oo-pending-skill-action",
-        )}
-      >
-        {actionLabel}
-      </span>
-      <ChevronRight className="size-3.5 shrink-0 opacity-55 transition-[opacity,transform] group-hover:translate-x-px group-hover:opacity-90" />
-    </button>
-  )
-}
 
 export const ChatArea = React.memo(function ChatArea({
   activeSessionId,
-  billingCacheScope,
-  billingRequestScope,
   composerDraftKey,
   composerFocusRequest,
-  cloudModelsEnabled = true,
-  voiceEnabled = false,
   messages,
   knowledgeBaseIds,
   knowledgeEnabled,
@@ -237,9 +119,6 @@ export const ChatArea = React.memo(function ChatArea({
   willQueueMessage,
   initialComposerState,
   initialSendPending,
-  teamSkillEntryVisible,
-  teamSkillPendingInstallCount,
-  teamSkillShowcaseItems,
   queueHeld,
   queuedMessages,
   placeholder,
@@ -263,8 +142,6 @@ export const ChatArea = React.memo(function ChatArea({
   onTurnOutputOpen,
   onTurnOutputAvailable,
   onOpenKnowledgeLibrary,
-  onOpenTeams,
-  onViewBilling,
   onCompact,
   onUndo,
   onRedo,
@@ -299,8 +176,6 @@ export const ChatArea = React.memo(function ChatArea({
   const composer = (
     <ChatComposer
       key={composerDraftKey}
-      cloudModelsEnabled={cloudModelsEnabled}
-      voiceEnabled={voiceEnabled}
       error={error}
       focusRequest={composerFocusRequest}
       generatedArtifacts={generatedArtifacts}
@@ -334,7 +209,6 @@ export const ChatArea = React.memo(function ChatArea({
       onOpenKnowledgeLibrary={onOpenKnowledgeLibrary}
       onSelectKnowledgeBase={onSelectKnowledgeBase}
       onStop={onStop}
-      onViewBilling={onViewBilling}
       onCompact={onCompact}
       onUndo={onUndo}
       onRedo={onRedo}
@@ -348,7 +222,7 @@ export const ChatArea = React.memo(function ChatArea({
     >
       <ErrorNotice
         error={startupError}
-        action={onStartupRetry ? { label: t("teams.retry"), onClick: onStartupRetry } : undefined}
+        action={onStartupRetry ? { label: t("common.retry"), onClick: onStartupRetry } : undefined}
       />
     </div>
   ) : bootstrapping ? (
@@ -373,19 +247,12 @@ export const ChatArea = React.memo(function ChatArea({
         <div className="flex flex-col gap-3">
           {pinnedContextBar}
           {composer}
-          <EmptyStateActions
-            teamSkillEntryVisible={teamSkillEntryVisible}
-            teamSkillPendingInstallCount={teamSkillPendingInstallCount}
-            teamSkillShowcaseItems={teamSkillShowcaseItems}
-            onOpenTeams={onOpenTeams}
-          />
         </div>
       </div>
     </div>
   ) : (
     <ChatTimeline
       activeSessionId={activeSessionId}
-      billingCacheScope={billingCacheScope}
       messages={messages}
       status={status}
       activity={activity}
@@ -396,61 +263,58 @@ export const ChatArea = React.memo(function ChatArea({
       onArtifactsAvailable={onArtifactsAvailable}
       onTurnOutputOpen={onTurnOutputOpen}
       onTurnOutputAvailable={onTurnOutputAvailable}
-      onViewBilling={onViewBilling}
     />
   )
 
   return (
-    <BillingRequestScopeContext.Provider value={billingRequestScope}>
-      <div className="flex h-full min-h-0 w-full min-w-0 overflow-hidden">
-        <div className="flex min-w-0 flex-1 flex-col pb-4">
-          <div className="flex min-h-0 flex-1 overflow-hidden">{content}</div>
+    <div className="flex h-full min-h-0 w-full min-w-0 overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col pb-4">
+        <div className="flex min-h-0 flex-1 overflow-hidden">{content}</div>
 
-          {showCenteredEmptyState ? null : (
-            <div className={cn("mx-auto flex w-full flex-col gap-2 px-4", CHAT_CONTENT_MAX_WIDTH_CLASS)}>
-              {pendingQuestions.length > 0 || pendingPermissions.length > 0 ? (
-                // 提问/权限确认接管输入框位置（composer takeover）：请求处理完输入框恢复
-                <div className="flex flex-col gap-2">
-                  {pendingQuestions.map((request) => (
-                    <QuestionPromptCard
-                      key={request.id}
-                      request={request}
-                      busy={status === "submitted"}
-                      onAnswer={onAnswerQuestion}
-                      onReject={onRejectQuestion}
-                      questionDrafts={questionDrafts}
-                    />
-                  ))}
-                  {pendingPermissions.map((request) => (
-                    <PermissionRequiredCard
-                      key={request.id}
-                      request={request}
-                      busy={status === "submitted"}
-                      onAllowOnce={(requestId) => onAnswerPermission(requestId, "once")}
-                      onAllowForSession={(requestId) => onAnswerPermission(requestId, "always")}
-                      onReject={(requestId) => onAnswerPermission(requestId, "reject")}
-                      onDiscuss={(requestId) => {
-                        // 「讨论」= 放弃本次审批让输入框恢复，用户直接打字表达诉求（对齐 dsh 的 discuss 语义）
-                        void onAnswerPermission(requestId, "reject")
-                      }}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <>
-                  {pinnedContextBar}
-                  {composer}
-                </>
-              )}
-            </div>
-          )}
-        </div>
-        <FullAccessConfirmDialog
-          open={fullAccessDialogOpen}
-          onClose={() => setFullAccessDialogOpen(false)}
-          onConfirm={confirmFullAccess}
-        />
+        {showCenteredEmptyState ? null : (
+          <div className={cn("mx-auto flex w-full flex-col gap-2 px-4", CHAT_CONTENT_MAX_WIDTH_CLASS)}>
+            {pendingQuestions.length > 0 || pendingPermissions.length > 0 ? (
+              // 提问/权限确认接管输入框位置（composer takeover）：请求处理完输入框恢复
+              <div className="flex flex-col gap-2">
+                {pendingQuestions.map((request) => (
+                  <QuestionPromptCard
+                    key={request.id}
+                    request={request}
+                    busy={status === "submitted"}
+                    onAnswer={onAnswerQuestion}
+                    onReject={onRejectQuestion}
+                    questionDrafts={questionDrafts}
+                  />
+                ))}
+                {pendingPermissions.map((request) => (
+                  <PermissionRequiredCard
+                    key={request.id}
+                    request={request}
+                    busy={status === "submitted"}
+                    onAllowOnce={(requestId) => onAnswerPermission(requestId, "once")}
+                    onAllowForSession={(requestId) => onAnswerPermission(requestId, "always")}
+                    onReject={(requestId) => onAnswerPermission(requestId, "reject")}
+                    onDiscuss={(requestId) => {
+                      // 「讨论」= 放弃本次审批让输入框恢复，用户直接打字表达诉求（对齐 dsh 的 discuss 语义）
+                      void onAnswerPermission(requestId, "reject")
+                    }}
+                  />
+                ))}
+              </div>
+            ) : (
+              <>
+                {pinnedContextBar}
+                {composer}
+              </>
+            )}
+          </div>
+        )}
       </div>
-    </BillingRequestScopeContext.Provider>
+      <FullAccessConfirmDialog
+        open={fullAccessDialogOpen}
+        onClose={() => setFullAccessDialogOpen(false)}
+        onConfirm={confirmFullAccess}
+      />
+    </div>
   )
 })

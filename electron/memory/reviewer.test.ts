@@ -1,6 +1,7 @@
+import type { AgentManager } from "../agent/manager.ts"
+
 import assert from "node:assert/strict"
 import { test, vi } from "vitest"
-import type { AgentManager } from "../agent/manager.ts"
 import { MemoryReviewer } from "./reviewer.ts"
 
 const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))

@@ -1,5 +1,5 @@
 import type { ModelCatalog, ModelChoice } from "../../../electron/models/common.ts"
-import type { ModelMenuItem, ModelTier } from "./model-control-options.ts"
+import type { ModelMenuItem } from "./model-control-options.ts"
 
 import { ChevronDown, ChevronRight, Cpu, Settings2 } from "lucide-react"
 import * as React from "react"
@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button"
 import { useT } from "@/i18n/i18n"
 import { cn } from "@/lib/utils"
 
-/** 供应商分组：providerId 或 "builtin"；items 为该分组下的模型（不含"添加"动作）。 */
+/** 供应商分组：自定义模型按 providerId 分组。 */
 interface ProviderModelGroup {
   id: string
   title: string
@@ -23,26 +23,11 @@ function providerMenuItemElementId(providerId: string): string {
   return `model-provider-item-${providerId}`
 }
 
-function modelTierCopy(tier: ModelTier, t: ReturnType<typeof useT>): { description: string; label: string } {
-  switch (tier) {
-    case "high":
-      return { description: t("chat.modelTierHighDescription"), label: t("chat.modelTierHigh") }
-    case "medium":
-      return { description: t("chat.modelTierMediumDescription"), label: t("chat.modelTierMedium") }
-    case "low":
-      return { description: t("chat.modelTierLowDescription"), label: t("chat.modelTierLow") }
-  }
-}
-
-/** 把模型按供应商分组：内置一组，自定义按 providerId 分组。 */
+/** 把模型按供应商分组：自定义模型按 providerId 分组。 */
 function buildProviderGroups(catalog: ModelCatalog | null, addTitle: string): ProviderModelGroup[] {
   const groups: ProviderModelGroup[] = []
   if (!catalog) {
     return groups
-  }
-  const builtins = buildModelMenuItems(catalog, addTitle).filter((item) => item.kind === "builtin")
-  if (builtins.length > 0) {
-    groups.push({ id: "builtin", title: "DWeis Next", items: builtins })
   }
   const customItems = buildModelMenuItems(catalog, addTitle).filter(
     (item): item is Extract<ModelMenuItem, { kind: "custom" }> => item.kind === "custom",
@@ -392,14 +377,7 @@ export function ModelReasoningPicker({
                 onHighlight: () => setActiveModelIndex(index),
                 onSelect: () => activateModelItem(item),
               }
-              return item.kind === "builtin" ? (
-                <ModelRow
-                  key={item.id}
-                  {...common}
-                  tierDescription={item.tier ? modelTierCopy(item.tier, t).description : undefined}
-                  tierLabel={item.tier ? modelTierCopy(item.tier, t).label : undefined}
-                />
-              ) : (
+              return (
                 <ModelRow
                   key={item.id}
                   {...common}

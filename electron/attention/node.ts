@@ -321,19 +321,19 @@ export class AttentionServiceImpl
     }
     notification.once("close", forget)
     if (sessionId) {
-    notification.once("click", () => {
-      this.deps.revealWindow()
-      const teamId = this.unreadSessions.get(sessionId)?.teamId
-      void this.resolveSessionPersona(sessionId).then((persona) => {
-        void this.send("openSessionRequested", {
-          sessionId,
-          ...(teamId ? { teamId } : {}),
-          ...(persona ? { persona } : {}),
-        }).catch((error: unknown) => {
-          console.warn("[dweis] failed to route task completion notification:", error)
+      notification.once("click", () => {
+        this.deps.revealWindow()
+        const teamId = this.unreadSessions.get(sessionId)?.teamId
+        void this.resolveSessionPersona(sessionId).then((persona) => {
+          void this.send("openSessionRequested", {
+            sessionId,
+            ...(teamId ? { teamId } : {}),
+            ...(persona ? { persona } : {}),
+          }).catch((error: unknown) => {
+            console.warn("[dweis] failed to route task completion notification:", error)
+          })
         })
       })
-    })
     }
     let showListener: (() => void) | null = null
     let failedEventListener: ((event: ElectronEvent, error: string) => void) | null = null

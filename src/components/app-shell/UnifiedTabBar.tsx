@@ -1,10 +1,10 @@
 import type { RightPanelTab } from "./right-panel-tabs.ts"
 
-import * as React from "react"
 import { Globe2, FileSearch, Package, Plus, X } from "lucide-react"
+import * as React from "react"
+import { RIGHT_PANEL_TABPANEL_ID, tabElementId } from "./right-panel-tabs.ts"
 import { useT } from "@/i18n/i18n"
 import { cn } from "@/lib/utils"
-import { RIGHT_PANEL_TABPANEL_ID, tabElementId } from "./right-panel-tabs.ts"
 
 function tabIcon(tab: RightPanelTab): React.ReactNode {
   switch (tab.kind) {
@@ -26,7 +26,14 @@ export interface UnifiedTabBarProps {
   maximized?: boolean
 }
 
-export function UnifiedTabBar({ tabs, activeTabId, onActivateTab, onCloseTab, onAddTab, maximized }: UnifiedTabBarProps) {
+export function UnifiedTabBar({
+  tabs,
+  activeTabId,
+  onActivateTab,
+  onCloseTab,
+  onAddTab,
+  maximized,
+}: UnifiedTabBarProps) {
   const t = useT()
 
   // APG tabs 方向键 roving（自动激活）：左右循环移动、Home/End 首尾，焦点与激活同步。
@@ -71,7 +78,7 @@ export function UnifiedTabBar({ tabs, activeTabId, onActivateTab, onCloseTab, on
             key={tab.id}
             role="presentation"
             className={cn(
-              "flex h-7 min-w-0 max-w-40 shrink-0 items-center gap-0.5 rounded-md pr-1 transition-colors",
+              "flex h-7 max-w-40 min-w-0 shrink-0 items-center gap-0.5 rounded-md pr-1 transition-colors",
               active ? "bg-accent" : "hover:bg-muted",
             )}
           >
@@ -83,7 +90,7 @@ export function UnifiedTabBar({ tabs, activeTabId, onActivateTab, onCloseTab, on
               aria-controls={RIGHT_PANEL_TABPANEL_ID}
               tabIndex={active ? 0 : -1}
               title={tab.title}
-              className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded-md px-1.5 text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded-md px-1.5 text-muted-foreground transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
               onClick={() => onActivateTab(tab.id)}
               onMouseDown={(event) => {
                 if (event.button === 1) {
@@ -99,7 +106,7 @@ export function UnifiedTabBar({ tabs, activeTabId, onActivateTab, onCloseTab, on
               type="button"
               aria-label={t("rightPanel.closeTab")}
               tabIndex={active ? 0 : -1}
-              className="flex size-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted-foreground/20 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex size-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted-foreground/20 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
               onClick={() => onCloseTab(tab.id)}
             >
               <X className="size-3" />
@@ -112,7 +119,7 @@ export function UnifiedTabBar({ tabs, activeTabId, onActivateTab, onCloseTab, on
         aria-label={t("rightPanel.newTab")}
         title={t("rightPanel.newTab")}
         onClick={onAddTab}
-        className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
       >
         <Plus className="size-4" />
       </button>

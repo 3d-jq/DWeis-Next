@@ -12,16 +12,11 @@ import type { ModelChoice } from "../../../electron/models/common.ts"
 import type { SessionInfo, SessionProject, SessionScope } from "../../../electron/session/common.ts"
 import type { AppShellRoute as Route, SettingsCategory } from "./app-shell-types.ts"
 import type { QueuedChatMessage } from "./chat-queue.ts"
-import type { WorkspaceSelection } from "@/hooks/useTeamWorkspace"
-import type { UserFacingError } from "@/lib/user-facing-error"
 
-import {
-  DEFAULT_LOCAL_WORKSPACE,
-  sessionScopeKey as resolvedSessionScopeKey,
-} from "../../../electron/session/common.ts"
+import { storageKey } from "../../../electron/branding.ts"
+import { sessionScopeKey as resolvedSessionScopeKey } from "../../../electron/session/common.ts"
 import { shouldAutoRefreshSessionTitle } from "../../../electron/session/title.ts"
 import { visibleUserText } from "@/routes/Chat/message-text"
-import { storageKey } from "../../../electron/branding.ts"
 
 export const SIDEBAR_RESTORE_DELAY_MS = 260
 export const SIDEBAR_AUTO_COLLAPSE_MAX_WIDTH_PX = 720
@@ -40,7 +35,6 @@ export const BROWSER_PANEL_DEFAULT_WIDTH_PX = 480
 export const BROWSER_PANEL_WIDTH_STORAGE_KEY = storageKey("browserPanelWidth")
 export const TURN_RETRY_OPTIONS_LIMIT = 48
 export const SESSION_TITLE_RETRY_DELAY_MS = 20_000
-export const WORKSPACE_SWITCH_TIMEOUT_MS = 20_000
 export const NEW_SESSION_COMPOSER_DRAFT_KEY = "__new_session__"
 export const NO_DRAFT_PROJECT_ID = "__no_project__"
 
@@ -177,7 +171,6 @@ export function initialRoute(): Route {
     configuredRoute === "settings" ||
     configuredRoute === "skills" ||
     configuredRoute === "knowledge" ||
-    configuredRoute === "billing" ||
     configuredRoute === "archived"
   ) {
     return configuredRoute
@@ -186,10 +179,6 @@ export function initialRoute(): Route {
     return configuredRoute as `settings/${SettingsCategory}`
   }
   return "chat"
-}
-
-export function routeAvailableForRuntime(route: Route, cloudEnabled: boolean): boolean {
-  return cloudEnabled || route !== "billing"
 }
 
 export function projectContextControlsDisabled(activeSessionId: string | null, activeSessionRunning: boolean): boolean {
@@ -261,23 +250,6 @@ export function chatMessageText(message: ChatMessage): string {
   return message.role === "user" ? visibleUserText(text) : text
 }
 
-export function sessionScopeFromWorkspace(workspace: WorkspaceSelection): SessionScope | null {
-  if (workspace.kind === "local") {
-    return DEFAULT_LOCAL_WORKSPACE
-  }
-  const teamId = workspace.teamId.trim()
-  const teamName = workspace.team?.name.trim()
-  if (!teamId || !teamName) {
-    return null
-  }
-  return { kind: "team", teamId, teamName }
-}
-
-export function workspaceSelectionSwitchKey(workspace: WorkspaceSelection): string {
-  if (workspace.kind === "local") return resolvedSessionScopeKey(DEFAULT_LOCAL_WORKSPACE)
-  return workspace.teamId ? `team:${workspace.teamId}` : "workspace-loading"
-}
-
 export function sessionScopeKey(scope: SessionScope | null): string {
   if (!scope) {
     return "workspace-loading"
@@ -290,125 +262,6 @@ export function sessionRecordScopeKey(scope: SessionScope | undefined): string {
     return "workspace-loading"
   }
   return resolvedSessionScopeKey(scope)
-}
-
-export interface WorkspaceActivationInput {
-  cloudWorkspaceRequired: boolean
-  currentScopeKey: string
-  loadedSessionScopeKey: string | null
-  targetScopeKey: string | null
-  workspaceMetadataError: UserFacingError | null
-}
-
-export type WorkspaceSwitchPendingInput = WorkspaceActivationInput
-
-export type WorkspaceActivationPhase = "session_scope" | "sessions"
-
-export type WorkspaceActivationFailureReason = "workspace_metadata"
-
-export type WorkspaceActivationState =
-  | { status: "idle"; targetScopeKey: string | null }
-  | { phase: WorkspaceActivationPhase; status: "activating"; targetScopeKey: string }
-  | {
-      error: UserFacingError
-      reason: WorkspaceActivationFailureReason
-      status: "failed"
-      targetScopeKey: string | null
-    }
-
-export function resolveWorkspaceActivationState(input: WorkspaceActivationInput): WorkspaceActivationState {
-  if (!input.cloudWorkspaceRequired) {
-    if (!input.targetScopeKey) return { status: "idle", targetScopeKey: null }
-    if (input.currentScopeKey !== input.targetScopeKey) {
-      return { phase: "session_scope", status: "activating", targetScopeKey: input.targetScopeKey }
-    }
-    if (input.loadedSessionScopeKey !== input.targetScopeKey) {
-      return { phase: "sessions", status: "activating", targetScopeKey: input.targetScopeKey }
-    }
-    return { status: "idle", targetScopeKey: input.targetScopeKey }
-  }
-  if (input.workspaceMetadataError) {
-    return {
-      error: input.workspaceMetadataError,
-      reason: "workspace_metadata",
-      status: "failed",
-      targetScopeKey: input.targetScopeKey,
-    }
-  }
-  if (!input.targetScopeKey) {
-    return { status: "idle", targetScopeKey: null }
-  }
-  if (input.currentScopeKey !== input.targetScopeKey) {
-    return { phase: "session_scope", status: "activating", targetScopeKey: input.targetScopeKey }
-  }
-  if (input.loadedSessionScopeKey !== input.targetScopeKey) {
-    return { phase: "sessions", status: "activating", targetScopeKey: input.targetScopeKey }
-  }
-  return { status: "idle", targetScopeKey: input.targetScopeKey }
-}
-
-export function workspaceActivationIsPending(state: WorkspaceActivationState): boolean {
-  return state.status === "activating"
-}
-
-export function workspaceActivationBlocksInput(state: WorkspaceActivationState): boolean {
-  return state.status !== "idle"
-}
-
-export function workspaceActivationHasFailed(state: WorkspaceActivationState): boolean {
-  return state.status === "failed"
-}
-
-export function isWorkspaceSwitchPending(input: WorkspaceSwitchPendingInput): boolean {
-  return workspaceActivationIsPending(resolveWorkspaceActivationState(input))
-}
-
-export interface WorkspaceSwitchTargetReachableInput {
-  activeWorkspaceKey: string
-  hasLoadedTeams: boolean
-  loadingTeams: boolean
-  teamIds: readonly string[]
-  targetScopeKey: string | null
-}
-
-export interface WorkspaceSwitchClearInput extends WorkspaceSwitchTargetReachableInput {
-  workspaceSwitching: boolean
-}
-
-export function workspaceSwitchTeamId(scopeKey: string): string | null {
-  const prefix = scopeKey.startsWith("team:") ? "team:" : scopeKey.startsWith("organization:") ? "organization:" : null
-  if (!prefix) {
-    return null
-  }
-  const teamId = scopeKey.slice(prefix.length)
-  return teamId ? teamId : null
-}
-
-export function isWorkspaceSwitchTargetReachable(input: WorkspaceSwitchTargetReachableInput): boolean {
-  if (!input.targetScopeKey || input.targetScopeKey === "workspace-loading") {
-    return true
-  }
-  if (input.activeWorkspaceKey === input.targetScopeKey) {
-    return true
-  }
-  if (input.loadingTeams || !input.hasLoadedTeams) {
-    return true
-  }
-  const teamId = workspaceSwitchTeamId(input.targetScopeKey)
-  return teamId ? input.teamIds.includes(teamId) : false
-}
-
-export function shouldClearWorkspaceSwitchTarget(input: WorkspaceSwitchClearInput): boolean {
-  if (!input.targetScopeKey) {
-    return false
-  }
-  if (!isWorkspaceSwitchTargetReachable(input)) {
-    return true
-  }
-  if (!input.workspaceSwitching) {
-    return true
-  }
-  return false
 }
 
 export function projectContextFromProject(

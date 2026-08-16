@@ -1,9 +1,9 @@
-import type { IConnectionService } from "@oomol/connection"
 import type { McpServerEntry, McpService } from "./common.ts"
+import type { McpStore } from "./store.ts"
+import type { IConnectionService } from "@oomol/connection"
 
 import { ConnectionService } from "@oomol/connection"
 import { McpService as McpServiceName } from "./common.ts"
-import type { McpStore } from "./store.ts"
 
 export interface McpServiceDeps {
   store: McpStore
@@ -11,10 +11,7 @@ export interface McpServiceDeps {
   onMcpServersChanged?: (servers: McpServerEntry[]) => Promise<void> | void
 }
 
-export class McpServiceImpl
-  extends ConnectionService<McpService>
-  implements IConnectionService<McpService>
-{
+export class McpServiceImpl extends ConnectionService<McpService> implements IConnectionService<McpService> {
   private readonly deps: McpServiceDeps
 
   public constructor(deps: McpServiceDeps) {

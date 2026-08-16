@@ -15,7 +15,6 @@ export type SettingsCategory =
 export type AppShellRoute =
   | "archived"
   | "automation"
-  | "billing"
   | "chat"
   | "knowledge"
   | "skills"

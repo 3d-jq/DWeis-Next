@@ -1,9 +1,9 @@
+import type { AutomationTask } from "./common.ts"
+
 import { readFile } from "node:fs/promises"
 import path from "node:path"
-
 import { atomicWriteText } from "../atomic-file.ts"
 import { logStoreReadFailure } from "../store-diagnostics.ts"
-import type { AutomationTask } from "./common.ts"
 import { defaultTimezone, normalizeAutomationSchedule, scheduleToCron } from "./schedule.ts"
 
 function isAutomationTask(value: unknown): value is AutomationTask {

@@ -1,18 +1,10 @@
 import { describe, expect, it } from "vitest"
-import {
-  initialSetupRequired,
-  legacyOperatingMode,
-  operatingModeAfterSignOut,
-  operatingModeGateLoading,
-} from "./operating-profile.ts"
+import { initialSetupRequired, legacyOperatingMode, operatingModeGateLoading } from "./operating-profile.ts"
 
 describe("operatingModeGateLoading", () => {
   const readyState = {
-    authenticated: false,
-    linkRuntimeLoading: false,
     modelCatalogAvailable: true,
     modelCatalogFailed: false,
-    operatingMode: "self-managed" as const,
     settingsLoading: false,
   }
 
@@ -28,41 +20,19 @@ describe("operatingModeGateLoading", () => {
 })
 
 describe("initialSetupRequired", () => {
-  it("returns signed-out DWeis users and explicit unselected users to setup", () => {
-    expect(initialSetupRequired(false, "oomol")).toBe(true)
-    expect(initialSetupRequired(false, "unselected")).toBe(true)
-    expect(initialSetupRequired(false, null)).toBe(true)
+  it("returns explicit unselected or unset users to setup", () => {
+    expect(initialSetupRequired("unselected")).toBe(true)
+    expect(initialSetupRequired(null)).toBe(true)
   })
 
   it("keeps an explicitly self-managed user in the application", () => {
-    expect(initialSetupRequired(false, "self-managed")).toBe(false)
-  })
-
-  it("does not interrupt an authenticated session while its profile synchronizes", () => {
-    expect(initialSetupRequired(true, null)).toBe(false)
-    expect(initialSetupRequired(true, "unselected")).toBe(false)
-  })
-})
-
-describe("operatingModeAfterSignOut", () => {
-  it("returns DWeis users to an explicit unselected state", () => {
-    expect(operatingModeAfterSignOut("oomol")).toBe("unselected")
-  })
-
-  it("preserves an explicitly selected self-managed profile", () => {
-    expect(operatingModeAfterSignOut("self-managed")).toBe("self-managed")
-  })
-
-  it("does not turn legacy first-run state into self-managed mode", () => {
-    expect(operatingModeAfterSignOut(null)).toBeNull()
-    expect(operatingModeAfterSignOut("unselected")).toBe("unselected")
+    expect(initialSetupRequired("self-managed")).toBe(false)
   })
 })
 
 describe("legacyOperatingMode", () => {
-  it("migrates only a complete signed-out self-managed configuration", () => {
-    expect(legacyOperatingMode({ authenticated: false, hasCustomModel: true })).toBe("self-managed")
-    expect(legacyOperatingMode({ authenticated: false, hasCustomModel: false })).toBeNull()
-    expect(legacyOperatingMode({ authenticated: true, hasCustomModel: true })).toBeNull()
+  it("migrates only a complete self-managed configuration", () => {
+    expect(legacyOperatingMode({ hasCustomModel: true })).toBe("self-managed")
+    expect(legacyOperatingMode({ hasCustomModel: false })).toBeNull()
   })
 })

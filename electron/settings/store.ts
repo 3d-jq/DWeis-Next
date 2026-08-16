@@ -23,11 +23,11 @@ export interface PersistedSettings {
   /** 数据根目录（绝对路径）；缺失时使用默认 ~/DWeisNext（见 data-directory.ts）。 */
   dataDirectory?: string
   /** 子代智能体使用的模型（{kind, id}）；缺失时跟随主模型。 */
-  subagentModelId?: { kind: "builtin" | "custom"; id: string } | null
+  subagentModelId?: { kind: "custom"; id: string } | null
   /** 子代智能体推理强度（"low"|"medium"|"high"|"max"）；缺失/null 时跟随主会话。 */
   subagentReasoningLevel?: string | null
   /** 只读探索子代理使用的模型；缺失时跟随主模型。 */
-  exploreModelId?: { kind: "builtin" | "custom"; id: string } | null
+  exploreModelId?: { kind: "custom"; id: string } | null
   /** 只读探索子代理推理强度；缺失/null 时跟随主会话。 */
   exploreReasoningLevel?: string | null
   /** 自动记忆审查开关；缺失时默认开启。 */

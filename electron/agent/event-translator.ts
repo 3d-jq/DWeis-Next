@@ -721,14 +721,7 @@ function messageTokenUsage(info: unknown): ChatTokenUsage | undefined {
   // 流式中间态 tokens 未到齐（全 0/缺失）：视为无 usage，返回 undefined。
   // 否则 messageStarted 会带全 0 对象覆盖消息 tokenUsage，上下文占用指示器在
   // 回答期间被 latestContextTokenUsage 命中全 0 而显示 0，回答完成才恢复。
-  if (
-    total <= 0 &&
-    input <= 0 &&
-    output <= 0 &&
-    reasoning <= 0 &&
-    cacheRead <= 0 &&
-    cacheWrite <= 0
-  ) {
+  if (total <= 0 && input <= 0 && output <= 0 && reasoning <= 0 && cacheRead <= 0 && cacheWrite <= 0) {
     return undefined
   }
   return {

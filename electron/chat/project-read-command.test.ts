@@ -19,10 +19,7 @@ function permission(command: string): ChatPermissionRequest {
 test("project read-only command allows common project inspection commands", () => {
   assert.equal(isProjectReadOnlyCommandRequest(permission(`ls -la ${root}`), root), true)
   assert.equal(isProjectReadOnlyCommandRequest(permission(`rg "permissionMode" ${root}/src`), root), true)
-  assert.equal(
-    isProjectReadOnlyCommandRequest(permission(`sed -n '1,80p' ${root}/package.json`), root),
-    true,
-  )
+  assert.equal(isProjectReadOnlyCommandRequest(permission(`sed -n '1,80p' ${root}/package.json`), root), true)
   assert.equal(isProjectReadOnlyCommandRequest(permission(`find ${root} -maxdepth 2 -type f`), root), true)
   assert.equal(isProjectReadOnlyCommandRequest(permission(`git -C ${root} status --short`), root), true)
   assert.equal(isProjectReadOnlyCommandRequest(permission(`git -C ${root} branch --list`), root), true)
@@ -40,24 +37,15 @@ test("project read-only command rejects sensitive files inside the trusted proje
   assert.equal(isProjectReadOnlyCommandRequest(permission(`cat ${root}/.envrc`), root), false)
   assert.equal(isProjectReadOnlyCommandRequest(permission(`cat ${root}/.npmrc`), root), false)
   assert.equal(isProjectReadOnlyCommandRequest(permission(`cat ${root}/credentials.json`), root), false)
-  assert.equal(
-    isProjectReadOnlyCommandRequest(permission(`cat ${root}/service-account.json`), root),
-    false,
-  )
+  assert.equal(isProjectReadOnlyCommandRequest(permission(`cat ${root}/service-account.json`), root), false)
   assert.equal(isProjectReadOnlyCommandRequest(permission(`ls ${root}/.ssh`), root), false)
 })
 
 test("project read-only command rejects shell composition and write-capable forms", () => {
-  assert.equal(
-    isProjectReadOnlyCommandRequest(permission(`cat ${root}/package.json > /tmp/out`), root),
-    false,
-  )
+  assert.equal(isProjectReadOnlyCommandRequest(permission(`cat ${root}/package.json > /tmp/out`), root), false)
   assert.equal(isProjectReadOnlyCommandRequest(permission(`rg todo ${root} && rm -rf /tmp/x`), root), false)
   assert.equal(isProjectReadOnlyCommandRequest(permission(`find ${root} -delete`), root), false)
-  assert.equal(
-    isProjectReadOnlyCommandRequest(permission(`sed -i 's/a/b/' ${root}/package.json`), root),
-    false,
-  )
+  assert.equal(isProjectReadOnlyCommandRequest(permission(`sed -i 's/a/b/' ${root}/package.json`), root), false)
   assert.equal(isProjectReadOnlyCommandRequest(permission(`git -C ${root} branch new-branch`), root), false)
   assert.equal(isProjectReadOnlyCommandRequest(permission(`git -C ${root} branch -d old-branch`), root), false)
   assert.equal(isProjectReadOnlyCommandRequest(permission(`git -C ${root} branch --move old new`), root), false)

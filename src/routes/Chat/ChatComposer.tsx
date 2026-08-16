@@ -51,8 +51,6 @@ import { stripDraftAttachment, useComposerAttachments } from "./useComposerAttac
 import { useComposerPalette } from "./useComposerPalette.ts"
 import { useComposerPreferences } from "./useComposerPreferences.ts"
 import { modelCatalogForRuntime, useModelCatalog } from "./useModelCatalog.ts"
-import { useVoiceComposerInput } from "./useVoiceComposerInput.ts"
-import { getVoiceErrorNotice } from "./voice-error-display.ts"
 import {
   PromptInput,
   PromptInputAttachments,
@@ -60,20 +58,18 @@ import {
   PromptInputTextarea,
   PromptInputToolbar,
 } from "@/components/ai-elements/prompt-input"
+import { useChatService } from "@/components/AppContext"
 import { useSkillInventoryResource } from "@/components/AppDataHooks"
+import { ErrorNotice } from "@/components/ErrorNotice"
+import { useAppSettings } from "@/hooks/useAppSettings"
 import { useMcpServers } from "@/hooks/useMcpServers"
 import { useMemory } from "@/hooks/useMemory"
-import { ErrorNotice } from "@/components/ErrorNotice"
-import { useChatService } from "@/components/AppContext"
-import { useAppSettings } from "@/hooks/useAppSettings"
 import { useT } from "@/i18n/i18n"
 import { resolveUserFacingError } from "@/lib/user-facing-error"
 import { cn } from "@/lib/utils"
 
 interface ChatComposerProps {
   error: string | null
-  cloudModelsEnabled?: boolean
-  voiceEnabled?: boolean
   focusRequest: number
   generatedArtifacts?: ArtifactSelection | null
   hasMessages: boolean
@@ -106,7 +102,6 @@ interface ChatComposerProps {
   onOpenKnowledgeLibrary?: () => void
   onSelectKnowledgeBase: (id: string) => void
   onStop: () => Promise<void> | void
-  onViewBilling?: () => void
   onCompact?: () => void
   onUndo?: () => void
   onRedo?: () => void
@@ -158,8 +153,6 @@ function paletteLabels({
 }
 
 export function ChatComposer({
-  cloudModelsEnabled = true,
-  voiceEnabled = false,
   error,
   focusRequest,
   generatedArtifacts = null,
@@ -193,7 +186,6 @@ export function ChatComposer({
   onOpenKnowledgeLibrary,
   onSelectKnowledgeBase,
   onStop,
-  onViewBilling,
   onCompact,
   onUndo,
   onRedo,
@@ -227,11 +219,6 @@ export function ChatComposer({
   const { agentMode, reasoningLevel, setAgentMode, setReasoningLevel } = useComposerPreferences()
 
   const textareaRef = React.useRef<HTMLTextAreaElement | null>(null)
-  const appendVoiceTranscription = React.useCallback((text: string) => {
-    dispatchComposer({ type: "insert-transcription", text })
-    window.requestAnimationFrame(() => textareaRef.current?.focus())
-  }, [])
-  const voiceInput = useVoiceComposerInput(appendVoiceTranscription)
   const paletteId = React.useId()
   const { attachments, command, contextMentions, dismissedTriggerKey, draft, draftSelection } = composer
   React.useEffect(() => {
@@ -255,16 +242,11 @@ export function ChatComposer({
   const composerWillQueueMessage = activePendingQuestion ? false : willQueueMessage
   const initialSendPending = turnState.status === "submitting" && turnState.initialSendPending
   const submitBlocked = submitDisabled || initialSendPending
-  const composerDisabled =
-    submitDisabled ||
-    (voiceEnabled && voiceInput.busy) ||
-    initialSendPending ||
-    answeringQuestion ||
-    composerQuestionBlocked
+  const composerDisabled = submitDisabled || initialSendPending || answeringQuestion || composerQuestionBlocked
   const composerControlsDisabled = composerModeControlsDisabled({ composerDisabled, modelRequired })
   const modelCatalog = React.useMemo(
-    () => modelCatalogForRuntime(modelCatalogState.catalog, cloudModelsEnabled),
-    [cloudModelsEnabled, modelCatalogState.catalog],
+    () => modelCatalogForRuntime(modelCatalogState.catalog),
+    [modelCatalogState.catalog],
   )
   const modelError = modelCatalogState.selectionError ?? modelCatalogState.catalogError
   const composerAttachments = useComposerAttachments({
@@ -278,46 +260,35 @@ export function ChatComposer({
   React.useEffect(() => {
     setAnsweringQuestion(false)
   }, [activePendingQuestionId])
-  React.useEffect(() => {
-    if (!voiceEnabled && voiceInput.active) {
-      voiceInput.cancel()
-    }
-  }, [voiceEnabled, voiceInput.active, voiceInput.cancel])
   const platform = globalThis.dweisnext?.platform
   const customCommands = useCustomCommands()
-  const slashItems = React.useMemo(
-    () => {
-      const base = slashCommandItems({
-        canViewBilling: Boolean(onViewBilling),
-        hasMessages,
-        platform,
-        t,
-      })
-      if (customCommands.length === 0) {
-        return base
-      }
-      const builtinNames = new Set(
-        base.map((item) => (item.action === "custom" ? "" : item.id)),
-      )
-      return [
-        ...base,
-        ...customCommands
-          .filter((command) => !builtinNames.has(command.name))
-          .map((command) => ({
-            action: "custom" as const,
-            description: command.description ?? t("chat.commandCustomDescription"),
-            icon: React.createElement(Terminal, { className: "size-4" }),
-            id: `custom-${command.name}`,
-            keywords: [command.name, "custom", "命令"],
-            kind: "slash" as const,
-            meta: "command" as const,
-            title: command.name,
-            template: command.template,
-          })),
-      ]
-    },
-    [customCommands, hasMessages, onViewBilling, platform, t],
-  )
+  const slashItems = React.useMemo(() => {
+    const base = slashCommandItems({
+      hasMessages,
+      platform,
+      t,
+    })
+    if (customCommands.length === 0) {
+      return base
+    }
+    const builtinNames = new Set(base.map((item) => (item.action === "custom" ? "" : item.id)))
+    return [
+      ...base,
+      ...customCommands
+        .filter((command) => !builtinNames.has(command.name))
+        .map((command) => ({
+          action: "custom" as const,
+          description: command.description ?? t("chat.commandCustomDescription"),
+          icon: React.createElement(Terminal, { className: "size-4" }),
+          id: `custom-${command.name}`,
+          keywords: [command.name, "custom", "命令"],
+          kind: "slash" as const,
+          meta: "command" as const,
+          title: command.name,
+          template: command.template,
+        })),
+    ]
+  }, [customCommands, hasMessages, platform, t])
   const skillItems = React.useMemo(
     () =>
       buildSkillPaletteItems(
@@ -440,7 +411,6 @@ export function ChatComposer({
       void composerAttachments.selectAttachments(kind)
     },
     onSelectKnowledgeBase,
-    onViewBilling,
     skillItems,
     slashItems,
   })
@@ -606,27 +576,8 @@ export function ChatComposer({
     if (modelError) {
       return { error: modelError, showDiagnosticsCopy: true }
     }
-    if (voiceEnabled) {
-      const voiceNotice = getVoiceErrorNotice({
-        recorderError: voiceInput.recorderError,
-        transcriptionError: voiceInput.error,
-        transcriptionErrorKind: voiceInput.errorKind,
-      })
-      if (voiceNotice) {
-        return { ...voiceNotice, onDismiss: voiceInput.dismissError }
-      }
-    }
     return null
-  }, [
-    error,
-    inputError,
-    modelError,
-    voiceEnabled,
-    voiceInput.dismissError,
-    voiceInput.error,
-    voiceInput.errorKind,
-    voiceInput.recorderError,
-  ])
+  }, [error, inputError, modelError])
   const errorBanner = visibleError ? (
     <ErrorNotice
       error={visibleError.error}
@@ -765,29 +716,16 @@ export function ChatComposer({
           agentMode={agentMode}
           permissionMode={permissionMode}
           reasoningLevel={reasoningLevel}
-          voiceEnabled={voiceEnabled}
-          voiceActive={voiceEnabled && voiceInput.active}
-          voiceBars={voiceInput.bars}
-          voiceDurationMs={voiceInput.durationMs}
-          voiceError={voiceEnabled ? voiceInput.error : null}
-          voiceRecorderError={voiceEnabled ? voiceInput.recorderError : undefined}
-          voiceRetryBlob={voiceEnabled ? voiceInput.retryBlob : null}
-          voiceStarting={voiceEnabled && voiceInput.starting}
-          voiceTranscribing={voiceEnabled && voiceInput.transcribing}
           willQueueMessage={composerWillQueueMessage}
           // 配置自定义模型 → 打开添加对话框并默认「自定义」供应商（无预设会落到 providers[0]=DeepSeek）
           onAddModel={() => modelCatalogState.openDialog("custom")}
-          onCancelVoice={voiceInput.cancel}
           onDeleteModel={modelCatalogState.deleteModel}
-          onRetryVoice={voiceInput.retry}
           onSelectAgentMode={setAgentMode}
           onSelectDefaultPermissionMode={onPermissionModeDefault}
           onRequestFullAccessPermissionMode={onPermissionModeFullAccess}
           onSelectReasoningLevel={setReasoningLevel}
           onSelectModel={modelCatalogState.selectModel}
-          onStartVoice={voiceInput.start}
           onStop={onStop}
-          onStopVoice={() => void voiceInput.stop()}
         />
       </PromptInputToolbar>
     </PromptInput>

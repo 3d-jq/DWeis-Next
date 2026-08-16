@@ -10,21 +10,19 @@ import {
 } from "./sidebar-persistence.ts"
 
 interface UseProjectSidebarCollapseStateOptions {
-  accountId?: string
   projects: SessionProject[]
   sessionScope: SessionScope | null
   sessionsLoaded: boolean
 }
 
 export function useProjectSidebarCollapseState({
-  accountId,
   projects,
   sessionScope,
   sessionsLoaded,
 }: UseProjectSidebarCollapseStateOptions) {
   const projectCollapsedStorageKey = React.useMemo(
-    () => projectSidebarCollapsedStorageKey(accountId, sessionScope),
-    [accountId, sessionScope],
+    () => projectSidebarCollapsedStorageKey(sessionScope),
+    [sessionScope],
   )
   const [collapsedProjectState, setCollapsedProjectState] = React.useState<{
     ids: Set<string>

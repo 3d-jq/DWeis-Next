@@ -1,7 +1,6 @@
 import { mkdtempSync, readFileSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
-
 import { afterEach, describe, expect, it } from "vitest"
 import { McpStore } from "./store.ts"
 
@@ -61,10 +60,7 @@ describe("McpStore", () => {
   it("filters malformed entries on read", async () => {
     const dir = tempDir()
     const store = new McpStore(dir)
-    await store.write([
-      { id: "mcp-1", name: "ok", type: "stdio", enabled: true },
-      { id: 42, name: "bad" } as never,
-    ])
+    await store.write([{ id: "mcp-1", name: "ok", type: "stdio", enabled: true }, { id: 42, name: "bad" } as never])
     expect(await store.read()).toEqual([{ id: "mcp-1", name: "ok", type: "stdio", enabled: true }])
   })
 })

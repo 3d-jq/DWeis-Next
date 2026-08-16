@@ -220,9 +220,7 @@ describe("assistantTimelineBlocks", () => {
     expect(segments.map((segment) => segment.kind)).toEqual(["process", "response"])
     const trailingTool = segments[0]?.blocks.at(-1)?.block
     expect(trailingTool?.kind).toBe("tools")
-    expect(textFromTimelineBlocks(segments[1]?.blocks ?? [])).toBe(
-      "已修复 ✅ 收起按钮已移除，只保留顶部那个。",
-    )
+    expect(textFromTimelineBlocks(segments[1]?.blocks ?? [])).toBe("已修复 ✅ 收起按钮已移除，只保留顶部那个。")
   })
 
   it("keeps an earlier process message folded even when a trailing tool follows the final text", () => {
@@ -230,9 +228,7 @@ describe("assistantTimelineBlocks", () => {
       message("a1", [textPart("progress", "让我先读一下文件。"), toolPart("read")], "tool-calls"),
       message("a2", [textPart("answer", "方案确认，现在动手。"), toolPart("edit")], "tool-calls"),
     ])
-    const processBlocks = segments
-      .filter((segment) => segment.kind === "process")
-      .flatMap((segment) => segment.blocks)
+    const processBlocks = segments.filter((segment) => segment.kind === "process").flatMap((segment) => segment.blocks)
 
     expect(processBlocks.map(({ block }) => (block.kind === "text" ? block.part.partId : block.kind))).toEqual([
       "progress",
@@ -257,13 +253,14 @@ describe("assistantTimelineBlocks", () => {
     // 用户真实回合：中间过程叙述带 inline code（`onCollapse`/`PanelHeader`）不应显示成正文，
     // 只有最后一段正文独立可见，其余思考/工具/文字全部收进单个 process 段。
     const segments = segmentAssistantTimeline([
-      message("a1", [textPart("narrate-1", "Now remove `onCollapse` from the content"), toolPart("edit")], "tool-calls"),
+      message(
+        "a1",
+        [textPart("narrate-1", "Now remove `onCollapse` from the content"), toolPart("edit")],
+        "tool-calls",
+      ),
       message(
         "a2",
-        [
-          textPart("narrate-2", "明白了，`PanelHeader` 里有一个收起按钮，让我去看看。"),
-          toolPart("read"),
-        ],
+        [textPart("narrate-2", "明白了，`PanelHeader` 里有一个收起按钮，让我去看看。"), toolPart("read")],
         "tool-calls",
       ),
       message("a3", [textPart("answer", "已修复 ✅ 只保留顶部那一个。"), toolPart("bash")], "tool-calls"),
@@ -321,10 +318,7 @@ it("keeps narration text before tools in an active turn (no live→settle jump)"
   )
   expect(activeSegments.map((segment) => segment.kind)).toEqual(["process"])
   const processBlocks = activeSegments[0]?.blocks ?? []
-  expect(processBlocks.map(({ block }) => (block.kind === "text" ? "text" : block.kind))).toEqual([
-    "text",
-    "tools",
-  ])
+  expect(processBlocks.map(({ block }) => (block.kind === "text" ? "text" : block.kind))).toEqual(["text", "tools"])
 
   // settled（回合结束）：同一结构下最后文字作为正文（收尾工具场景保留）——
   // 单消息无前置 process 段，工具独立成段且在文字之后（文字在工具前）。

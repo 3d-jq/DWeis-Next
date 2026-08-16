@@ -12,14 +12,10 @@ const alwaysAvailableBundledSkillIds = new Set([
   "minimax-pdf",
 ])
 
-export interface AgentWorkspaceOptions {
-  bundledOoSkills: boolean
-  connectors: boolean
-}
-
 /** Windows 下递归删除偶发 ENOTEMPTY/EBUSY/EPERM（残留文件句柄未释放、杀软扫描或并发写入）：
- * 短暂退避重试几次，避免整体重建 workspace 的 rm 在最后一步 rmdir 上炸掉启动。 */
-async function removeDirectoryRetry(directory: string): Promise<void> {
+ * 短暂退避重试几次，避免整体重建 workspace 的 rm 在最后一步 rmdir 上炸掉启动。 */ async function removeDirectoryRetry(
+  directory: string,
+): Promise<void> {
   for (let attempt = 0; attempt < 4; attempt += 1) {
     try {
       await rm(directory, { force: true, recursive: true })
@@ -45,7 +41,6 @@ export async function ensureAgentWorkspace(
   rootDir: string,
   bundledSkillsDir?: string,
   bundledToolRuntimePath?: string,
-  options: AgentWorkspaceOptions = { bundledOoSkills: true, connectors: true },
 ): Promise<string> {
   if (!bundledToolRuntimePath) {
     throw new Error("Bundled agent tool runtime path is required.")
@@ -56,12 +51,10 @@ export async function ensureAgentWorkspace(
   await removeDirectoryRetry(toolsDir)
   await Promise.all([mkdir(toolsDir, { recursive: true }), mkdir(runtimeSkillsDir, { recursive: true })])
   await Promise.all(
-    Object.entries(agentToolFiles(options.connectors)).map(([name, source]) =>
-      writeFile(path.join(toolsDir, name), source, "utf-8"),
-    ),
+    Object.entries(agentToolFiles()).map(([name, source]) => writeFile(path.join(toolsDir, name), source, "utf-8")),
   )
   await syncToolRuntime(opencodeDir, bundledToolRuntimePath)
-  await syncBundledSkills(opencodeDir, bundledSkillsDir, options.bundledOoSkills)
+  await syncBundledSkills(opencodeDir, bundledSkillsDir)
   return rootDir
 }
 
@@ -84,11 +77,7 @@ async function syncToolRuntime(opencodeDir: string, bundledToolRuntimePath: stri
  * 以打包内置 skill 为准重建 .opencode/skill/：先读源目录、确认可用后再清空旧目录逐个拷入。
  * 先读后删，避免源不可读时误删上一份好副本（rm 不能先于 readdir）。
  */
-async function syncBundledSkills(
-  opencodeDir: string,
-  bundledSkillsDir: string | undefined,
-  includeOomolSkills: boolean,
-): Promise<void> {
+async function syncBundledSkills(opencodeDir: string, bundledSkillsDir: string | undefined): Promise<void> {
   const skillDir = path.join(opencodeDir, "skill")
 
   if (!bundledSkillsDir) {
@@ -111,7 +100,7 @@ async function syncBundledSkills(
   const skillNames = entries
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
-    .filter((name) => includeOomolSkills || alwaysAvailableBundledSkillIds.has(name))
+    .filter((name) => alwaysAvailableBundledSkillIds.has(name))
   if (skillNames.length === 0) {
     return
   }

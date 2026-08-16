@@ -1,8 +1,8 @@
-import type { ConnectionClientService } from "@oomol/connection"
 import type { AttentionService } from "../../../electron/attention/common.ts"
 import type { SessionInfo } from "../../../electron/session/common.ts"
 import type { Persona } from "../../../electron/settings/common.ts"
 import type { AppShellRoute as Route } from "./app-shell-types.ts"
+import type { ConnectionClientService } from "@oomol/connection"
 
 import * as React from "react"
 import { reportRendererHandledError } from "@/lib/renderer-diagnostics"
@@ -88,10 +88,7 @@ export function useAppShellAttention({
   )
 
   React.useEffect(() => {
-    if (
-      !pendingAttentionSession ||
-      !sessionsSettledForCurrentScope
-    ) {
+    if (!pendingAttentionSession || !sessionsSettledForCurrentScope) {
       return
     }
     const session = visibleSessions.find((candidate) => candidate.id === pendingAttentionSession.sessionId)

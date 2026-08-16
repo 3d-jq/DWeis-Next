@@ -108,7 +108,6 @@ export function upsertManifestRecords(
   }
 }
 
-
 function readManifestRecord(store: SkillManifestStore, skill: InstalledSkill): SkillManifestRecord | undefined {
   return store.records.find((record) => record.agentId === skill.agent.id && record.installedPath === skill.path)
 }
