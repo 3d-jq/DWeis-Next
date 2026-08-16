@@ -15,7 +15,7 @@
 
 ## Safety and Compatibility
 
-- [ ] Local BYOK and signed-in OOMOL modes were considered separately.
+- [ ] Local self-managed runtime behavior was considered.
 - [ ] No credential was exposed to the renderer, logs, fixtures, screenshots, or committed files.
 - [ ] Agent tools, permissions, and system prompts remain aligned, or the change does not affect them.
 - [ ] Migration, packaging, endpoint, and update implications were considered.

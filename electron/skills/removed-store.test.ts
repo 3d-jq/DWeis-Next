@@ -21,7 +21,7 @@ test("RemovedSkillStore round-trips records atomically", async () => {
 
   await store.write(
     upsertRemovedSkillRecord(emptyRemovedSkillStore(), {
-      packageName: "@oomol/example",
+      packageName: "@example/example",
       removedAt,
       scope: "local-machine",
       skillId: "example",
@@ -31,7 +31,7 @@ test("RemovedSkillStore round-trips records atomically", async () => {
   assert.deepEqual(await store.read(), {
     records: [
       {
-        packageName: "@oomol/example",
+        packageName: "@example/example",
         removedAt,
         scope: "local-machine",
         skillId: "example",
@@ -44,13 +44,13 @@ test("RemovedSkillStore round-trips records atomically", async () => {
 
 test("upsertRemovedSkillRecord replaces matching package and skill", () => {
   const first = upsertRemovedSkillRecord(emptyRemovedSkillStore(), {
-    packageName: "@oomol/example",
+    packageName: "@example/example",
     removedAt: "first",
     scope: "local-machine",
     skillId: "example",
   })
   const next = upsertRemovedSkillRecord(first, {
-    packageName: "@oomol/example",
+    packageName: "@example/example",
     removedAt: "second",
     scope: "local-machine",
     skillId: "example",
@@ -58,12 +58,12 @@ test("upsertRemovedSkillRecord replaces matching package and skill", () => {
 
   assert.equal(next.records.length, 1)
   assert.equal(next.records[0]?.removedAt, "second")
-  assert.equal(createRemovedSkillKey(next.records[0]!), "@oomol/example\u0000example")
+  assert.equal(createRemovedSkillKey(next.records[0]!), "@example/example\u0000example")
 })
 
 test("isSkillRemovedByUser matches package-specific and skill-wide records", () => {
   const packageSpecific = upsertRemovedSkillRecord(emptyRemovedSkillStore(), {
-    packageName: "@oomol/example",
+    packageName: "@example/example",
     removedAt: "now",
     scope: "local-machine",
     skillId: "example",
@@ -74,20 +74,20 @@ test("isSkillRemovedByUser matches package-specific and skill-wide records", () 
     skillId: "example",
   })
 
-  assert.equal(isSkillRemovedByUser(packageSpecific, { packageName: "@oomol/example", skillId: "example" }), true)
+  assert.equal(isSkillRemovedByUser(packageSpecific, { packageName: "@example/example", skillId: "example" }), true)
   assert.equal(isSkillRemovedByUser(packageSpecific, { packageName: "@other/example", skillId: "example" }), false)
   assert.equal(isSkillRemovedByUser(skillWide, { packageName: "@other/example", skillId: "example" }), true)
 })
 
 test("removeRemovedSkillRecord clears matching records for reinstall", () => {
   const store = upsertRemovedSkillRecord(emptyRemovedSkillStore(), {
-    packageName: "@oomol/example",
+    packageName: "@example/example",
     removedAt: "now",
     scope: "local-machine",
     skillId: "example",
   })
 
-  assert.deepEqual(removeRemovedSkillRecord(store, { packageName: "@oomol/example", skillId: "example" }).records, [])
+  assert.deepEqual(removeRemovedSkillRecord(store, { packageName: "@example/example", skillId: "example" }).records, [])
 })
 
 test("RemovedSkillStore serializes read-modify-write updates", async () => {
@@ -98,7 +98,7 @@ test("RemovedSkillStore serializes read-modify-write updates", async () => {
     Array.from({ length: 8 }, (_, index) =>
       store.update((current) =>
         upsertRemovedSkillRecord(current, {
-          packageName: `@oomol/example-${index}`,
+          packageName: `@example/example-${index}`,
           removedAt: "now",
           scope: "local-machine",
           skillId: `example-${index}`,
@@ -109,7 +109,7 @@ test("RemovedSkillStore serializes read-modify-write updates", async () => {
 
   assert.deepEqual(
     (await store.read()).records.map((record) => createRemovedSkillKey(record)),
-    Array.from({ length: 8 }, (_, index) => `@oomol/example-${index}\u0000example-${index}`),
+    Array.from({ length: 8 }, (_, index) => `@example/example-${index}\u0000example-${index}`),
   )
 })
 
@@ -121,7 +121,7 @@ test("readRemovedSkillStore ignores unsupported records", async () => {
     JSON.stringify({
       records: [
         {
-          packageName: "@oomol/example",
+          packageName: "@example/example",
           removedAt: "now",
           scope: "local-machine",
           skillId: "example",
@@ -141,7 +141,7 @@ test("readRemovedSkillStore ignores unsupported records", async () => {
 
   assert.deepEqual(
     store.records.map((record) => createRemovedSkillKey(record)),
-    ["@oomol/example\u0000example"],
+    ["@example/example\u0000example"],
   )
 })
 

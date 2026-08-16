@@ -16,7 +16,7 @@ const installedSkill: InstalledSkill = {
   hash: "hash-a",
   metadata: {
     kind: "registry",
-    packageName: "@oomol/example",
+    packageName: "@example/example",
     version: "1.0.0",
   },
   name: "example",

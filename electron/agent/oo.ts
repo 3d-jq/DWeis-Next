@@ -13,7 +13,7 @@ export interface OoMaintenanceEnvOptions {
 
 /** R3: Build the oo environment used to maintain the Skill store with caller-owned directories.
  * 纯本地模式无网关凭证：不注入 OO_API_KEY / 连接器端点。 */
-export function buildOomolMaintenanceEnv({
+export function buildOoMaintenanceEnv({
   configDir,
   dataDir,
   logDir,

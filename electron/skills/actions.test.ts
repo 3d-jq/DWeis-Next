@@ -83,7 +83,7 @@ test("assertSkillOperationSucceeded reports target entry failures", () => {
               status: "failed",
               targets: [
                 {
-                  error: { code: "name_conflict", message: "Skill name is already used by a non-OOMOL skill." },
+                  error: { code: "name_conflict", message: "Skill name is already used by a non-managed skill." },
                   status: "failed",
                 },
               ],
@@ -93,7 +93,7 @@ test("assertSkillOperationSucceeded reports target entry failures", () => {
         }),
         "skills.install",
       ),
-    /Skill name is already used by a non-OOMOL skill/,
+    /Skill name is already used by a non-managed skill/,
   )
 })
 

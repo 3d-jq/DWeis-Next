@@ -217,13 +217,8 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): 
   })
 }
 
-function createMessageErrorPayload(
-  sessionId: string,
-  message: string,
-  runtimeMode: RuntimeCapabilities["mode"],
-  messageId?: string,
-): MessageErrorEvent {
-  const normalized = normalizeChatError(message, { runtimeMode })
+function createMessageErrorPayload(sessionId: string, message: string, messageId?: string): MessageErrorEvent {
+  const normalized = normalizeChatError(message)
   return {
     sessionId,
     ...(messageId ? { messageId } : {}),
@@ -756,7 +751,7 @@ export class ChatServiceImpl extends ConnectionService<ChatService> implements I
     if (!this.rememberMessageError(sessionId, message)) {
       return
     }
-    const payload = createMessageErrorPayload(sessionId, message, this.runtimeCapabilities.mode, messageId)
+    const payload = createMessageErrorPayload(sessionId, message, messageId)
     this.sendBestEffort(emit, "messageError", payload, {
       messageId,
       sessionId,

@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils"
 import { AddCustomModelDialog } from "@/routes/Chat/AddCustomModelDialog"
 
 // DWeis Next runs in local self-managed mode only. The initial-setup screen
-// therefore never offers a cloud (DWeis/OOMOL) login — it goes straight to the
+// therefore never offers a cloud login — it goes straight to the
 // local model configuration flow.
 export function InitialSetupRoute({
   completing,

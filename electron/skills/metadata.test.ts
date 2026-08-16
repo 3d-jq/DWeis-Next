@@ -9,7 +9,7 @@ test("normalizeMetadata reads supported fields", () => {
         icon: "sparkles",
         description: "Generate images",
         kind: "registry",
-        packageName: "@oomol/example",
+        packageName: "@example/example",
         version: "1.2.3",
       }),
     ),
@@ -17,7 +17,7 @@ test("normalizeMetadata reads supported fields", () => {
       description: "Generate images",
       icon: "sparkles",
       kind: "registry",
-      packageName: "@oomol/example",
+      packageName: "@example/example",
       version: "1.2.3",
     },
   )

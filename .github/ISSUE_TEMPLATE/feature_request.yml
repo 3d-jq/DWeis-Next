@@ -28,5 +28,5 @@ body:
     attributes:
       label: Scope checks
       options:
-        - label: I considered local BYOK and signed-in OOMOL runtime behavior separately.
+        - label: I considered local self-managed runtime behavior and its boundaries.
         - label: I considered credential, permission, and renderer-boundary implications.

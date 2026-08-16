@@ -256,7 +256,7 @@ describe("chat message identity reconciliation", () => {
       partId: "error-1",
       message: "Payment Required: account is in deficit",
       errorKind: "payment_required",
-      errorCode: "OOMOL_INSUFFICIENT_CREDIT",
+      errorCode: "INSUFFICIENT_CREDITS",
     })
 
     expect(updated[1]?.parts).toEqual([
@@ -265,7 +265,7 @@ describe("chat message identity reconciliation", () => {
         partId: "error-1",
         errorText: "Payment Required: account is in deficit",
         errorKind: "payment_required",
-        errorCode: "OOMOL_INSUFFICIENT_CREDIT",
+        errorCode: "INSUFFICIENT_CREDITS",
       },
     ])
   })

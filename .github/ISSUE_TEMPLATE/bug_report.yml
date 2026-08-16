@@ -36,9 +36,8 @@ body:
     attributes:
       label: Runtime mode
       options:
-        - Local BYOK
-        - OOMOL signed in
-        - Before runtime selection
+        - Local self-managed
+        - Before model setup
         - Unknown
     validations:
       required: true

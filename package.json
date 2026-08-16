@@ -4,15 +4,15 @@
   "version": "1.8.5",
   "private": true,
   "description": "DWeis Next — desktop AI agent for local work, custom models, and automation.",
-  "homepage": "https://github.com/oomol-lab/wanta",
+  "homepage": "https://dweis.ai/",
   "bugs": {
-    "url": "https://github.com/oomol-lab/wanta/issues"
+    "url": "https://github.com/3d-jq/DWeis-Next/issues"
   },
   "license": "Apache-2.0",
   "author": "DWeis",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/oomol-lab/wanta.git"
+    "url": "git+https://github.com/3d-jq/DWeis-Next.git"
   },
   "type": "module",
   "main": "dist-electron/main.js",

@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest"
 import { chatErrorRecoveryKind, resolveChatError } from "./chat-error.ts"
 
 describe("resolveChatError", () => {
-  it("maps OOMOL insufficient credit errors to payment_required", () => {
-    expect(resolveChatError("Payment Required: account is in deficit, code: OOMOL_INSUFFICIENT_CREDIT").kind).toBe(
+  it("maps insufficient credit errors to payment_required", () => {
+    expect(resolveChatError("Payment Required: account is in deficit, code: INSUFFICIENT_CREDITS").kind).toBe(
       "payment_required",
     )
   })
@@ -22,7 +22,7 @@ describe("resolveChatError", () => {
     expect(resolveChatError("Permission denied").kind).toBe("permission_denied")
   })
 
-  it("directs a local model 401 to model configuration instead of OOMOL sign-in", () => {
+  it("directs a local model 401 to model configuration instead of a sign-in prompt", () => {
     expect(resolveChatError("HTTP 401 invalid API key", { errorKind: "model_auth_required" })).toMatchObject({
       descriptionKey: "chatError.modelAuthRequired.description",
       kind: "model_auth_required",

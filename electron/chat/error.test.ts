@@ -2,19 +2,19 @@ import { describe, expect, it } from "vitest"
 import { normalizeChatError } from "./error.ts"
 
 describe("normalizeChatError", () => {
-  it("classifies OOMOL insufficient credit errors as payment_required", () => {
-    const error = normalizeChatError("Payment Required: account is in deficit, code: OOMOL_INSUFFICIENT_CREDIT")
+  it("classifies insufficient credit errors as payment_required", () => {
+    const error = normalizeChatError("Payment Required: account is in deficit, code: INSUFFICIENT_CREDITS")
 
     expect(error.kind).toBe("payment_required")
     expect(error.retryable).toBe(false)
   })
 
   it("preserves structured payment error codes", () => {
-    const error = normalizeChatError("OOMOL_INSUFFICIENT_CREDIT: account is in deficit")
+    const error = normalizeChatError("INSUFFICIENT_CREDITS: account is in deficit")
 
     expect(error).toMatchObject({
       kind: "payment_required",
-      code: "OOMOL_INSUFFICIENT_CREDIT",
+      code: "INSUFFICIENT_CREDITS",
     })
   })
 
@@ -44,7 +44,7 @@ describe("normalizeChatError", () => {
 
   it.each([
     [429, "rate_limited", true],
-    [401, "auth_required", false],
+    [401, "model_auth_required", false],
     [403, "permission_denied", false],
     [503, "provider_unavailable", true],
   ] as const)("classifies JSON %d responses by status", (status, kind, retryable) => {
@@ -53,13 +53,9 @@ describe("normalizeChatError", () => {
     expect(error).toMatchObject({ kind, retryable })
   })
 
-  it("keeps a local custom provider 401 separate from OOMOL session expiry", () => {
-    expect(normalizeChatError('{"status":401,"message":"invalid api key"}', { runtimeMode: "local" })).toMatchObject({
+  it("classifies a local custom provider 401 as a model credential problem", () => {
+    expect(normalizeChatError('{"status":401,"message":"invalid api key"}')).toMatchObject({
       kind: "model_auth_required",
-      retryable: false,
-    })
-    expect(normalizeChatError('{"status":401,"message":"session expired"}', { runtimeMode: "oomol" })).toMatchObject({
-      kind: "auth_required",
       retryable: false,
     })
   })

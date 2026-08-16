@@ -67,7 +67,7 @@ function dweisPlanPermission(): OpencodePermissionConfig {
   } as unknown as OpencodePermissionConfig
 }
 
-const OOMOL_REASONING_VARIANTS = {
+const REASONING_EFFORT_VARIANTS = {
   low: { reasoningEffort: "low" },
   medium: { reasoningEffort: "medium" },
   high: { reasoningEffort: "high" },
@@ -257,7 +257,7 @@ function customReasoningVariants(
   }
   const variantSet: Partial<Record<DWeisReasoningVariant, OpencodeReasoningVariantConfig>> = isQwenCustomModel(model)
     ? QWEN_REASONING_VARIANTS
-    : OOMOL_REASONING_VARIANTS
+    : REASONING_EFFORT_VARIANTS
   return Object.fromEntries(
     levels.flatMap((level) => {
       const variant = variantSet[level]

@@ -38,15 +38,15 @@ describe("notificationCapability", () => {
 
 describe("systemNotificationSettingsUrls", () => {
   it("targets the current macOS app before falling back to the notifications list", () => {
-    expect(systemNotificationSettingsUrls("darwin", "com.oomol.dweis local")).toEqual([
-      "x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=com.oomol.dweis%20local",
+    expect(systemNotificationSettingsUrls("darwin", "com.dweis.next local")).toEqual([
+      "x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=com.dweis.next%20local",
       "x-apple.systempreferences:com.apple.Notifications-Settings.extension",
     ])
   })
 
   it("uses the documented Windows notifications page without inventing a per-app parameter", () => {
-    expect(systemNotificationSettingsUrls("win32", "com.oomol.dweis")).toEqual(["ms-settings:notifications"])
-    expect(systemNotificationSettingsUrls("linux", "com.oomol.dweis")).toEqual([])
+    expect(systemNotificationSettingsUrls("win32", "com.dweis.next")).toEqual(["ms-settings:notifications"])
+    expect(systemNotificationSettingsUrls("linux", "com.dweis.next")).toEqual([])
   })
 })
 

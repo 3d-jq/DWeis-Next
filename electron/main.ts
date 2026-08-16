@@ -1226,8 +1226,8 @@ function createMainWindow(): void {
         }),
     webPreferences: {
       preload: preloadPath,
-      // 主窗口启用沙箱：preload 仅用 ipcRenderer / contextBridge / webUtils（以及 oomol
-      // 连接适配器的 contextBridge），均为沙箱 preload 可用 API。零功能损失，却能在 preload
+      // 主窗口启用沙箱：preload 仅用 ipcRenderer / contextBridge / webUtils（以及 @oomol/connection
+      // 适配器的 contextBridge），均为沙箱 preload 可用 API。零功能损失，却能在 preload
       // 被攻破时消除「拿到完整 Node 权限」的风险（对比默认 sandbox:false）。
       sandbox: true,
     },

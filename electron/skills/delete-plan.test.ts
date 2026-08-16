@@ -15,7 +15,7 @@ test.skipIf(process.platform === "win32")(
           agentId: "dweis",
           agentName: "DWeis",
           kind: "registry",
-          packageName: "@oomol/example",
+          packageName: "@example/example",
           path: "/home/me/.agents/skills/example",
           scope: "runtime",
           sourcePath: "/home/me/.config/dweis/agent/oo-store/config/skills/registry/example",
@@ -26,7 +26,7 @@ test.skipIf(process.platform === "win32")(
           agentId: "claude-code",
           agentName: "Claude Code",
           kind: "registry",
-          packageName: "@oomol/example",
+          packageName: "@example/example",
           path: "/home/me/.claude/skills/example",
           scope: "external",
           sourcePath: "/home/me/.config/oo/skills/registry/example",
@@ -37,7 +37,7 @@ test.skipIf(process.platform === "win32")(
       id: "example",
       kind: "registry",
       name: "example",
-      packageName: "@oomol/example",
+      packageName: "@example/example",
       runtimeHosts: [],
       version: "1.0.0",
     }
@@ -52,12 +52,12 @@ test.skipIf(process.platform === "win32")(
     assert.deepEqual(plan.storeTargets, [
       {
         kind: "dweis",
-        packageName: "@oomol/example",
+        packageName: "@example/example",
         skillId: "example",
       },
       {
         kind: "global",
-        packageName: "@oomol/example",
+        packageName: "@example/example",
         skillId: "example",
       },
     ])

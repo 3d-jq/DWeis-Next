@@ -115,7 +115,7 @@ test("ensureAgentWorkspace rebuilds .opencode/tools so removed tool sources do n
   }
 })
 
-test("ensureAgentWorkspace copies only the always-available bundled skills, never OOMOL-only skills", async () => {
+test("ensureAgentWorkspace copies only the always-available bundled skills, never upstream-only skills", async () => {
   const base = await mkdtemp(path.join(os.tmpdir(), "dweis-workspace-"))
   try {
     const workspaceDir = path.join(base, "workspace")

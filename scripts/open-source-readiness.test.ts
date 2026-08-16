@@ -27,10 +27,10 @@ describe("open-source installation contract", () => {
     expect(manifest.license).toBe("Apache-2.0")
     expect(manifest.repository).toEqual({
       type: "git",
-      url: "git+https://github.com/oomol-lab/wanta.git",
+      url: "git+https://github.com/3d-jq/DWeis-Next.git",
     })
-    expect(manifest.homepage).toBe("https://github.com/oomol-lab/wanta")
-    expect(manifest.bugs?.url).toBe("https://github.com/oomol-lab/wanta/issues")
+    expect(manifest.homepage).toBe("https://dweis.ai/")
+    expect(manifest.bugs?.url).toBe("https://github.com/3d-jq/DWeis-Next/issues")
     expect(manifest.engines?.node).toBe(">=22.22.2")
     expect(manifest.packageManager).toBe("pnpm@9.14.4")
   })

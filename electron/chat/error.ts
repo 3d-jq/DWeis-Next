@@ -18,17 +18,11 @@ export interface ChatErrorClassification {
   displayMessage?: string
 }
 
-export interface NormalizeChatErrorOptions {
-  runtimeMode?: "local" | "oomol"
-}
-
 const errorCodePrefix = /^([A-Za-z][A-Za-z0-9_]*):\s*(.*)$/
-
 const paymentRequiredCodes = new Set([
   "CHAT_COMPLETION_PAYMENT_REQUIRED",
   "INSUFFICIENT_BALANCE",
   "INSUFFICIENT_CREDITS",
-  "OOMOL_INSUFFICIENT_CREDIT",
   "PAYMENT_REQUIRED",
   "insufficient_balance",
   "insufficient_credits",
@@ -86,7 +80,6 @@ function resolvePaymentRequired(message: string, code?: string): boolean {
     "insufficient credits",
     "not enough credits",
     "account is in deficit",
-    "oomol_insufficient_credit",
     "余额不足",
     "code 402",
     "http 402",
@@ -116,10 +109,7 @@ function resolveContentFiltered(message: string, code?: string): boolean {
   ])
 }
 
-export function normalizeChatError(
-  rawMessage: string,
-  options: NormalizeChatErrorOptions = {},
-): ChatErrorClassification {
+export function normalizeChatError(rawMessage: string): ChatErrorClassification {
   const diagnostics = rawMessage.trim()
   const { code, message } = stripKnownCodePrefix(diagnostics)
   const effectiveMessage = message || diagnostics
@@ -185,8 +175,8 @@ export function normalizeChatError(
     includesAny(diagnostics, ["unauthorized", "sign in", "login required", "code 401", "http 401"])
   ) {
     return {
-      // local runtime 的 401 来自用户自带 provider，不代表 OOMOL session 失效。
-      kind: options.runtimeMode === "local" ? "model_auth_required" : "auth_required",
+      // 本地 runtime 的 401 来自用户自带的 provider，指向模型凭据问题。
+      kind: "model_auth_required",
       code: effectiveCode,
       retryable: false,
       diagnostics,

@@ -43,7 +43,7 @@ const installedSkills: InstalledSkill[] = [
       description: "Example registry skill",
       icon: ":lucide:captions:",
       kind: "registry",
-      packageName: "@oomol/example",
+      packageName: "@example/example",
       version: "1.0.0",
     },
     name: "example",
@@ -69,7 +69,7 @@ test("groupInstalledSkills groups installed skills with agent coverage and no bu
   assert.equal(alpha?.externalHosts.length, 2)
   assert.equal(alpha?.runtimeHosts.length, 0)
   assert.equal(alpha?.hosts[0]?.controlState, "modified")
-  assert.equal(example?.packageName, "@oomol/example")
+  assert.equal(example?.packageName, "@example/example")
   assert.equal(example?.icon, ":lucide:captions:")
   assert.equal(example?.description, "Example registry skill")
   assert.equal(example?.hosts[1]?.controlState, "controlled")

@@ -34,11 +34,11 @@ async function writeRegistrySkill(root: string, skillId: string, packageName: st
 
 test("removeSkillDirectoryIfSafe removes a matching registry skill directory", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "dweis-skill-remove-"))
-  const skillPath = await writeRegistrySkill(root, "example", "@oomol/example")
+  const skillPath = await writeRegistrySkill(root, "example", "@example/example")
 
   const result = await removeSkillDirectoryIfSafe({
     allowedRoots: [root],
-    packageName: "@oomol/example",
+    packageName: "@example/example",
     path: skillPath,
     skillId: "example",
   })
@@ -50,11 +50,11 @@ test("removeSkillDirectoryIfSafe removes a matching registry skill directory", a
 test("removeSkillDirectoryIfSafe rejects paths outside allowed roots", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "dweis-skill-remove-"))
   const outside = await mkdtemp(path.join(os.tmpdir(), "dweis-skill-outside-"))
-  const skillPath = await writeRegistrySkill(outside, "example", "@oomol/example")
+  const skillPath = await writeRegistrySkill(outside, "example", "@example/example")
 
   const result = await removeSkillDirectoryIfSafe({
     allowedRoots: [root],
-    packageName: "@oomol/example",
+    packageName: "@example/example",
     path: skillPath,
     skillId: "example",
   })
@@ -66,11 +66,11 @@ test("removeSkillDirectoryIfSafe rejects paths outside allowed roots", async () 
 
 test("removeSkillDirectoryIfSafe rejects basename mismatches", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "dweis-skill-remove-"))
-  const skillPath = await writeRegistrySkill(root, "different", "@oomol/example")
+  const skillPath = await writeRegistrySkill(root, "different", "@example/example")
 
   const result = await removeSkillDirectoryIfSafe({
     allowedRoots: [root],
-    packageName: "@oomol/example",
+    packageName: "@example/example",
     path: skillPath,
     skillId: "example",
   })
@@ -82,7 +82,7 @@ test("removeSkillDirectoryIfSafe rejects basename mismatches", async () => {
 
 test("removeSkillDirectoryIfSafe rejects registry package mismatches", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "dweis-skill-remove-"))
-  const skillPath = await writeRegistrySkill(root, "example", "@oomol/example")
+  const skillPath = await writeRegistrySkill(root, "example", "@example/example")
 
   const result = await removeSkillDirectoryIfSafe({
     allowedRoots: [root],
@@ -102,7 +102,7 @@ test("removeSkillDirectoryIfSafe rejects missing paths", async () => {
 
   const result = await removeSkillDirectoryIfSafe({
     allowedRoots: [root],
-    packageName: "@oomol/example",
+    packageName: "@example/example",
     path: skillPath,
     skillId: "example",
   })
@@ -118,7 +118,7 @@ test("removeSkillDirectoryIfSafe rejects non-directory targets", async () => {
 
   const result = await removeSkillDirectoryIfSafe({
     allowedRoots: [root],
-    packageName: "@oomol/example",
+    packageName: "@example/example",
     path: skillPath,
     skillId: "example",
   })
@@ -152,7 +152,7 @@ test("removeSkillDirectoryIfSafe rejects registry package checks when metadata i
 
   const result = await removeSkillDirectoryIfSafe({
     allowedRoots: [root],
-    packageName: "@oomol/example",
+    packageName: "@example/example",
     path: skillPath,
     skillId: "example",
   })
@@ -165,13 +165,13 @@ test("removeSkillDirectoryIfSafe rejects registry package checks when metadata i
 test("removeSkillDirectoryIfSafe rejects symlinks pointing outside allowed roots", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "dweis-skill-remove-"))
   const outside = await mkdtemp(path.join(os.tmpdir(), "dweis-skill-outside-"))
-  const outsideSkillPath = await writeRegistrySkill(outside, "example", "@oomol/example")
+  const outsideSkillPath = await writeRegistrySkill(outside, "example", "@example/example")
   const linkPath = path.join(root, "example")
   await symlink(outsideSkillPath, linkPath)
 
   const result = await removeSkillDirectoryIfSafe({
     allowedRoots: [root],
-    packageName: "@oomol/example",
+    packageName: "@example/example",
     path: linkPath,
     skillId: "example",
   })

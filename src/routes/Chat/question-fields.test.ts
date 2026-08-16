@@ -112,7 +112,7 @@ describe("question-fields", () => {
           question: "收件人邮箱地址是什么？",
           options: [
             { label: "我自己", description: "使用当前 Gmail 地址" },
-            { label: "zhangli@oomol.com", description: "最近联系人" },
+            { label: "zhangli@example.com", description: "最近联系人" },
           ],
         },
       ],
@@ -124,7 +124,7 @@ describe("question-fields", () => {
     expect(fields[0].label).toBe("recipient")
     expect(fields[0].kind).toBe("email")
     expect(fields[0].options).toEqual([
-      { label: "zhangli@oomol.com", description: "最近联系人", value: "zhangli@oomol.com" },
+      { label: "zhangli@example.com", description: "最近联系人", value: "zhangli@example.com" },
     ])
   })
 

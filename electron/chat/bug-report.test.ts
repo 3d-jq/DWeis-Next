@@ -35,7 +35,7 @@ describe("bug report command", () => {
         appCommit: "abc123",
         appVersion: "1.2.3",
         generatedAt: "2026-07-13T06:30:22.000Z",
-        model: "custom:oomol/oopilot",
+        model: "custom:my-provider/oopilot",
         permissionMode: "default",
         platform: "darwin",
       },

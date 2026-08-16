@@ -15,7 +15,7 @@ import { ConnectionService } from "@oomol/connection"
 import { app, shell } from "electron"
 import { readFile } from "node:fs/promises"
 import path from "node:path"
-import { buildOomolMaintenanceEnv } from "../agent/oo.ts"
+import { buildOoMaintenanceEnv } from "../agent/oo.ts"
 import { resolveAgentSkillRoot, supportedAgents } from "../agents/catalog.ts"
 import { logDiagnostic, logDiagnosticOnChange } from "../diagnostics-log.ts"
 import { runOoCommand } from "../oo-command.ts"
@@ -310,13 +310,13 @@ export class SkillServiceImpl extends ConnectionService<SkillService> implements
     const globalStoreRoot = this.getGlobalOoStoreRoot()
     const env =
       target.kind === "global"
-        ? buildOomolMaintenanceEnv({
+        ? buildOoMaintenanceEnv({
             configDir: globalStoreRoot,
             dataDir: path.join(globalStoreRoot, "data"),
             logDir: path.join(globalStoreRoot, "log"),
             ooBinPath: process.env["OO_CLI_PATH"],
           })
-        : buildOomolMaintenanceEnv({
+        : buildOoMaintenanceEnv({
             configDir: path.join(this.getDWeisOoStoreRoot(), "config"),
             dataDir: path.join(this.getDWeisOoStoreRoot(), "data"),
             logDir: path.join(this.getDWeisOoStoreRoot(), "log"),

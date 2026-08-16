@@ -32,9 +32,9 @@ describe("renderer error report normalization", () => {
   it("redacts URL query strings and sensitive key-value fields", () => {
     expect(
       redactDiagnosticText(
-        "GET https://console.oomol.com/launcher?authID=abc&token=def#step token=secret, api_key=hidden",
+        "GET https://console.example.com/launcher?authID=abc&token=def#step token=secret, api_key=hidden",
       ),
-    ).toBe("GET https://console.oomol.com/launcher?[redacted]#[redacted] token=[redacted], api_key=[redacted]")
+    ).toBe("GET https://console.example.com/launcher?[redacted]#[redacted] token=[redacted], api_key=[redacted]")
   })
 
   it("redacts quoted sensitive values that contain spaces", () => {
