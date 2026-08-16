@@ -3,7 +3,6 @@ import type { ChatMessagePart } from "../../../electron/chat/common.ts"
 import { BrainIcon, ChevronRight } from "lucide-react"
 import { AnimatePresence, motion } from "motion/react"
 import * as React from "react"
-import { LoadingShimmerText } from "./LoadingShimmerText.tsx"
 import { useT } from "@/i18n/i18n"
 import { cn } from "@/lib/utils"
 
@@ -19,16 +18,18 @@ function latestLine(text: string): string {
 }
 
 /**
- * 深度思考折叠行（对齐 deepseek-harness ReasoningRow）：
- * 脑图标 + 「深度思考」+ 分隔点 + 折叠摘要——运行中摘要跟随推理最新一行（自动滚到最右），
- * 完成后显示推理第一行。思考中（内容未到）摘要位是扫光占位，内容一到即填充，元素不换。
- * 点击整行展开完整推理（定长内部滚动）。行高与工具行/状态行一致（min-h-6）。
+ * 深度思考折叠行（对齐 deepseek-harness ReasoningRow + DisclosureRow）：
+ * [16px 图标槽(hover 显 chevron 预览)] 标题 · 摘要 —— 运行中摘要跟随推理最新一行
+ * （横向截断窗口滚到最右、clip 不省略号），完成后显示推理第一行。
+ * 运行中整行光带扫过（与工具行同一 sweep），文字保持实色。
+ * 点击整行展开完整推理（定长内部滚动）。行高 24px 与工具行/状态行对齐。
  */
 export function ReasoningBlock({ part, live = false }: { part: ChatMessagePart; live?: boolean }) {
   const t = useT()
   const [open, setOpen] = React.useState(false)
   const text = part.text?.trim() ?? ""
   const streaming = live && part.text !== undefined
+  const running = streaming
   const summaryRef = React.useRef<HTMLSpanElement>(null)
   const summary = streaming ? latestLine(text) : firstLine(text)
 
@@ -42,37 +43,53 @@ export function ReasoningBlock({ part, live = false }: { part: ChatMessagePart; 
   }, [streaming, summary])
 
   return (
-    <div>
-      <button
-        type="button"
+    <div className="flex min-w-0 flex-col">
+      <div
+        role="button"
+        tabIndex={0}
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault()
+            setOpen((value) => !value)
+          }
+        }}
         className={cn(
-          "flex min-h-6 max-w-full w-full items-center gap-2 rounded text-left text-xs text-muted-foreground transition-colors",
-          "hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+          "group/reasoning relative flex h-6 min-w-0 cursor-pointer items-center overflow-hidden rounded text-left",
+          running && "oo-row-sweep",
         )}
       >
-        {/* 图标放 size-5 盒：与工具步骤行文字列对齐 */}
-        <span className="flex size-5 shrink-0 items-center justify-center">
-          <BrainIcon className="size-3.5 shrink-0" aria-hidden="true" />
+        {/* 16px 图标槽：平时显脑图标，hover 时图标淡出、chevron 预览淡入（dsh leading 样式）。 */}
+        <span className="relative mr-1.5 flex size-4 shrink-0 items-center justify-center text-muted-foreground">
+          <BrainIcon className="absolute size-3.5 transition-opacity duration-100 group-hover/reasoning:opacity-0" aria-hidden="true" />
+          <ChevronRight
+            className={cn(
+              "absolute size-3.5 transition-opacity duration-100 group-hover/reasoning:opacity-100",
+              open ? "rotate-90 opacity-100" : "opacity-0",
+            )}
+            aria-hidden="true"
+          />
         </span>
-        <span className="shrink-0 font-medium">{t("chat.reasoningToggle")}</span>
+        <span className="shrink-0 text-sm leading-6 font-normal text-muted-foreground">
+          {t("chat.reasoningToggle")}
+        </span>
         {summary ? (
           <>
-            <span aria-hidden="true" className="size-0.5 shrink-0 rounded-full bg-current opacity-50" />
-            <span ref={summaryRef} className="min-w-0 flex-1 truncate font-medium opacity-70">
+            <span aria-hidden="true" className="mx-2 size-0.5 shrink-0 rounded-full bg-muted-foreground/60" />
+            {/* 跟随中 clip（不省略号）+ 手动滚动到最右；完成态省略号截断（dsh summary 样式）。 */}
+            <span
+              ref={summaryRef}
+              className={cn(
+                "min-w-0 flex-1 overflow-hidden text-sm leading-6 whitespace-nowrap text-muted-foreground/70",
+                streaming ? "[text-overflow:clip]" : "text-ellipsis",
+              )}
+            >
               {summary}
             </span>
           </>
-        ) : (
-          <LoadingShimmerText className="min-w-0 flex-1 truncate font-medium">
-            {t("chat.reasoningToggle")}
-          </LoadingShimmerText>
-        )}
-        <motion.span animate={{ rotate: open ? 90 : 0 }} transition={{ duration: 0.2, ease: "easeInOut" }}>
-          <ChevronRight className="size-3.5 shrink-0" aria-hidden="true" />
-        </motion.span>
-      </button>
+        ) : null}
+      </div>
       <AnimatePresence initial={false}>
         {open ? (
           <motion.div
@@ -83,8 +100,8 @@ export function ReasoningBlock({ part, live = false }: { part: ChatMessagePart; 
             transition={{ duration: 0.2, ease: "easeInOut" }}
             className="overflow-hidden"
           >
-            {/* 思考内容定长 + 内部滚动：推理很长时不撑大对话流（10rem）。pl-7 与工具行文字列对齐。 */}
-            <div className="mt-1 max-h-40 overflow-y-auto pl-7 text-[13px] leading-6 whitespace-pre-wrap text-muted-foreground/90">
+            {/* 思考内容：pl 匹配图标槽宽度（22px = 16px + 6px margin），定长 + 内部滚动。 */}
+            <div className="mt-1 max-h-40 overflow-y-auto pl-[22px] text-sm leading-6 whitespace-pre-wrap break-words text-muted-foreground/90">
               {text}
             </div>
           </motion.div>

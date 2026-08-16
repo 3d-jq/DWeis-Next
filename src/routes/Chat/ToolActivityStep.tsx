@@ -362,20 +362,21 @@ export const ToolActivityStep = React.memo(function ToolActivityStep({
     [open],
   )
 
-  // dsh 单行：图标槽 + 标题 + 2px 分隔点 + 摘要(FILL 截断) + 状态文字；运行中整行扫光（文字保持可读）。
+  // dsh 单行（ToolRow 24px）：[图标槽] 标题(14px/24px 400) · 摘要(FILL 截断) + 状态文字；
+  // 运行中整行扫光（文字保持可读）。
   const row = (
     <div
       className={cn(
-        "group/tool-step flex min-h-6 w-full max-w-full min-w-0 flex-1 items-center gap-2 overflow-hidden rounded-md",
+        "group/tool-step flex h-6 w-full max-w-full min-w-0 flex-1 items-center overflow-hidden rounded-md",
         running && "oo-row-sweep",
       )}
     >
-      <span className="flex size-5 shrink-0 items-center justify-center" title={statusText}>
+      <span className="mr-1.5 flex size-4 shrink-0 items-center justify-center" title={statusText}>
         <ToolStepIcon part={part} stopped={stopped} />
       </span>
       <span
         className={cn(
-          "min-w-0 shrink-0 truncate font-medium",
+          "min-w-0 shrink-0 truncate text-sm leading-6 font-normal",
           failureLine ? "text-destructive" : "text-foreground",
         )}
       >
@@ -383,7 +384,7 @@ export const ToolActivityStep = React.memo(function ToolActivityStep({
       </span>
       {summaryText ? (
         <>
-          <span aria-hidden="true" className="size-0.5 shrink-0 rounded-full bg-muted-foreground/50" />
+          <span aria-hidden="true" className="mx-2 size-0.5 shrink-0 rounded-full bg-muted-foreground/60" />
           {summaryIsCode ? (
             <code
               className={cn(
@@ -396,8 +397,8 @@ export const ToolActivityStep = React.memo(function ToolActivityStep({
           ) : (
             <span
               className={cn(
-                "w-0 max-w-full min-w-0 flex-1 truncate font-medium",
-                failureLine ? "text-destructive" : "text-muted-foreground",
+                "w-0 max-w-full min-w-0 flex-1 truncate text-sm leading-6 font-normal",
+                failureLine ? "text-destructive" : "text-muted-foreground/70",
               )}
             >
               {summaryText}

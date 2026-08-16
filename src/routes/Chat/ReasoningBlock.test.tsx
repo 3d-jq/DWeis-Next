@@ -62,12 +62,12 @@ describe("ReasoningBlock", () => {
         ),
       )
     })
-    const button = host.querySelector("button")
-    expect(button?.getAttribute("aria-expanded")).toBe("false")
+    const trigger = host.querySelector('[role="button"]')
+    expect(trigger?.getAttribute("aria-expanded")).toBe("false")
     act(() => {
-      button?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+      trigger?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
     })
-    expect(button?.getAttribute("aria-expanded")).toBe("true")
+    expect(trigger?.getAttribute("aria-expanded")).toBe("true")
     expect(host.textContent).toContain("深度思考")
     act(() => root.unmount())
   })
@@ -85,12 +85,12 @@ describe("ReasoningBlock", () => {
         ),
       )
     })
-    const button = host.querySelector("button")
-    expect(button?.getAttribute("aria-expanded")).toBe("false")
+    const trigger = host.querySelector('[role="button"]')
+    expect(trigger?.getAttribute("aria-expanded")).toBe("false")
     act(() => {
-      button?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+      trigger?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
     })
-    expect(button?.getAttribute("aria-expanded")).toBe("true")
+    expect(trigger?.getAttribute("aria-expanded")).toBe("true")
     // 展开区显示完整推理（多行都在）。
     expect(host.textContent).toContain("推理内容")
     act(() => root.unmount())

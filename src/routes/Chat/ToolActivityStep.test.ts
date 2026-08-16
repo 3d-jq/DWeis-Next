@@ -68,7 +68,7 @@ describe("ToolActivityStep", () => {
     })
 
     expect(html).toMatch(/<code class="[^"]*w-0[^"]*max-w-full[^"]*truncate[^"]*"/)
-    expect(html).toContain("group/tool-step flex min-h-6 w-full max-w-full min-w-0 flex-1")
+    expect(html).toContain("group/tool-step flex h-6 w-full max-w-full min-w-0 flex-1")
     expect(html).toContain("w-full max-w-full min-w-0 overflow-hidden rounded-md")
   })
 
