@@ -299,6 +299,8 @@ export default {
     //   getAllWindows 误碰无 overlay 的启动画面调 setTitleBarOverlay 抛错；改为只跟踪登记过
     //   overlay 的主窗口（trackTitleBarOverlayWindow）。
     // build238 = 版本号 1.8.5。
+    // build239 = ①移除 OOMOL 云链路（afdb287）：删 auth/billing/oo-identity/connector 工具等，
+    //   本地自托管模式收敛（约 -21k 行）；②上下文占用更准 + 提问 UI 本地化（c5e7893）。
     // build226 = 版本 1.8.0：①git 工具区补全——创建并检出新分支 + git log --graph 图谱（getGraph IPC）；
     //   ②权限/提问卡片借鉴 deepseek-harness——composer takeover（请求接管输入框位置）+「我想直接说」
     //   讨论第三操作 + tinted strip 彩色顶条。
@@ -306,7 +308,7 @@ export default {
     // build224 = Apple HIG 视觉对齐（c5242cc）：设置页全高侧栏 + 全行图标 + iOS 分段控件、
     //   工具配置改弹窗、用量热力图缩放跟随、权限/提问卡片外壳统一、推理滑块标签对齐、Work/Code
     //   切换 pill、技能页卡片升级；agent workspace 启动 ENOTEMPTY 退避重试（dc2bcd3）。
-    output: "release/build238",
+    output: "release/build239",
   },
   publish: {
     provider: "github",
