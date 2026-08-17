@@ -106,7 +106,7 @@ function CompactionDivider({ phase }: { phase: "compacting" | "resuming" | "done
   )
 }
 
-const ChatTurnView = React.memo(function ChatTurnView({
+export const ChatTurnView = React.memo(function ChatTurnView({
   activeSessionId,
   artifactGroups,
   artifactGroupsByMessageId,
