@@ -29,6 +29,15 @@ export function keepStaleRecords(
   )
 }
 
+/** 消息 id 集是否发生"缩减"（回滚/删除）：新集是旧集的子集且非空。新增消息（发送）不算缩减。 */
+export function isMessageReduction(previousKey: string, nextKey: string): boolean {
+  if (!previousKey || previousKey === nextKey) {
+    return false
+  }
+  const previousIds = new Set(previousKey.split("\n"))
+  return nextKey.split("\n").every((id) => previousIds.has(id))
+}
+
 /**
  * 会话记录资源：key 变化时重新加载。
  * 默认加载期间返回空（隔离旧数据）；传 staleScopeKey 后，同作用域内 key 变化（如同会话追加消息）

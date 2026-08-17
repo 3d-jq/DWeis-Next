@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { keepStaleRecords } from "./session-record-resource.ts"
+import { isMessageReduction, keepStaleRecords } from "./session-record-resource.ts"
 
 describe("keepStaleRecords", () => {
   it("keeps records when the key matches exactly", () => {
@@ -18,5 +18,21 @@ describe("keepStaleRecords", () => {
 
   it("returns false without a stale scope key (original isolation behavior)", () => {
     expect(keepStaleRecords("s1\0m1,m2", "s1\0m1", undefined)).toBe(false)
+  })
+})
+
+describe("isMessageReduction", () => {
+  it("returns false when messages only grow (sending a new message)", () => {
+    expect(isMessageReduction("a\nb", "a\nb\nc")).toBe(false)
+  })
+
+  it("returns true when messages shrink (rollback/undo)", () => {
+    expect(isMessageReduction("a\nb\nc", "a\nb")).toBe(true)
+    expect(isMessageReduction("a\nb", "a")).toBe(true)
+  })
+
+  it("returns false when identical or empty", () => {
+    expect(isMessageReduction("a\nb", "a\nb")).toBe(false)
+    expect(isMessageReduction("", "a")).toBe(false)
   })
 })
