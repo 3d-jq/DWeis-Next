@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "motion/react"
 import * as React from "react"
 import { useT } from "@/i18n/i18n"
 import { cn } from "@/lib/utils"
+import { useThrottledVisualUpdate } from "./use-throttled-visual-update.ts"
 
 function firstLine(text: string): string {
   const newline = text.indexOf("\n")
@@ -20,7 +21,7 @@ function latestLine(text: string): string {
 /**
  * 深度思考折叠行（对齐 deepseek-harness ReasoningRow + DisclosureRow）：
  * [16px 图标槽(hover 显 chevron 预览)] 标题 · 摘要 —— 运行中摘要跟随推理最新一行
- * （横向截断窗口滚到最右、clip 不省略号），完成后显示推理第一行。
+ * （帧节流滚动到最右、clip 不省略号），完成后显示推理第一行。
  * 运行中整行光带扫过（与工具行同一 sweep），文字保持实色。
  * 点击整行展开完整推理（定长内部滚动）。行高 24px 与工具行/状态行对齐。
  */
@@ -33,14 +34,18 @@ export function ReasoningBlock({ part, live = false }: { part: ChatMessagePart; 
   const summaryRef = React.useRef<HTMLSpanElement>(null)
   const summary = streaming ? latestLine(text) : firstLine(text)
 
-  // 运行中摘要跟随最新一行：内容增长时把横向截断窗口滚到最右（完成态回到行首）。
-  React.useLayoutEffect(() => {
+  // 运行中摘要跟随最新一行：帧节流滚动到最右（完成态回到行首）——与 dsh 一致，
+  // 避免流式中每帧同步设置 scrollLeft 造成的横向跳动。
+  const scheduleSummaryScroll = useThrottledVisualUpdate(() => {
     const element = summaryRef.current
     if (element === null) {
       return
     }
     element.scrollLeft = streaming ? element.scrollWidth - element.clientWidth : 0
-  }, [streaming, summary])
+  })
+  React.useEffect(() => {
+    scheduleSummaryScroll()
+  }, [scheduleSummaryScroll, streaming, summary])
 
   return (
     <div className="flex min-w-0 flex-col">
