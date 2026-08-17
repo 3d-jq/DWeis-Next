@@ -75,7 +75,7 @@ export type CodeBlockProps = HTMLAttributes<HTMLDivElement> & {
   showLineNumbers?: boolean
 }
 
-interface TokenizedCode {
+export interface TokenizedCode {
   tokens: ThemedToken[][]
   fg: string
   bg: string

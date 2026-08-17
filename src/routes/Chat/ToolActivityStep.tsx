@@ -34,6 +34,7 @@ import { formatToolOutputPreview, toolOutputPreviewLimitChars } from "./tool-out
 import { isActiveToolPart, isToolCancellation } from "./tool-state.ts"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { useT } from "@/i18n/i18n"
+import { ToolCard } from "./cards/index.tsx"
 import { cn } from "@/lib/utils"
 
 function hasKeys(value: Record<string, unknown> | undefined): boolean {
@@ -448,8 +449,10 @@ export const ToolActivityStep = React.memo(function ToolActivityStep({
           className="overflow-hidden motion-reduce:animate-none"
           onAnimationEnd={handleContentAnimationEnd}
         >
-          {/* IN/OUT 卡（对齐 dsh io-card）：左标签右内容，长内容内部滚动。 */}
-          <div className="ml-7 space-y-2.5 rounded-md border border-[var(--oo-divider)] bg-muted/20 p-2.5 pt-1.5 pb-1">
+          {/* 按工具类型专门渲染（对齐 dsh 各类 Tool 卡）：bash→Terminal、read→ReadBlock、edit→Diff、
+              grep/glob→Search、webfetch/dweis_websearch→Web。其余工具回落到下方通用 IN/OUT 区。 */}
+          <div className="ml-7 space-y-2.5 rounded-md p-0">
+            {detailsVisible ? <ToolCard part={part} running={active} /> : null}
             {detailsVisible && part.tool === "question" && answerSummary ? (
               <ToolIoSection label={t("chat.questionAnswered")}>
                 <ToolPre>{answerSummary}</ToolPre>
@@ -466,7 +469,7 @@ export const ToolActivityStep = React.memo(function ToolActivityStep({
             {detailsVisible && part.error && !stopped && (
               <div className="oo-text-caption text-muted-foreground">{t("chat.toolRecoverableIssue")}</div>
             )}
-            {outputPreview ? (
+            {outputPreview && part.tool !== "bash" && part.tool !== "read" && part.tool !== "edit" && part.tool !== "webfetch" && part.tool !== "dweis_websearch" && part.tool !== "grep" && part.tool !== "glob" ? (
               <motion.div
                 initial={{ opacity: 0, y: 2 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -482,21 +485,21 @@ export const ToolActivityStep = React.memo(function ToolActivityStep({
                 </ToolIoSection>
               </motion.div>
             ) : null}
-            {detailsVisible && part.error && !stopped && (
+            {detailsVisible && part.error && !stopped ? (
               <ToolIoSection label={t("chat.toolError")} tone="error">
                 <ToolPre tone="error">{part.error}</ToolPre>
               </ToolIoSection>
-            )}
-            {detailsVisible && auth?.message && (
+            ) : part.error && !stopped ? null : null}
+            {detailsVisible && auth?.message ? (
               <ToolIoSection label={t("chat.toolError")} tone="error">
                 <ToolPre tone="error">{auth.message}</ToolPre>
               </ToolIoSection>
-            )}
-            {detailsVisible && hasKeys(part.metadata) && (
+            ) : null}
+            {detailsVisible && hasKeys(part.metadata) ? (
               <ToolIoSection label={t("chat.toolMetadata")}>
                 <ToolPre>{formatJson(part.metadata ?? {})}</ToolPre>
               </ToolIoSection>
-            )}
+            ) : null}
             {detailsVisible && part.attachmentsCount ? (
               <div className="oo-text-caption text-muted-foreground">
                 {t("chat.toolAttachments", { count: part.attachmentsCount })}
