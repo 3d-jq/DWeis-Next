@@ -309,6 +309,9 @@ export default {
     //   webfetch/websearch 来源卡；新增 ANSI 解析器 + 12 测试。
     // build242 = 推理块扫光对齐 dsh（828578d）：running = 回合 live 且推理块是 process 段最后一个块，
     //   推理完成/后续工具文本到达即停扫光、摘要切第一行（此前回合未结束推理块一直扫光）。
+    //   含像素级对齐批次：chevron 移到图标槽 hover 替换（2f9597c）、sweep 300px/60%/90% hold、
+    //   标题 secondary 色、通用展开 io-card（12px 圆角+150px 滚动+sticky 标签+hairline）、
+    //   推理行展开后隐藏摘要（c490e00 + ec100a8）。
     // build226 = 版本 1.8.0：①git 工具区补全——创建并检出新分支 + git log --graph 图谱（getGraph IPC）；
     //   ②权限/提问卡片借鉴 deepseek-harness——composer takeover（请求接管输入框位置）+「我想直接说」
     //   讨论第三操作 + tinted strip 彩色顶条。
