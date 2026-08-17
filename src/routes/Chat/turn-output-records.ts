@@ -73,5 +73,5 @@ export function useTurnOutputRecords(sessionId: string | null, messageIdsKey: st
   const onError = React.useCallback((error: unknown): void => {
     console.error("[dweis] getTurnOutputs failed", error)
   }, [])
-  return useSessionRecordResource({ key, load, onError, subscribe })
+  return useSessionRecordResource({ key, load, onError, subscribe, staleScopeKey: sessionId })
 }

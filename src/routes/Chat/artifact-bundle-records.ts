@@ -29,5 +29,5 @@ export function useArtifactBundles(sessionId: string | null, messageIdsKey: stri
   const onError = React.useCallback((error: unknown): void => {
     console.error("[dweis] getArtifactBundles failed", error)
   }, [])
-  return useSessionRecordResource({ key, load, onError, subscribe })
+  return useSessionRecordResource({ key, load, onError, subscribe, staleScopeKey: sessionId })
 }
