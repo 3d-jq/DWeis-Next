@@ -315,6 +315,8 @@ export default {
     // build243 = 版本号 1.9.0。
     // build244 = 专门卡工具展开不再重复显示参数/元数据（503db33，dsh 卡替代 io-card）。
     // build245 = 发送后上方消息抖动修复（8895fee）：同会话 key 变化保留旧产物/输出数据（切会话仍隔离）。
+    // build246 = 产物/输出数据层对齐 dsh 事件驱动（61e5eed）：key 仅依赖会话+强制刷新标记，
+    //   发送新消息不重拉（artifactBundleUpdated/turnOutputUpdated 增量），仅回滚/删除消息缩减时强制重拉纠正。
     // build226 = 版本 1.8.0：①git 工具区补全——创建并检出新分支 + git log --graph 图谱（getGraph IPC）；
     //   ②权限/提问卡片借鉴 deepseek-harness——composer takeover（请求接管输入框位置）+「我想直接说」
     //   讨论第三操作 + tinted strip 彩色顶条。
@@ -322,7 +324,7 @@ export default {
     // build224 = Apple HIG 视觉对齐（c5242cc）：设置页全高侧栏 + 全行图标 + iOS 分段控件、
     //   工具配置改弹窗、用量热力图缩放跟随、权限/提问卡片外壳统一、推理滑块标签对齐、Work/Code
     //   切换 pill、技能页卡片升级；agent workspace 启动 ENOTEMPTY 退避重试（dc2bcd3）。
-    output: "release/build245",
+    output: "release/build246",
   },
   publish: {
     provider: "github",
