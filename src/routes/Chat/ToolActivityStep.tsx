@@ -484,11 +484,11 @@ export const ToolActivityStep = React.memo(function ToolActivityStep({
             {detailsVisible ? <ToolCard part={part} running={active} /> : null}
             {(
               (detailsVisible && part.tool === "question" && answerSummary) ||
-              (detailsVisible && part.tool !== "question" && hasKeys(part.input)) ||
+              (detailsVisible && part.tool !== "question" && hasKeys(part.input) && !isSpecialCardTool) ||
               (detailsVisible && outputPreview && !isSpecialCardTool) ||
               (detailsVisible && part.error && !stopped) ||
               (detailsVisible && auth?.message) ||
-              (detailsVisible && hasKeys(part.metadata)) ||
+              (detailsVisible && hasKeys(part.metadata) && !isSpecialCardTool) ||
               (detailsVisible && part.attachmentsCount)
             ) ? (
               <div className="overflow-hidden rounded-xl border border-[var(--oo-divider)] bg-background/60">
@@ -497,7 +497,9 @@ export const ToolActivityStep = React.memo(function ToolActivityStep({
                     <ToolPre>{answerSummary}</ToolPre>
                   </ToolIoSection>
                 ) : null}
-                {detailsVisible && part.tool !== "question" && hasKeys(part.input) ? (
+                {/* 参数/元数据只对无专门卡的工具显示：bash/read 等已由卡片展示 input，
+                    再叠 JSON 是重复噪音（对齐 dsh：专门卡替代 io-card）。 */}
+                {detailsVisible && part.tool !== "question" && hasKeys(part.input) && !isSpecialCardTool ? (
                   <ToolIoSection label={t("chat.toolParams")}>
                     <ToolPre>{formatJson(part.input ?? {})}</ToolPre>
                   </ToolIoSection>
@@ -527,7 +529,7 @@ export const ToolActivityStep = React.memo(function ToolActivityStep({
                     <ToolPre tone="error">{auth.message}</ToolPre>
                   </ToolIoSection>
                 ) : null}
-                {detailsVisible && hasKeys(part.metadata) ? (
+                {detailsVisible && hasKeys(part.metadata) && !isSpecialCardTool ? (
                   <ToolIoSection label={t("chat.toolMetadata")}>
                     <ToolPre>{formatJson(part.metadata ?? {})}</ToolPre>
                   </ToolIoSection>

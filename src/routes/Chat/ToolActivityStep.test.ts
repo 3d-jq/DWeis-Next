@@ -1,6 +1,10 @@
+// @vitest-environment happy-dom
+
 import type { ChatMessage, ChatMessagePart } from "../../../electron/chat/common.ts"
 
 import * as React from "react"
+import { act } from "react"
+import { createRoot } from "react-dom/client"
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 import { I18nContext, translate } from "../../i18n/i18n.ts"
@@ -89,7 +93,7 @@ describe("ToolActivityStep", () => {
     expect(html).not.toContain("opacity-0 group-hover/tool-step:opacity-100")
     expect(html).not.toContain("wg wikg://lib")
     expect(html).not.toContain("jq .")
-    expect(html).not.toContain("工具参数")
+    expect(html).not.toContain("参数")
     expect(html).not.toContain("工具结果")
     expect(html).not.toContain("lucide-chevron-right")
   })
@@ -511,7 +515,7 @@ describe("ToolActivityStep", () => {
       expect(html).not.toContain("wikigraph-knowledge")
       expect(html).not.toContain("Loaded skill")
       expect(html).not.toContain("wg wikg://lib")
-      expect(html).not.toContain("工具参数")
+      expect(html).not.toContain("参数")
       expect(html).not.toContain("工具结果")
       expect(html).not.toContain("lucide-chevron-right")
     }
@@ -567,7 +571,7 @@ describe("ToolActivityStep", () => {
       expect(html).not.toContain("wg wikg://")
       expect(html).not.toContain("Loaded skill")
       expect(html).not.toContain("wikigraph-knowledge")
-      expect(html).not.toContain("工具参数")
+      expect(html).not.toContain("参数")
       expect(html).not.toContain("工具结果")
       expect(html).not.toContain("lucide-chevron-right")
     }
@@ -853,5 +857,71 @@ describe("ToolActivityStep", () => {
     expect(html).toContain("Ripgrep JSON record exceeded 65536 bytes")
     expect(html).not.toContain("text-amber")
     expect(html).not.toContain("这个步骤没有完成")
+  })
+
+  it("does not repeat params or metadata for tools with a dedicated card", () => {
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+    act(() => {
+      root.render(
+        React.createElement(
+          I18nContext.Provider,
+          { value: { locale: "zh-CN", setLocale: () => undefined, t: (key, vars) => translate("zh-CN", key, vars) } },
+          React.createElement(ToolActivityStep, {
+            part: {
+              kind: "tool",
+              partId: "tool-1",
+              callId: "call-1",
+              tool: "bash",
+              status: "completed",
+              input: { command: "npm test" },
+              output: "PASS",
+              metadata: { truncated: true, count: 100 },
+            },
+          }),
+        ),
+      )
+    })
+    act(() => {
+      host.querySelector('[data-slot="collapsible-trigger"]')?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+    })
+    // 专门卡（bash→TerminalCard）已展示命令；不再叠「参数」「元数据」JSON 区。
+    expect(host.textContent).toContain("npm test")
+    expect(host.textContent).not.toContain("参数")
+    expect(host.textContent).not.toContain("元数据")
+    act(() => root.unmount())
+  })
+
+  it("keeps params and metadata for generic tools without a dedicated card", () => {
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+    act(() => {
+      root.render(
+        React.createElement(
+          I18nContext.Provider,
+          { value: { locale: "zh-CN", setLocale: () => undefined, t: (key, vars) => translate("zh-CN", key, vars) } },
+          React.createElement(ToolActivityStep, {
+            part: {
+              kind: "tool",
+              partId: "tool-1",
+              callId: "call-1",
+              tool: "todo_write",
+              status: "completed",
+              input: { todos: [{ content: "任务" }] },
+              output: "ok",
+              metadata: { count: 1 },
+            },
+          }),
+        ),
+      )
+    })
+    act(() => {
+      host.querySelector('[data-slot="collapsible-trigger"]')?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+    })
+    expect(host.textContent).toContain("参数")
+    expect(host.textContent).toContain("元数据")
+    act(() => root.unmount())
   })
 })
