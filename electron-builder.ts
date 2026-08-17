@@ -304,6 +304,9 @@ export default {
     // build240 = 对话过程区视觉对齐 deepseek-harness（7bca380 + eebeaa2）：思考行折叠摘要跟随
     //   （运行中最新一行/完成首行）+ 整行扫光；工具行单行「标题·摘要」+ 整行扫光 + 错误首行红色
     //   摘要 + IN/OUT 展开卡；处理过程/结果分段与「处理中/已处理+时间」状态条不变。
+    // build241 = 工具展开按类型专门渲染（a127e1d）：bash 终端卡（ANSI 彩色/状态点/复制/头尾截断）、
+    //   read 文件卡（行号 gutter + shiki 高亮 + N/M）、edit diff 卡（+/-计数）、grep/glob 搜索分组卡、
+    //   webfetch/websearch 来源卡；新增 ANSI 解析器 + 12 测试。
     // build226 = 版本 1.8.0：①git 工具区补全——创建并检出新分支 + git log --graph 图谱（getGraph IPC）；
     //   ②权限/提问卡片借鉴 deepseek-harness——composer takeover（请求接管输入框位置）+「我想直接说」
     //   讨论第三操作 + tinted strip 彩色顶条。
@@ -311,7 +314,7 @@ export default {
     // build224 = Apple HIG 视觉对齐（c5242cc）：设置页全高侧栏 + 全行图标 + iOS 分段控件、
     //   工具配置改弹窗、用量热力图缩放跟随、权限/提问卡片外壳统一、推理滑块标签对齐、Work/Code
     //   切换 pill、技能页卡片升级；agent workspace 启动 ENOTEMPTY 退避重试（dc2bcd3）。
-    output: "release/build240",
+    output: "release/build241",
   },
   publish: {
     provider: "github",
