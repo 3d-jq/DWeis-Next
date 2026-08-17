@@ -74,7 +74,8 @@ export function ReasoningBlock({ part, live = false }: { part: ChatMessagePart; 
         <span className="shrink-0 text-sm leading-6 font-normal text-muted-foreground">
           {t("chat.reasoningToggle")}
         </span>
-        {summary ? (
+        {/* dsh keepContentWhenOpen=false：展开后行内摘要隐藏，只留标题；收起时恢复摘要。 */}
+        {!open && summary ? (
           <>
             <span aria-hidden="true" className="mx-2 size-0.5 shrink-0 rounded-full bg-muted-foreground/60" />
             {/* 跟随中 clip（不省略号）+ 手动滚动到最右；完成态省略号截断（dsh summary 样式）。 */}
