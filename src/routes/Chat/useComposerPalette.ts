@@ -146,38 +146,17 @@ export function useComposerPalette({
         focusDraftAt(currentTrigger.start)
         return
       }
-      if (item.action === "compact") {
-        // 动作命令：填入输入框，回车后由提交路径执行（对齐 opencode 命令行 /compact）。
-        dispatch({ type: "replace-trigger", trigger: currentTrigger, replacement: "/compact" })
+      if (item.action === "compact" || item.action === "undo" || item.action === "redo" || item.action === "init" || item.action === "review") {
+        // 动作/模板命令：设置命令 chip（对齐 skill/bug-report），不把 "/命令" 填入输入框——
+        // 避免斜杠触发 palette 弹出、回车被拦截发不出去；回车由提交路径统一执行。
+        dispatch({ type: "select-command", command: item.action })
         focusDraftAt(0)
         return
       }
       if (item.action === "custom" && item.template) {
-        // 自定义命令（.opencode/command/*.md）：输入框只显示命令名（/名称），
-        // 回车后由提交路径把模板作为消息发送（对齐 opencode 命令，不裸露模板）。
-        dispatch({ type: "replace-trigger", trigger: currentTrigger, replacement: `/${item.title}` })
-        focusDraftAt(0)
-        return
-      }
-      if (item.action === "undo") {
-        dispatch({ type: "replace-trigger", trigger: currentTrigger, replacement: "/undo" })
-        focusDraftAt(0)
-        return
-      }
-      if (item.action === "redo") {
-        dispatch({ type: "replace-trigger", trigger: currentTrigger, replacement: "/redo" })
-        focusDraftAt(0)
-        return
-      }
-      if (item.action === "init") {
-        // /init：输入框只显示 /init，回车后提交路径把 init 模板作为消息发送（不裸露模板）。
-        dispatch({ type: "replace-trigger", trigger: currentTrigger, replacement: "/init" })
-        focusDraftAt(0)
-        return
-      }
-      if (item.action === "review") {
-        // /review：输入框只显示 /review，回车后提交路径把审查模板作为消息发送。
-        dispatch({ type: "replace-trigger", trigger: currentTrigger, replacement: "/review" })
+        // 自定义命令（.opencode/command/*.md）：命令 chip 显示 /名称，回车后发送 /名称
+        // 由提交路径解析（模板在服务端注入，不裸露模板）。
+        dispatch({ type: "select-command", command: `custom:${item.title}` })
         focusDraftAt(0)
         return
       }

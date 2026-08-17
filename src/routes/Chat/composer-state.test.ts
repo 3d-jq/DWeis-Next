@@ -99,6 +99,30 @@ describe("composer state", () => {
     expect(composerSubmissionText({ command: null, draft: "ordinary message" })).toBe("ordinary message")
   })
 
+  it("submits template slash commands as /name with optional arguments", () => {
+    expect(composerSubmissionText({ command: "init", draft: "" })).toBe("/init")
+    expect(composerSubmissionText({ command: "init", draft: "帮我梳理" })).toBe("/init 帮我梳理")
+    expect(composerSubmissionText({ command: "review", draft: "" })).toBe("/review")
+    expect(composerSubmissionText({ command: "custom:release-notes", draft: "1.9.0" })).toBe("/release-notes 1.9.0")
+    expect(composerSubmissionText({ command: "compact", draft: "" })).toBe("")
+  })
+
+  it("sets the command chip on select-command without filling the draft", () => {
+    const selected = composerReducer(
+      initialComposerState(),
+      { type: "select-command", command: "compact" },
+    )
+    expect(selected.command).toBe("compact")
+    expect(selected.draft).toBe("")
+    expect(hasComposerDraftContent(selected)).toBe(true)
+    const custom = composerReducer(
+      initialComposerState(),
+      { type: "select-command", command: "custom:release-notes" },
+    )
+    expect(custom.command).toBe("custom:release-notes")
+    expect(composerSubmissionText(custom)).toBe("/release-notes")
+  })
+
   it("inserts voice transcription into the draft at the current cursor", () => {
     const state = composerReducer(
       composerReducer(initialComposerState(), {

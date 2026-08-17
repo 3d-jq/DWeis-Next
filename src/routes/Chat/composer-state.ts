@@ -8,9 +8,21 @@ export type DraftAttachment = ChatAttachment & {
   previewUrl?: string
 }
 
+/** 输入框命令 chip：斜杠动作命令（compact/undo/redo）与模板命令（init/review/自定义）。
+ *  选择后显示 chip（对齐 skill/bug-report），不把 "/命令" 文本填入输入框——避免触发
+ *  斜杠 palette 弹出、回车被拦截发不出去。 */
+export type ComposerCommand =
+  | "bug-report"
+  | "compact"
+  | "init"
+  | "redo"
+  | "review"
+  | "undo"
+  | `custom:${string}`
+
 export interface ComposerState {
   attachments: DraftAttachment[]
-  command: "bug-report" | null
+  command: ComposerCommand | null
   contextMentions: ChatContextMention[]
   dismissedTriggerKey: string | null
   draft: string
@@ -27,6 +39,7 @@ export type ComposerAction =
   | { type: "recall-history"; draft: string }
   | { type: "replace-trigger"; replacement: string; trigger: ComposerTrigger }
   | { type: "reset-after-submit" }
+  | { type: "select-command"; command: ComposerCommand }
   | { type: "select-bug-report"; trigger: ComposerTrigger }
   | { type: "set-dismissed-trigger-key"; key: string | null }
   | { type: "set-draft"; draft: string; selection: { end: number; start: number } }
@@ -96,11 +109,20 @@ export function hasComposerDraftContent(state: ComposerState): boolean {
 }
 
 export function composerSubmissionText(state: Pick<ComposerState, "command" | "draft">): string {
-  if (state.command !== "bug-report") {
-    return state.draft
+  if (state.command === "bug-report") {
+    const note = state.draft.trim()
+    return note ? `${BUG_REPORT_COMMAND} ${note}` : BUG_REPORT_COMMAND
   }
-  const note = state.draft.trim()
-  return note ? `${BUG_REPORT_COMMAND} ${note}` : BUG_REPORT_COMMAND
+  if (state.command === "init" || state.command === "review") {
+    const args = state.draft.trim()
+    return args ? `/${state.command} ${args}` : `/${state.command}`
+  }
+  if (state.command?.startsWith("custom:")) {
+    const name = state.command.slice("custom:".length)
+    const args = state.draft.trim()
+    return args ? `/${name} ${args}` : `/${name}`
+  }
+  return state.draft
 }
 
 export function toCachedComposerState(state: ComposerState): ComposerState {
@@ -180,6 +202,14 @@ export function composerReducer(state: ComposerState, action: ComposerAction): C
         command: "bug-report",
         dismissedTriggerKey: null,
         draft: replaceComposerTrigger(state.draft, action.trigger, ""),
+      }
+    case "select-command":
+      return {
+        ...state,
+        command: action.command,
+        dismissedTriggerKey: null,
+        draft: "",
+        draftSelection: { end: 0, start: 0 },
       }
     case "set-dismissed-trigger-key":
       return { ...state, dismissedTriggerKey: action.key }

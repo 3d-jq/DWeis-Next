@@ -7,14 +7,14 @@ import type {
 } from "../../../electron/chat/common.ts"
 import type { KnowledgeBaseSummary } from "../../../electron/knowledge/common.ts"
 import type { ChatTurnState } from "./chat-turn-state.ts"
-import type { ComposerState } from "./composer-state.ts"
+import type { ComposerCommand, ComposerState } from "./composer-state.ts"
 import type { ArtifactSelection } from "./GeneratedArtifacts.tsx"
 import type { PromptInputMessage } from "@/components/ai-elements/prompt-input"
 import type { ChatSendRequest, ChatSendResult } from "@/components/app-shell/app-shell-model"
 import type { QueuedChatMessage, QueuedMessageMovePlacement } from "@/components/app-shell/chat-queue"
 import type { UserFacingError } from "@/lib/user-facing-error"
 
-import { Bug, Terminal, X } from "lucide-react"
+import { Bug, SquareTerminal, Terminal, X } from "lucide-react"
 import * as React from "react"
 import { AddCustomModelDialog } from "./AddCustomModelDialog.tsx"
 import { AttachmentList } from "./ChatAttachments.tsx"
@@ -64,6 +64,7 @@ import { ErrorNotice } from "@/components/ErrorNotice"
 import { useAppSettings } from "@/hooks/useAppSettings"
 import { useMcpServers } from "@/hooks/useMcpServers"
 import { useMemory } from "@/hooks/useMemory"
+import type { TranslateFn } from "@/i18n/i18n"
 import { useT } from "@/i18n/i18n"
 import { resolveUserFacingError } from "@/lib/user-facing-error"
 import { cn } from "@/lib/utils"
@@ -123,6 +124,25 @@ function trustedComposerInputError(message: string): UserFacingError {
     titleKey: "error.validation.title",
     descriptionKey: "error.validation.description",
     descriptionText: message,
+  }
+}
+
+function composerCommandLabel(t: TranslateFn, command: ComposerCommand): string {
+  switch (command) {
+    case "bug-report":
+      return t("chat.commandBugReport")
+    case "compact":
+      return "/compact"
+    case "init":
+      return "/init"
+    case "redo":
+      return "/redo"
+    case "review":
+      return "/review"
+    case "undo":
+      return "/undo"
+    default:
+      return command.startsWith("custom:") ? `/${command.slice("custom:".length)}` : command
   }
 }
 
@@ -490,8 +510,24 @@ export function ChatComposer({
       }
       return
     }
-    // 斜杠动作命令：输入 /undo /redo /compact 后回车执行（对齐 opencode 命令行）。
-    // palette 选择也会把命令填入输入框，由这里统一执行。
+    // 斜杠命令 chip（palette 选择命令后显示 chip，回车由这里执行）：
+    // 动作命令直接执行；模板命令（init/review/custom）由 composerSubmissionText 生成 "/命令 参数" 发送。
+    if (command === "compact") {
+      onCompact?.()
+      dispatchComposer({ type: "reset-after-submit" })
+      return
+    }
+    if (command === "undo") {
+      onUndo?.()
+      dispatchComposer({ type: "reset-after-submit" })
+      return
+    }
+    if (command === "redo") {
+      onRedo?.()
+      dispatchComposer({ type: "reset-after-submit" })
+      return
+    }
+    // 斜杠动作命令：输入 /undo /redo /compact 后回车执行（对齐 opencode 命令行，手输场景兼容）。
     const trimmedText = text.trim()
     if (trimmedText === "/undo") {
       onUndo?.()
@@ -625,20 +661,24 @@ export function ChatComposer({
       {hasInputAddons ? (
         <PromptInputAttachments>
           <div className="flex max-h-[min(42vh,20rem)] w-full flex-col gap-2 overflow-y-auto pr-1">
-            {command === "bug-report" ? (
+            {command !== null ? (
               <div className="flex w-full flex-wrap gap-2">
                 <span
                   className="oo-border-divider oo-text-body flex h-8 max-w-full min-w-0 items-center gap-2 rounded-lg border bg-background/70 px-2 shadow-xs"
-                  title={t("chat.commandBugReportDescription")}
+                  title={composerCommandLabel(t, command)}
                 >
                   <span className="flex size-5 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                    <Bug className="size-3.5" />
+                    {command === "bug-report" ? (
+                      <Bug className="size-3.5" />
+                    ) : (
+                      <SquareTerminal className="size-3.5" />
+                    )}
                   </span>
-                  <span className="min-w-0 truncate font-medium text-foreground">{t("chat.commandBugReport")}</span>
+                  <span className="min-w-0 truncate font-medium text-foreground">{composerCommandLabel(t, command)}</span>
                   {!composerDisabled ? (
                     <button
                       type="button"
-                      aria-label={t("chat.contextRemove", { name: t("chat.commandBugReport") })}
+                      aria-label={t("chat.contextRemove", { name: composerCommandLabel(t, command) })}
                       className="-mr-1 flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
                       onClick={() => dispatchComposer({ type: "remove-command" })}
                     >
