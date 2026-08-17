@@ -89,7 +89,7 @@ export function TerminalCard({ command, output, running, settledLabel, maxLines,
 
   return (
     <section
-      className="rounded-md border border-[var(--oo-divider)] bg-muted/30 p-2.5 space-y-1.5"
+      className="rounded-xl border border-[var(--oo-divider)] bg-muted/30 p-2.5 space-y-1.5"
       data-tool-state={state}
     >
       {/* 状态行：状态点 + 简短 cwd + 命令 + settled 标签 + 复制 */}

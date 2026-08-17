@@ -81,7 +81,7 @@ export function DiffCard({ output, t }: DiffCardProps) {
   }
 
   return (
-    <section className="rounded-md border border-[var(--oo-divider)] bg-muted/30 p-2.5 space-y-1.5">
+    <section className="rounded-xl border border-[var(--oo-divider)] bg-muted/30 p-2.5 space-y-1.5">
       {/* 状态行：增删计数 + 复制 */}
       <div className="flex items-center gap-2 text-xs">
         <span className="font-mono tabular-nums">

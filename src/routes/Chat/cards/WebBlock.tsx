@@ -36,7 +36,7 @@ export function WebCard({ output, t }: WebCardProps) {
 
   if (results && results.length > 0) {
     return (
-      <section className="rounded-md border border-[var(--oo-divider)] bg-muted/30 p-2.5 space-y-1.5 text-xs">
+      <section className="rounded-xl border border-[var(--oo-divider)] bg-muted/30 p-2.5 space-y-1.5 text-xs">
         <div className="px-1 pb-0.5 text-muted-foreground/60">
           {t("chat.toolAttachments", { count: results.length })}
         </div>
@@ -71,7 +71,7 @@ export function WebCard({ output, t }: WebCardProps) {
   // fallback：截断 pre（webfetch 纯文本/HTML fallback）
   const truncated = output.length > 800
   return (
-    <section className="rounded-md border border-[var(--oo-divider)] bg-muted/30 p-2.5">
+    <section className="rounded-xl border border-[var(--oo-divider)] bg-muted/30 p-2.5">
       <pre className="oo-text-micro max-h-72 overflow-auto rounded bg-background p-2 whitespace-pre-wrap break-words text-muted-foreground">
         {truncated ? `${output.slice(0, 800)}…` : output}
       </pre>

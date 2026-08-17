@@ -142,7 +142,7 @@ export function ReadCard({ output, t }: ReadCardProps) {
   }
 
   return (
-    <section className="rounded-md border border-[var(--oo-divider)] bg-muted/30 p-2.5 space-y-1.5">
+    <section className="rounded-xl border border-[var(--oo-divider)] bg-muted/30 p-2.5 space-y-1.5">
       {/* banner：路径 + N/M + 复制 */}
       <div className="flex items-center gap-2 text-xs">
         <span className="min-w-0 flex-1 truncate font-mono text-muted-foreground">

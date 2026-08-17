@@ -24,7 +24,6 @@ import {
   SquareTerminal,
   Wrench,
 } from "lucide-react"
-import { motion } from "motion/react"
 import * as React from "react"
 import { ImageGenAnimation } from "./ImageGenAnimation.tsx"
 import { shouldShowRunningNoOutput } from "./tool-activity.ts"
@@ -236,7 +235,7 @@ function ToolStepIcon({ part, stopped = false }: { part: ChatMessagePart; stoppe
   return <ToolActionIcon part={part} />
 }
 
-/** IN/OUT 展开卡的一个分区：左侧小标签 + 右侧内容（对齐 dsh io-card 布局）。 */
+/** IN/OUT 展开卡的一个分区（对齐 dsh ioSection）：左标签(sticky) + 右内容，独立滚动 150px。 */
 function ToolIoSection({
   label,
   tone = "default",
@@ -247,16 +246,23 @@ function ToolIoSection({
   children: React.ReactNode
 }) {
   return (
-    <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-2.5">
+    <div className="grid max-h-[150px] grid-cols-[max-content_minmax(0,1fr)] items-start gap-x-3.5 overflow-y-auto px-4 py-3">
       <span
         className={cn(
-          "oo-text-micro pt-1 font-medium tracking-wide text-muted-foreground uppercase",
+          "sticky top-0 text-xs font-medium text-muted-foreground/50 uppercase",
           tone === "error" && "text-destructive",
         )}
       >
         {label}
       </span>
-      <div className={cn("min-w-0", tone === "error" && "text-destructive")}>{children}</div>
+      <div
+        className={cn(
+          "min-w-0 text-[13px] leading-6 whitespace-pre-wrap break-words",
+          tone === "error" ? "text-destructive" : "text-muted-foreground",
+        )}
+      >
+        {children}
+      </div>
     </div>
   )
 }
@@ -265,8 +271,8 @@ function ToolPre({ children, tone = "default" }: { children: string; tone?: "def
   return (
     <pre
       className={cn(
-        "oo-text-micro max-h-56 overflow-auto rounded-md border bg-background p-2.5 whitespace-pre-wrap",
-        tone === "error" && "border-destructive/25 bg-destructive/5 text-destructive",
+        "min-w-0 font-mono text-[13px] leading-6 whitespace-pre-wrap break-words",
+        tone === "error" && "text-destructive",
       )}
     >
       {children}
@@ -312,6 +318,15 @@ export const ToolActivityStep = React.memo(function ToolActivityStep({
   const answerSummary = questionAnswerSummary(part)
   const hideDetails = isWikigraphKnowledgeActivityPart(part)
   const details = !hideDetails && hasToolDetails(part, auth, answerSummary, stopped)
+  // 有专门渲染卡的工具：结果由卡片呈现，通用 IN/OUT 卡不再重复显示输出预览。
+  const isSpecialCardTool =
+    part.tool === "bash" ||
+    part.tool === "read" ||
+    part.tool === "edit" ||
+    part.tool === "webfetch" ||
+    part.tool === "dweis_websearch" ||
+    part.tool === "grep" ||
+    part.tool === "glob"
   const [open, setOpen] = React.useState(false)
   const [detailsVisible, setDetailsVisible] = React.useState(false)
   const outputPreviewRef = React.useRef<{ output: string; text: string; truncated: boolean } | null>(null)
@@ -393,7 +408,7 @@ export const ToolActivityStep = React.memo(function ToolActivityStep({
       <span
         className={cn(
           "min-w-0 shrink-0 truncate text-sm leading-6 font-normal",
-          failureLine ? "text-destructive" : "text-foreground",
+          failureLine ? "text-destructive" : "text-muted-foreground",
         )}
       >
         {displayLine.title}
@@ -464,59 +479,64 @@ export const ToolActivityStep = React.memo(function ToolActivityStep({
           onAnimationEnd={handleContentAnimationEnd}
         >
           {/* 按工具类型专门渲染（对齐 dsh 各类 Tool 卡）：bash→Terminal、read→ReadBlock、edit→Diff、
-              grep/glob→Search、webfetch/dweis_websearch→Web。其余工具回落到下方通用 IN/OUT 区。 */}
-          <div className="ml-7 space-y-2.5 rounded-md p-0">
+              grep/glob→Search、webfetch/dweis_websearch→Web。其余工具回落到下方通用 IN/OUT 卡。 */}
+          <div className="ml-7 space-y-2">
             {detailsVisible ? <ToolCard part={part} running={active} /> : null}
-            {detailsVisible && part.tool === "question" && answerSummary ? (
-              <ToolIoSection label={t("chat.questionAnswered")}>
-                <ToolPre>{answerSummary}</ToolPre>
-              </ToolIoSection>
-            ) : null}
-            {detailsVisible && part.tool !== "question" && hasKeys(part.input) && (
-              <ToolIoSection label={t("chat.toolParams")}>
-                <ToolPre>{formatJson(part.input ?? {})}</ToolPre>
-              </ToolIoSection>
-            )}
-            {detailsVisible && !stopped && shouldShowRunningNoOutput(part) && (
-              <div className="oo-text-caption text-muted-foreground">{t("chat.toolRunningNoOutput")}</div>
-            )}
-            {detailsVisible && part.error && !stopped && (
-              <div className="oo-text-caption text-muted-foreground">{t("chat.toolRecoverableIssue")}</div>
-            )}
-            {outputPreview && part.tool !== "bash" && part.tool !== "read" && part.tool !== "edit" && part.tool !== "webfetch" && part.tool !== "dweis_websearch" && part.tool !== "grep" && part.tool !== "glob" ? (
-              <motion.div
-                initial={{ opacity: 0, y: 2 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.2, ease: "easeOut" }}
-              >
-                <ToolIoSection label={t("chat.toolResult")}>
-                  <ToolPre>{outputPreview.text}</ToolPre>
-                  {outputPreview.truncated ? (
-                    <div className="oo-text-caption text-muted-foreground">
-                      {t("chat.toolResultPreviewTruncated", { limit: toolOutputPreviewLimitChars })}
-                    </div>
-                  ) : null}
-                </ToolIoSection>
-              </motion.div>
-            ) : null}
-            {detailsVisible && part.error && !stopped ? (
-              <ToolIoSection label={t("chat.toolError")} tone="error">
-                <ToolPre tone="error">{part.error}</ToolPre>
-              </ToolIoSection>
-            ) : part.error && !stopped ? null : null}
-            {detailsVisible && auth?.message ? (
-              <ToolIoSection label={t("chat.toolError")} tone="error">
-                <ToolPre tone="error">{auth.message}</ToolPre>
-              </ToolIoSection>
-            ) : null}
-            {detailsVisible && hasKeys(part.metadata) ? (
-              <ToolIoSection label={t("chat.toolMetadata")}>
-                <ToolPre>{formatJson(part.metadata ?? {})}</ToolPre>
-              </ToolIoSection>
-            ) : null}
-            {detailsVisible && part.attachmentsCount ? (
-              <div className="oo-text-caption text-muted-foreground">
-                {t("chat.toolAttachments", { count: part.attachmentsCount })}
+            {(
+              (detailsVisible && part.tool === "question" && answerSummary) ||
+              (detailsVisible && part.tool !== "question" && hasKeys(part.input)) ||
+              (detailsVisible && outputPreview && !isSpecialCardTool) ||
+              (detailsVisible && part.error && !stopped) ||
+              (detailsVisible && auth?.message) ||
+              (detailsVisible && hasKeys(part.metadata)) ||
+              (detailsVisible && part.attachmentsCount)
+            ) ? (
+              <div className="overflow-hidden rounded-xl border border-[var(--oo-divider)] bg-background/60">
+                {detailsVisible && part.tool === "question" && answerSummary ? (
+                  <ToolIoSection label={t("chat.questionAnswered")}>
+                    <ToolPre>{answerSummary}</ToolPre>
+                  </ToolIoSection>
+                ) : null}
+                {detailsVisible && part.tool !== "question" && hasKeys(part.input) ? (
+                  <ToolIoSection label={t("chat.toolParams")}>
+                    <ToolPre>{formatJson(part.input ?? {})}</ToolPre>
+                  </ToolIoSection>
+                ) : null}
+                {detailsVisible && outputPreview && !isSpecialCardTool ? (
+                  <ToolIoSection label={t("chat.toolResult")}>
+                    <ToolPre>{outputPreview.text}</ToolPre>
+                    {outputPreview.truncated ? (
+                      <div className="oo-text-caption mt-1 text-muted-foreground">
+                        {t("chat.toolResultPreviewTruncated", { limit: toolOutputPreviewLimitChars })}
+                      </div>
+                    ) : null}
+                  </ToolIoSection>
+                ) : null}
+                {detailsVisible && !stopped && shouldShowRunningNoOutput(part) ? (
+                  <div className="border-t border-border/60 px-4 py-2 oo-text-caption text-muted-foreground">
+                    {t("chat.toolRunningNoOutput")}
+                  </div>
+                ) : null}
+                {detailsVisible && part.error && !stopped ? (
+                  <ToolIoSection label={t("chat.toolError")} tone="error">
+                    <ToolPre tone="error">{part.error}</ToolPre>
+                  </ToolIoSection>
+                ) : null}
+                {detailsVisible && auth?.message ? (
+                  <ToolIoSection label={t("chat.toolError")} tone="error">
+                    <ToolPre tone="error">{auth.message}</ToolPre>
+                  </ToolIoSection>
+                ) : null}
+                {detailsVisible && hasKeys(part.metadata) ? (
+                  <ToolIoSection label={t("chat.toolMetadata")}>
+                    <ToolPre>{formatJson(part.metadata ?? {})}</ToolPre>
+                  </ToolIoSection>
+                ) : null}
+                {detailsVisible && part.attachmentsCount ? (
+                  <div className="border-t border-border/60 px-4 py-2 oo-text-caption text-muted-foreground">
+                    {t("chat.toolAttachments", { count: part.attachmentsCount })}
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </div>

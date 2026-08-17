@@ -66,7 +66,7 @@ export function SearchCard({ output, t }: SearchCardProps) {
 
   if (parsed.hits.length === 0) {
     return (
-      <section className="rounded-md border border-[var(--oo-divider)] bg-muted/30 p-2.5 text-xs text-muted-foreground">
+      <section className="rounded-xl border border-[var(--oo-divider)] bg-muted/30 p-2.5 text-xs text-muted-foreground">
         {t("chat.toolNoMatches")}
       </section>
     )
@@ -74,7 +74,7 @@ export function SearchCard({ output, t }: SearchCardProps) {
 
   if (parsed.kind === "list") {
     return (
-      <section className="rounded-md border border-[var(--oo-divider)] bg-muted/30 p-2.5 space-y-0.5 text-xs">
+      <section className="rounded-xl border border-[var(--oo-divider)] bg-muted/30 p-2.5 space-y-0.5 text-xs">
         <div className="px-1 pb-1 text-muted-foreground/60">
           {t("chat.toolAttachments", { count: parsed.hits.length })}
         </div>
@@ -88,7 +88,7 @@ export function SearchCard({ output, t }: SearchCardProps) {
   }
 
   return (
-    <section className="rounded-md border border-[var(--oo-divider)] bg-muted/30 p-2.5 space-y-1.5 text-xs">
+    <section className="rounded-xl border border-[var(--oo-divider)] bg-muted/30 p-2.5 space-y-1.5 text-xs">
       {groups.map(([filePath, hits]) => (
         <div key={filePath} className="space-y-0.5">
           <div className="flex items-baseline gap-1.5 px-1 font-mono text-muted-foreground">
