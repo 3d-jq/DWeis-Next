@@ -372,8 +372,23 @@ export const ToolActivityStep = React.memo(function ToolActivityStep({
         running && "oo-row-sweep",
       )}
     >
-      <span className="mr-1.5 flex size-4 shrink-0 items-center justify-center" title={statusText}>
-        <ToolStepIcon part={part} stopped={stopped} />
+      {/* dsh 图标槽：默认显示工具图标，hover 时图标淡出、chevron 预览淡入（与思考行一致）；展开时恒显 chevron。 */}
+      <span
+        className="relative mr-1.5 flex size-4 shrink-0 items-center justify-center text-muted-foreground"
+        title={statusText}
+      >
+        <span className="absolute transition-opacity duration-100 group-hover/tool-step:opacity-0">
+          <ToolStepIcon part={part} stopped={stopped} />
+        </span>
+        {details ? (
+          <ChevronRight
+            className={cn(
+              "absolute size-3.5 transition-[opacity,transform] duration-100 group-hover/tool-step:opacity-100",
+              open ? "rotate-90 opacity-100" : "opacity-0",
+            )}
+            aria-hidden="true"
+          />
+        ) : null}
       </span>
       <span
         className={cn(
@@ -389,7 +404,7 @@ export const ToolActivityStep = React.memo(function ToolActivityStep({
           {summaryIsCode ? (
             <code
               className={cn(
-                "w-0 max-w-full min-w-0 flex-1 truncate rounded bg-muted px-1.5 py-0.5 font-mono text-[0.875em] font-medium",
+                "w-0 max-w-full min-w-0 flex-1 truncate font-mono text-[0.875em] font-medium",
                 failureLine ? "text-destructive" : "text-muted-foreground",
               )}
             >
@@ -431,9 +446,8 @@ export const ToolActivityStep = React.memo(function ToolActivityStep({
     <Collapsible className="w-full max-w-full min-w-0 overflow-hidden" open={open} onOpenChange={handleOpenChange}>
       <div className="w-full max-w-full min-w-0 overflow-hidden rounded-md">
         {details ? (
-          <CollapsibleTrigger className="group/tool-step flex w-full max-w-full min-w-0 items-center justify-between gap-2 overflow-hidden text-left">
+          <CollapsibleTrigger className="group/tool-step flex w-full max-w-full min-w-0 items-center overflow-hidden text-left">
             {row}
-            <ChevronRight className="size-3.5 shrink-0 text-muted-foreground opacity-0 transition-[opacity,transform] group-hover/tool-step:opacity-100 group-focus-visible/tool-step:opacity-100 group-data-[state=open]/tool-step:rotate-90 group-data-[state=open]/tool-step:opacity-100" />
           </CollapsibleTrigger>
         ) : (
           row
