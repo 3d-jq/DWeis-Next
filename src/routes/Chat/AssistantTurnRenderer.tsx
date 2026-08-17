@@ -160,6 +160,9 @@ export function TurnProcessActivity({
   const showLiveStatus = renderModel.showLiveStatus
   const titleText = processStatusText(t, status)
   const settlingPartId = renderModel.settlingPartId
+  // dsh 口径：推理块 running = 回合 live 且它是 process 段最后一个块（推理正在流式写入）。
+  // 推理一完成、后面出现工具/文本块，推理块不再是 last → 扫光停、摘要切第一行。
+  const reasoningStreaming = live && renderBlocks.at(-1)?.kind === "reasoning"
 
   // 状态变化时按偏好更新展开/收起（运行中展开、完成收起，用户手动操作优先）。
   React.useEffect(() => {
@@ -199,6 +202,7 @@ export function TurnProcessActivity({
                 smoothText={false}
                 settlingToolPartId={settlingPartId}
                 liveTools={live}
+                reasoningStreaming={reasoningStreaming}
                 onRecover={onRecover}
                 onRetryFresh={onRetryFresh}
               />
@@ -240,6 +244,7 @@ export function TurnProcessActivity({
               smoothText={false}
               settlingToolPartId={settlingPartId}
               liveTools={live}
+              reasoningStreaming={reasoningStreaming}
               onRecover={onRecover}
               onRetryFresh={onRetryFresh}
             />
@@ -345,6 +350,7 @@ export function AssistantBlock({
   smoothText,
   settlingToolPartId,
   liveTools = true,
+  reasoningStreaming = false,
   onRecover,
   onRetryFresh,
 }: {
@@ -353,6 +359,8 @@ export function AssistantBlock({
   smoothText: boolean
   settlingToolPartId?: string
   liveTools?: boolean
+  /** 推理块是否正在流式写入（dsh：推理块是 process 段最后一个块且回合 live）。 */
+  reasoningStreaming?: boolean
   onRecover?: (kind: ChatErrorKind) => Promise<void> | void
   onRetryFresh?: () => Promise<void> | void
 }) {
@@ -364,7 +372,7 @@ export function AssistantBlock({
           <MessageResponse smooth={smoothText}>{block.part.text}</MessageResponse>
         ) : null
       ) : block.kind === "reasoning" ? (
-        <ReasoningBlock part={block.part} live={liveTools} />
+        <ReasoningBlock part={block.part} live={reasoningStreaming} />
       ) : block.kind === "error" ? (
         <ChatErrorNotice
           errorCode={block.part.errorCode}
