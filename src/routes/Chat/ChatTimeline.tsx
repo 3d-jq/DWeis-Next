@@ -1,4 +1,4 @@
-import type { AssistantActivityEvent, ChatMessage, TurnOutputRecord } from "../../../electron/chat/common.ts"
+import type { AssistantActivityEvent, ChatMessage } from "../../../electron/chat/common.ts"
 import type { ChatErrorKind } from "../../../electron/chat/error.ts"
 import type { ResolvedArtifactGroup } from "./artifact-resolution.ts"
 import type { ChatTurn, ChatTurnRetrySource } from "./chat-turns.ts"
@@ -28,6 +28,8 @@ import {
   summarizeTurnProcess,
   updateChatTurnGrouping,
 } from "./chat-turns.ts"
+import type { ChatTurnViewProps } from "./chat-turn-view-props.ts"
+import { chatTurnViewPropsEqual } from "./chat-turn-view-props.ts"
 import { AssistantMessageActions } from "./ChatMessageActions.tsx"
 import { AssistantTimelineMessage, MessageBubble } from "./ChatMessageBubble.tsx"
 import { LoadingShimmerText } from "./LoadingShimmerText.tsx"
@@ -101,47 +103,6 @@ function CompactionDivider({ phase }: { phase: "compacting" | "resuming" | "done
       )}
       <div className="h-px min-w-4 flex-1 bg-border/70" />
     </div>
-  )
-}
-
-interface ChatTurnViewProps {
-  activeSessionId: string | null
-  artifactGroups: ResolvedArtifactGroup[]
-  artifactGroupsByMessageId: ReadonlyMap<string, ResolvedArtifactGroup[]>
-  turnOutputRecordsByMessage: ReadonlyMap<string, TurnOutputRecord>
-  turnOutputRecord: TurnOutputRecord | null
-  turn: ChatTurn
-  activity: AssistantActivityEvent | null
-  activeAssistantMessageId?: string
-  turnInFlight?: boolean
-  /** 是否为会话最新回合：turnInFlight 是全局状态，只有最新回合才被它算作活跃。 */
-  isLatestTurn?: boolean
-  smoothAssistantMessageId?: string
-  onRecover: (kind: ChatErrorKind, source: ChatTurnRetrySource) => Promise<void>
-  onRetryFresh: (source: ChatTurnRetrySource) => Promise<void>
-  onArtifactsAvailable: (selection: ArtifactSelection) => void
-  onArtifactsOpen: (selection: ArtifactSelection) => void
-  onTurnOutputOpen: (selection: TurnOutputSelection) => void
-}
-
-function chatTurnViewPropsEqual(previous: ChatTurnViewProps, next: ChatTurnViewProps): boolean {
-  return (
-    previous.activeSessionId === next.activeSessionId &&
-    previous.artifactGroups === next.artifactGroups &&
-    previous.artifactGroupsByMessageId === next.artifactGroupsByMessageId &&
-    previous.turnOutputRecordsByMessage === next.turnOutputRecordsByMessage &&
-    previous.turnOutputRecord === next.turnOutputRecord &&
-    previous.turn === next.turn &&
-    previous.activity === next.activity &&
-    previous.activeAssistantMessageId === next.activeAssistantMessageId &&
-    previous.turnInFlight === next.turnInFlight &&
-    previous.isLatestTurn === next.isLatestTurn &&
-    previous.smoothAssistantMessageId === next.smoothAssistantMessageId &&
-    previous.onRecover === next.onRecover &&
-    previous.onRetryFresh === next.onRetryFresh &&
-    previous.onArtifactsAvailable === next.onArtifactsAvailable &&
-    previous.onArtifactsOpen === next.onArtifactsOpen &&
-    previous.onTurnOutputOpen === next.onTurnOutputOpen
   )
 }
 
