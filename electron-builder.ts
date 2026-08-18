@@ -318,6 +318,7 @@ export default {
     // build246 = 产物/输出数据层对齐 dsh 事件驱动（61e5eed）：key 仅依赖会话+强制刷新标记，
     //   发送新消息不重拉（artifactBundleUpdated/turnOutputUpdated 增量），仅回滚/删除消息缩减时强制重拉纠正。
     // build247 = 发消息时上方回合抖动（d568e5f）：ChatTurnView memo 对历史回合忽略 turnInFlight/
+    // build249 = 设置页自定义厂商分组与添加模型预填（e201687）：自建厂商共用 providerId=custom，分组键改 providerId+providerName（否则全部挤进第一个厂商名下）；组内「添加模型」把厂商名预填进对话框（presetProviderName），供应商下拉显示厂商名。
     //   isLatestTurn（只影响最新回合），active/smooth 消息 id 回合级投影；深度思考跟随滚动帧节流（053491d）。
     // build248 = 斜杠命令回车发不出去（a8ad088）：palette 选择命令改命令 chip（对齐 skill/bug-report），
     //   不填 /命令 文本避免触发斜杠 palette 拦截回车；动作命令直执行，模板命令发送 /名称+参数。
@@ -328,7 +329,7 @@ export default {
     // build224 = Apple HIG 视觉对齐（c5242cc）：设置页全高侧栏 + 全行图标 + iOS 分段控件、
     //   工具配置改弹窗、用量热力图缩放跟随、权限/提问卡片外壳统一、推理滑块标签对齐、Work/Code
     //   切换 pill、技能页卡片升级；agent workspace 启动 ENOTEMPTY 退避重试（dc2bcd3）。
-    output: "release/build248",
+    output: "release/build249",
   },
   publish: {
     provider: "github",
