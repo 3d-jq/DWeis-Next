@@ -19,6 +19,7 @@ import { useI18n } from "@/i18n/i18n"
 import { cn } from "@/lib/utils"
 import { AddCustomModelDialog } from "@/routes/Chat/AddCustomModelDialog"
 import { useModelCatalog } from "@/routes/Chat/useModelCatalog"
+import { customModelsByProvider } from "./model-provider-groups.ts"
 
 /** 运行方案概览（本地模式下的模型设置分类页顶部）。 */
 export function RuntimeProfileSummary({ mode }: { mode: OperatingMode | null }) {
@@ -184,9 +185,9 @@ export function ModelSettings({ models }: { models: ReturnType<typeof useModelCa
   const selectedCustomId = selected?.kind === "custom" ? selected.id : null
   const selectedModel =
     selected?.kind === "custom" ? catalog?.customModels.find((item) => item.id === selected.id)?.displayName : undefined
-  const openAdd = (presetProviderId?: string) => {
+  const openAdd = (presetProviderId?: string, presetProviderName?: string) => {
     setEditingModel(undefined)
-    models.openDialog(presetProviderId)
+    models.openDialog(presetProviderId, presetProviderName)
   }
   const openEdit = (model: CustomModelSummary) => {
     setEditingModel(model)
@@ -236,7 +237,7 @@ export function ModelSettings({ models }: { models: ReturnType<typeof useModelCa
                   size="sm"
                   variant="ghost"
                   className="h-7 px-2 text-xs"
-                  onClick={() => openAdd(group.providerId)}
+                  onClick={() => openAdd(group.providerId, group.providerName)}
                 >
                   <PlusIcon className="size-3.5" />
                   {t("settings.modelsAddModel")}
@@ -270,6 +271,7 @@ export function ModelSettings({ models }: { models: ReturnType<typeof useModelCa
         model={editingModel}
         open={models.dialogOpen}
         presetProviderId={models.presetProviderId}
+        presetProviderName={models.presetProviderName}
         providers={catalog?.providers ?? []}
         error={models.dialogError}
         onClose={closeDialog}
@@ -305,22 +307,6 @@ export function ModelSettings({ models }: { models: ReturnType<typeof useModelCa
       </Dialog>
     </section>
   )
-}
-
-/** 自定义模型按 providerId 分组（保持出现顺序）。 */
-function customModelsByProvider(
-  models: CustomModelSummary[],
-): Array<{ providerId: string; providerName: string; models: CustomModelSummary[] }> {
-  const groups: Array<{ providerId: string; providerName: string; models: CustomModelSummary[] }> = []
-  for (const model of models) {
-    let group = groups.find((item) => item.providerId === model.providerId)
-    if (!group) {
-      group = { providerId: model.providerId, providerName: model.providerName, models: [] }
-      groups.push(group)
-    }
-    group.models.push(model)
-  }
-  return groups
 }
 
 /** 供应商显示名：优先用模型记录的 providerName（用户可在编辑模型时自定义），

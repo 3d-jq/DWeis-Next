@@ -95,6 +95,19 @@ function providerDisplayName(provider: CustomModelProvider | undefined, t: Retur
   return provider.displayName
 }
 
+/** 供应商下拉的显示文本：自定义供应商填了名字就显示名字（「在 XX 下添加模型」一眼可见），
+ * 否则回落固定展示名。 */
+function providerSelectorLabel(
+  provider: CustomModelProvider | undefined,
+  providerName: string,
+  t: ReturnType<typeof useT>,
+): string {
+  if (provider?.id === "custom" && providerName.trim()) {
+    return providerName.trim()
+  }
+  return providerDisplayName(provider, t)
+}
+
 function providerDefaultSupportsImages(provider: CustomModelProvider | undefined, modelName: string): boolean {
   const option = provider?.modelOptions?.find((model) => model.id === modelName.trim())
   return option?.supportsImages ?? provider?.supportsImages ?? false
@@ -160,6 +173,7 @@ export function AddCustomModelDialog({
   model,
   open,
   presetProviderId,
+  presetProviderName,
   providers,
   error,
   onClose,
@@ -170,6 +184,8 @@ export function AddCustomModelDialog({
   open: boolean
   /** 从某供应商下"添加模型"时预设的供应商 id（未编辑已有模型时生效）。 */
   presetProviderId?: string | null
+  /** 从某供应商下"添加模型"时预设的供应商名（自定义供应商靠名字区分，必须一起预设）。 */
+  presetProviderName?: string | null
   providers: CustomModelProvider[]
   error: UserFacingError | null
   onClose: () => void
@@ -178,11 +194,11 @@ export function AddCustomModelDialog({
   // 每次打开/切换编辑目标都换 key → 表单完全重挂载 → 状态从 (model, presetProviderId) 干净派生。
   // 历史 bug（DeepSeek 供应商名残留、删模型后 apiKey 状态脏导致"锁住"）都源于打开时未真正重置状态；
   // 重挂载让 useState 初始化器每次打开都执行，杜绝残留。
-  const formKey = open ? `${model?.id ?? "new"}:${presetProviderId ?? "none"}` : "closed"
+  const formKey = open ? `${model?.id ?? "new"}:${presetProviderId ?? "none"}:${presetProviderName ?? "none"}` : "closed"
   return (
     <AddCustomModelForm
       key={formKey}
-      {...{ connectorsEnabled, model, open, presetProviderId, providers, error, onClose, onSave }}
+      {...{ connectorsEnabled, model, open, presetProviderId, presetProviderName, providers, error, onClose, onSave }}
     />
   )
 }
@@ -192,6 +208,7 @@ function AddCustomModelForm({
   model,
   open,
   presetProviderId,
+  presetProviderName,
   providers,
   error,
   onClose,
@@ -201,6 +218,7 @@ function AddCustomModelForm({
   model?: CustomModelSummary
   open: boolean
   presetProviderId?: string | null
+  presetProviderName?: string | null
   providers: CustomModelProvider[]
   error: UserFacingError | null
   onClose: () => void
@@ -213,8 +231,11 @@ function AddCustomModelForm({
   const [providerId, setProviderId] = React.useState(initialProviderId)
   const provider = providers.find((item) => item.id === providerId)
   const initialProvider = providers.find((item) => item.id === initialProviderId)
-  // 供应商名：编辑沿用记录的 providerName（自定义命名）；添加时自定义供应商留空、预设用固定名。
-  const [providerName, setProviderName] = React.useState(model?.providerName ?? providerDefaultName(initialProvider))
+  // 供应商名：编辑沿用记录的 providerName（自定义命名）；添加用预设的厂商名
+  //（自定义供应商靠名字区分，来自设置页该厂商组的"添加模型"）；都没有则自定义留空、预设用固定名。
+  const [providerName, setProviderName] = React.useState(
+    model?.providerName ?? presetProviderName ?? providerDefaultName(initialProvider),
+  )
   const [apiPlanId, setApiPlanId] = React.useState(
     model
       ? (customModelEndpointSelectionForBaseUrl(initialProvider, model.baseUrl)?.apiPlanId ??
@@ -374,7 +395,7 @@ function AddCustomModelForm({
           <Label>{t("chat.modelProvider")}</Label>
           <Select value={providerId} onValueChange={handleProviderChange}>
             <SelectTrigger className={modelDialogControlClass}>
-              <SelectValue />
+              <SelectValue>{providerSelectorLabel(provider, providerName, t)}</SelectValue>
             </SelectTrigger>
             <SelectContent position="popper" className="w-[var(--radix-select-trigger-width)]">
               {providers.map((item) => (

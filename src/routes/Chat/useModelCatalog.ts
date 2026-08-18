@@ -11,10 +11,11 @@ export interface UseModelCatalog {
   dialogOpen: boolean
   dialogError: UserFacingError | null
   presetProviderId: string | null
+  presetProviderName: string | null
   selectionError: UserFacingError | null
   closeDialog: () => void
   deleteModel: (id: string) => void
-  openDialog: (presetProviderId?: string) => void
+  openDialog: (presetProviderId?: string, presetProviderName?: string) => void
   saveModel: (request: SaveCustomModelRequest) => Promise<void>
   selectModel: (choice: ModelChoice) => void
 }
@@ -57,6 +58,7 @@ export function useModelCatalog(): UseModelCatalog {
   const [dialogError, setDialogError] = React.useState<UserFacingError | null>(null)
   const [selectionError, setSelectionError] = React.useState<UserFacingError | null>(null)
   const [presetProviderId, setPresetProviderId] = React.useState<string | null>(null)
+  const [presetProviderName, setPresetProviderName] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     let cancelled = false
@@ -131,9 +133,10 @@ export function useModelCatalog(): UseModelCatalog {
     [modelsService],
   )
 
-  const openDialog = React.useCallback((presetProviderId?: string) => {
+  const openDialog = React.useCallback((presetProviderId?: string, presetProviderName?: string) => {
     setDialogError(null)
     setPresetProviderId(presetProviderId ?? null)
+    setPresetProviderName(presetProviderName ?? null)
     setDialogOpen(true)
   }, [])
 
@@ -141,6 +144,7 @@ export function useModelCatalog(): UseModelCatalog {
     setDialogError(null)
     setDialogOpen(false)
     setPresetProviderId(null)
+    setPresetProviderName(null)
   }, [])
 
   return {
@@ -149,6 +153,7 @@ export function useModelCatalog(): UseModelCatalog {
     dialogOpen,
     dialogError,
     presetProviderId,
+    presetProviderName,
     selectionError,
     closeDialog,
     deleteModel,
