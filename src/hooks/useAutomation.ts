@@ -1,4 +1,4 @@
-import type { AutomationTask, AutomationTaskInput, ParsedTaskDraft } from "../../electron/automation/common.ts"
+import type { AutomationTask, AutomationTaskInput } from "../../electron/automation/common.ts"
 
 import * as React from "react"
 import { useAutomationService } from "../components/AppContext.ts"
@@ -7,14 +7,12 @@ import { reportRendererHandledError } from "../lib/renderer-diagnostics.ts"
 export function useAutomation(): {
   tasks: AutomationTask[]
   loading: boolean
-  /** 输入一句自然语言（如"每天早上9点提醒我喝水"），AI 解析触发规则与指令。 */
-  createTask: (text: string) => Promise<void>
+  /** 结构化创建：表单字段（名称/调度规则/指令）直接落库。 */
+  createTask: (input: AutomationTaskInput) => Promise<void>
   updateTask: (id: string, input: AutomationTaskInput) => Promise<void>
   deleteTask: (id: string) => Promise<void>
   /** 立即手动运行一次（正在运行中时服务端会忽略）。 */
   runTaskNow: (id: string) => Promise<void>
-  /** 只解析不落库：编辑任务时用一句话重新解析调度规则。 */
-  parseTaskDraft: (text: string) => Promise<ParsedTaskDraft | null>
 } {
   const service = useAutomationService()
   const [tasks, setTasks] = React.useState<AutomationTask[]>([])
@@ -43,8 +41,8 @@ export function useAutomation(): {
   }, [service])
 
   const createTask = React.useCallback(
-    async (text: string) => {
-      const next = await service.invoke("createTask", text)
+    async (input: AutomationTaskInput) => {
+      const next = await service.invoke("createTask", input)
       setTasks(next)
     },
     [service],
@@ -74,7 +72,5 @@ export function useAutomation(): {
     [service],
   )
 
-  const parseTaskDraft = React.useCallback((text: string) => service.invoke("parseTaskDraft", text), [service])
-
-  return { createTask, deleteTask, loading, parseTaskDraft, runTaskNow, tasks, updateTask }
+  return { createTask, deleteTask, loading, runTaskNow, tasks, updateTask }
 }

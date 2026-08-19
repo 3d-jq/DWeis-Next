@@ -3,6 +3,8 @@
 export type AutomationSchedule =
   | { kind: "daily"; time: string }
   | { kind: "weekly"; weekdays: number[]; time: string }
+  | { kind: "monthly"; day: number; time: string }
+  | { kind: "hourly"; minute: number }
   | { kind: "interval"; minutes: number }
 
 const WEEKDAY_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
@@ -176,9 +178,15 @@ export function scheduleToCron(schedule: AutomationSchedule): string {
   if (schedule.kind === "interval") {
     return `*/${schedule.minutes} * * * *`
   }
+  if (schedule.kind === "hourly") {
+    return `${schedule.minute} * * * *`
+  }
   const [hour, minute] = schedule.time.split(":").map(Number)
   if (schedule.kind === "daily") {
     return `${minute} ${hour} * * *`
+  }
+  if (schedule.kind === "monthly") {
+    return `${minute} ${hour} ${schedule.day} * *`
   }
   // weekdays 约定 0=周一…6=周日；cron 的星期 0=周日。换算：cronDow = (weekday + 1) % 7。
   const cronDow = [...new Set(schedule.weekdays.map((day) => (day + 1) % 7))].sort((a, b) => a - b)
@@ -354,6 +362,8 @@ export function defaultTimezone(): string {
  * 从 cron 推导展示用结构化规则（有损近似，仅用于 UI 描述；调度始终以 cron 为准）：
  * - "M H * * *" → daily
  * - "M H * * dow" → weekly（星期换算回 0=周一）
+ * - "M H D * *" → monthly（取第一个匹配日期）
+ * - "M * * * *" → hourly
  * - 分钟字段为步进且其余通配 → interval
  * - 其余 → daily（取第一个匹配 时:分）
  */
@@ -370,6 +380,9 @@ export function cronToSchedule(cron: string): AutomationSchedule {
       return { kind: "interval", minutes }
     }
   }
+  if (dayField === "*" && weekdayField === "*" && hourField === "*" && /^\d+$/.test(minuteField ?? "")) {
+    return { kind: "hourly", minute: Number.parseInt(minuteField ?? "0", 10) }
+  }
   if (dayField === "*" && weekdayField === "*") {
     const time = firstTime(hourField, minuteField)
     return { kind: "daily", time }
@@ -381,6 +394,12 @@ export function cronToSchedule(cron: string): AutomationSchedule {
       .sort((a, b) => a - b)
     if (weekdays.length > 0) {
       return { kind: "weekly", weekdays, time: firstTime(hourField, minuteField) }
+    }
+  }
+  if (weekdayField === "*") {
+    const day = parseCronField(dayField, 1, 31)?.[0]
+    if (day) {
+      return { kind: "monthly", day, time: firstTime(hourField, minuteField) }
     }
   }
   return { kind: "daily", time: firstTime(hourField, minuteField) }
@@ -400,6 +419,12 @@ export function describeAutomationSchedule(schedule: AutomationSchedule): string
   }
   if (schedule.kind === "daily") {
     return `每天 ${schedule.time}`
+  }
+  if (schedule.kind === "monthly") {
+    return `每月 ${schedule.day} 日 ${schedule.time}`
+  }
+  if (schedule.kind === "hourly") {
+    return `每小时 ${String(schedule.minute).padStart(2, "0")} 分`
   }
   const days = schedule.weekdays.map((day) => WEEKDAY_NAMES[day]).join("、")
   return `${days} ${schedule.time}`
@@ -422,6 +447,21 @@ export function normalizeAutomationSchedule(value: unknown): AutomationSchedule 
       .sort((a, b) => a - b)
     if (time && weekdays.length > 0) {
       return { kind: "weekly", weekdays, time }
+    }
+    return null
+  }
+  if (record.kind === "monthly" && typeof record.time === "string" && typeof record.day === "number") {
+    const time = normalizeTime(record.time)
+    const day = Math.round(record.day)
+    if (time && Number.isInteger(day) && day >= 1 && day <= 31) {
+      return { kind: "monthly", day, time }
+    }
+    return null
+  }
+  if (record.kind === "hourly" && typeof record.minute === "number") {
+    const minute = Math.round(record.minute)
+    if (Number.isInteger(minute) && minute >= 0 && minute <= 59) {
+      return { kind: "hourly", minute }
     }
     return null
   }

@@ -27,6 +27,11 @@ export interface AutomationTask {
   /** 到点后交给 AI 执行的任务指令。 */
   prompt: string
   enabled: boolean
+  /**
+   * 一次性任务：执行时刻（绝对 ms）。设置后调度器只在该时刻触发一次，
+   * 执行完成（或启动时已过期）自动停用；cron 字段仅作展示近似。
+   */
+  onceAt?: number
   lastRunAt?: number
   lastRunStatus?: AutomationTaskStatus
   /** 执行历史（最近 N 条，含 running 期间的占位记录）。 */
@@ -41,16 +46,8 @@ export interface AutomationTaskInput {
   timezone: string
   prompt: string
   enabled: boolean
-}
-
-/** AI 从用户一句话里解析出的任务草稿；本地兜底解析失败时为 null。 */
-export interface ParsedTaskDraft {
-  name: string
-  scheduleText: string
-  cron: string
-  schedule: AutomationSchedule
-  timezone: string
-  prompt: string
+  /** 一次性任务执行时刻；常规循环任务为 null/undefined。 */
+  onceAt?: number | null
 }
 
 export type AutomationService = typeof AutomationService
@@ -60,13 +57,11 @@ export const AutomationService = serviceName("automation-service") as ServiceNam
   }
   ClientInvokes: {
     listTasks(): Promise<AutomationTask[]>
-    /** 输入是一句自然语言（如"每天早上9点提醒我喝水"），AI 解析触发规则与指令。 */
-    createTask(text: string): Promise<AutomationTask[]>
+    /** 结构化创建：表单字段直接落库（名称/调度规则/指令），无 AI 参与。 */
+    createTask(input: AutomationTaskInput): Promise<AutomationTask[]>
     updateTask(id: string, input: AutomationTaskInput): Promise<AutomationTask[]>
     deleteTask(id: string): Promise<AutomationTask[]>
     /** 立即手动运行一次（不影响原调度；正在运行中时拒绝）。 */
     runTaskNow(id: string): Promise<AutomationTask[]>
-    /** 只解析不落库：编辑任务时用一句话重新解析调度规则。 */
-    parseTaskDraft(text: string): Promise<ParsedTaskDraft | null>
   }
 }>

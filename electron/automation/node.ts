@@ -1,10 +1,4 @@
-import type {
-  AutomationService,
-  AutomationTask,
-  AutomationTaskInput,
-  AutomationRunRecord,
-  ParsedTaskDraft,
-} from "./common.ts"
+import type { AutomationService, AutomationTask, AutomationTaskInput, AutomationRunRecord } from "./common.ts"
 import type { AutomationStore } from "./store.ts"
 import type { IConnectionService } from "@oomol/connection"
 
@@ -17,8 +11,6 @@ export interface AutomationServiceDeps {
   store: AutomationStore
   /** 到点执行任务：创建新会话并让 agent 执行 prompt（结果留在新会话）；返回会话 id。 */
   runTask: (task: AutomationTask) => Promise<string | null>
-  /** 把用户一句话解析成任务草稿（AI 解析 + 本地兜底）；解析失败返回 null。 */
-  parseTaskText: (text: string, signal?: AbortSignal) => Promise<ParsedTaskDraft | null>
 }
 
 /** 保留的历史记录条数上限。 */
@@ -51,6 +43,19 @@ export class AutomationServiceImpl
   public async start(): Promise<void> {
     this.tasks = await this.deps.store.read()
     this.loaded = true
+    // 一次性任务错过触发时刻（应用未运行）则自动停用，不再补偿执行。
+    const now = Date.now()
+    let expired = false
+    this.tasks = this.tasks.map((task) => {
+      if (task.enabled && task.onceAt !== undefined && task.onceAt <= now) {
+        expired = true
+        return { ...task, enabled: false }
+      }
+      return task
+    })
+    if (expired) {
+      await this.deps.store.write(this.tasks)
+    }
     this.rebuildSchedule()
   }
 
@@ -66,12 +71,12 @@ export class AutomationServiceImpl
     return Promise.resolve(this.tasks)
   }
 
-  public async createTask(text: string): Promise<AutomationTask[]> {
-    const draft = await this.deps.parseTaskText(text)
-    if (!draft) {
-      throw new Error("无法解析任务：试试「每天早上9点整理今日待办」这样的说法")
+  public async createTask(input: AutomationTaskInput): Promise<AutomationTask[]> {
+    const task: AutomationTask = {
+      ...normalizeTaskInput(input),
+      id: randomUUID(),
+      enabled: true,
     }
-    const task: AutomationTask = { ...draft, id: randomUUID(), enabled: true }
     this.tasks = [...this.tasks, task]
     await this.persistAndSchedule()
     return this.tasks
@@ -85,7 +90,7 @@ export class AutomationServiceImpl
     const previous = this.tasks[index]
     this.tasks = [
       ...this.tasks.slice(0, index),
-      { ...previous, ...input, id: previous.id },
+      { ...previous, ...normalizeTaskInput(input), id: previous.id },
       ...this.tasks.slice(index + 1),
     ]
     await this.persistAndSchedule()
@@ -105,10 +110,6 @@ export class AutomationServiceImpl
     }
     void this.fireTask(task)
     return this.tasks
-  }
-
-  public parseTaskDraft(text: string): Promise<ParsedTaskDraft | null> {
-    return this.deps.parseTaskText(text)
   }
 
   private async persistAndSchedule(): Promise<void> {
@@ -131,6 +132,20 @@ export class AutomationServiceImpl
   }
 
   private scheduleTask(task: AutomationTask): void {
+    if (task.onceAt !== undefined) {
+      // 一次性任务：直接定时到指定时刻；已过期则不排（start 时已自动停用）。
+      const delay = task.onceAt - Date.now()
+      if (delay <= 0) {
+        return
+      }
+      const timer = setTimeout(() => {
+        this.pendingTimers.delete(task.id)
+        void this.fireTask(task)
+      }, delay)
+      timer.unref()
+      this.pendingTimers.set(task.id, { timer, taskId: task.id })
+      return
+    }
     const next = nextRunAtInTimezone(task.cron, new Date(), task.timezone)
     const delay = Math.max(1_000, next.getTime() - Date.now())
     const timer = setTimeout(() => {
@@ -159,9 +174,16 @@ export class AutomationServiceImpl
       console.warn("[dweis] automation task failed:", task.id, error)
       await this.recordRunResult(task.id, "error")
     }
-    // 任务可能已被删除/停用；仍启用则排下一次。
+    // 任务可能已被删除/停用；仍启用的循环任务排下一次，一次性任务自动停用。
     const current = this.tasks.find((entry) => entry.id === task.id)
-    if (current?.enabled) {
+    if (!current) {
+      return
+    }
+    if (current.onceAt !== undefined) {
+      await this.patchTask(current.id, { enabled: false })
+      return
+    }
+    if (current.enabled) {
       this.scheduleTask(current)
     }
   }
@@ -182,4 +204,27 @@ export class AutomationServiceImpl
       console.warn("[dweis] automation broadcast failed:", error)
     })
   }
+
+  /** 内部局部更新（如一次性任务执行完自动停用）：改字段 + 落库 + 重建调度 + 广播。 */
+  private async patchTask(id: string, patch: Partial<Omit<AutomationTask, "id">>): Promise<void> {
+    const index = this.tasks.findIndex((task) => task.id === id)
+    if (index < 0) return
+    const previous = this.tasks[index]
+    this.tasks = [
+      ...this.tasks.slice(0, index),
+      { ...previous, ...patch, id: previous.id },
+      ...this.tasks.slice(index + 1),
+    ]
+    await this.deps.store.write(this.tasks)
+    this.rebuildSchedule()
+    void this.send("automationChanged", this.tasks).catch((error: unknown) => {
+      console.warn("[dweis] automation broadcast failed:", error)
+    })
+  }
+}
+
+/** onceAt 归一化：null/undefined 统一省略，避免脏字段落库。 */
+function normalizeTaskInput(input: AutomationTaskInput): Omit<AutomationTask, "id"> {
+  const { onceAt, ...rest } = input
+  return onceAt != null ? { ...rest, onceAt } : rest
 }

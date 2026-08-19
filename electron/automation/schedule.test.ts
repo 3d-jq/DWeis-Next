@@ -150,6 +150,12 @@ describe("normalizeAutomationSchedule", () => {
       time: "10:00",
     })
     expect(normalizeAutomationSchedule({ kind: "interval", minutes: 30 })).toEqual({ kind: "interval", minutes: 30 })
+    expect(normalizeAutomationSchedule({ kind: "monthly", day: 15, time: "09:30" })).toEqual({
+      kind: "monthly",
+      day: 15,
+      time: "09:30",
+    })
+    expect(normalizeAutomationSchedule({ kind: "hourly", minute: 30 })).toEqual({ kind: "hourly", minute: 30 })
   })
 
   it("rejects malformed schedule objects", () => {
@@ -160,6 +166,8 @@ describe("normalizeAutomationSchedule", () => {
     expect(normalizeAutomationSchedule({ kind: "interval", minutes: 0 })).toBeNull()
     expect(normalizeAutomationSchedule({ kind: "interval", minutes: 99999 })).toBeNull()
     expect(normalizeAutomationSchedule({ kind: "hourly" })).toBeNull()
+    expect(normalizeAutomationSchedule({ kind: "hourly", minute: 60 })).toBeNull()
+    expect(normalizeAutomationSchedule({ kind: "monthly", day: 32, time: "09:00" })).toBeNull()
   })
 })
 
@@ -168,5 +176,7 @@ describe("describeAutomationSchedule", () => {
     expect(describeAutomationSchedule({ kind: "daily", time: "09:00" })).toBe("每天 09:00")
     expect(describeAutomationSchedule({ kind: "weekly", weekdays: [0, 4], time: "10:00" })).toBe("周一、周五 10:00")
     expect(describeAutomationSchedule({ kind: "interval", minutes: 120 })).toBe("每2小时")
+    expect(describeAutomationSchedule({ kind: "monthly", day: 1, time: "09:00" })).toBe("每月 1 日 09:00")
+    expect(describeAutomationSchedule({ kind: "hourly", minute: 30 })).toBe("每小时 30 分")
   })
 })

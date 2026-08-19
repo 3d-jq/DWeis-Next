@@ -1,7 +1,6 @@
 import type { DWeisReasoningLevel } from "./agent/reasoning.ts"
 import type { AppCommand } from "./app-command.ts"
 import type { AppLocale } from "./app-locale.ts"
-import type { ParsedTaskDraft } from "./automation/common.ts"
 import type { BrowserControlConnection } from "./browser/control-server.ts"
 import type { SubagentModelChoice } from "./settings/common.ts"
 import type { AppUpdateState } from "./update/common.ts"
@@ -52,13 +51,6 @@ import { registerAttachmentDialogHandlers } from "./attachment-dialog-handlers.t
 import { AttentionServiceImpl } from "./attention/node.ts"
 import { AttentionStore } from "./attention/store.ts"
 import { AutomationServiceImpl } from "./automation/node.ts"
-import {
-  cronToSchedule,
-  defaultTimezone,
-  normalizeCron,
-  parseAutomationSchedule,
-  scheduleToCron,
-} from "./automation/schedule.ts"
 import { AutomationStore } from "./automation/store.ts"
 import { branding } from "./branding.ts"
 import { BrowserControlServer } from "./browser/control-server.ts"
@@ -335,25 +327,6 @@ const automationService = new AutomationServiceImpl({
     await agent.promptStreaming(session.id, task.prompt, { mode: "build" })
     return session.id
   },
-  parseTaskText: async (text, signal) => {
-    // AI 解析优先（用户不需要懂任何语法），本地确定性解析兜底。
-    const parsed = await parseTaskTextWithAgent(text, signal)
-    if (parsed) {
-      return parsed
-    }
-    const schedule = parseAutomationSchedule(text)
-    if (schedule) {
-      return {
-        name: taskNameFromText(text),
-        scheduleText: text,
-        cron: scheduleToCron(schedule),
-        schedule,
-        timezone: defaultTimezone(),
-        prompt: text,
-      }
-    }
-    return null
-  },
 })
 const agentRefreshScheduler = new AgentRefreshScheduler({
   canRefresh: () => runtimeInitialized,
@@ -442,57 +415,6 @@ async function runtimeMcpServers(): Promise<NonNullable<Config["mcp"]> | undefin
   return Object.keys(mcp).length > 0 ? mcp : undefined
 }
 
-/** 自动化任务默认名：取用户原话的前一段。 */
-function taskNameFromText(text: string): string {
-  const trimmed = text.trim()
-  return trimmed.length > 24 ? `${trimmed.slice(0, 24)}…` : trimmed
-}
-
-/** AI 解析任务的自然语言描述；AI 不可用 / 输出非法时返回 null。 */
-async function parseTaskTextWithAgent(text: string, signal?: AbortSignal): Promise<ParsedTaskDraft | null> {
-  if (!agent) {
-    return null
-  }
-  const system = [
-    "You are a schedule parser for a desktop AI assistant. The user describes a scheduled automation task in one sentence.",
-    "Reply with ONLY a JSON object, no markdown fences, no commentary, in this exact shape:",
-    "{",
-    '  "name": "short task name (<= 24 chars)",',
-    '  "prompt": "the instruction to execute when triggered, rewritten as a clear directive for an AI assistant",',
-    '  "cron": "standard 5-field cron expression (minute hour day-of-month month day-of-week; day-of-week 0=Sunday, 7=Sunday)"',
-    "}",
-    "Examples:",
-    '"每天早上9点整理今日待办" -> {"name":"整理今日待办","prompt":"整理今天的待办事项清单","cron":"0 9 * * *"}',
-    '"每周一和周五上午10点发周报" -> {"name":"发周报","prompt":"生成并发送本周工作报告","cron":"0 10 * * 1,5"}',
-    '"每30分钟检查一次服务器状态" -> {"name":"检查服务器状态","prompt":"检查服务器运行状态并报告异常","cron":"*/30 * * * *"}',
-    '"每个工作日9点打卡" -> {"name":"打卡","prompt":"完成今日打卡","cron":"0 9 * * 1-5"}',
-    'If the sentence has no time or frequency, reply {"error":"no-schedule"}.',
-  ].join("\n")
-  const answer = await agent.parseStructuredText(system, text, signal)
-  if (!answer) {
-    return null
-  }
-  try {
-    const parsed = JSON.parse(answer.replace(/^```(?:json)?\s*|\s*```$/g, "").trim()) as Record<string, unknown>
-    if (parsed.error || typeof parsed.prompt !== "string" || !parsed.prompt.trim()) {
-      return null
-    }
-    const cron = normalizeCron(parsed.cron)
-    if (!cron) {
-      return null
-    }
-    return {
-      name: typeof parsed.name === "string" && parsed.name.trim() ? parsed.name.trim() : taskNameFromText(text),
-      scheduleText: text,
-      cron,
-      schedule: cronToSchedule(cron),
-      timezone: defaultTimezone(),
-      prompt: parsed.prompt.trim(),
-    }
-  } catch {
-    return null
-  }
-}
 const attentionService: AttentionServiceImpl = new AttentionServiceImpl({
   getLocale: activeLocale,
   getSettings: () => settingsService.current(),
