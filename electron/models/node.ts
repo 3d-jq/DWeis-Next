@@ -17,6 +17,7 @@ import {
   customProviderProtocol,
   isKnownModelChoice,
   sanitizeBaseUrl,
+  sanitizeCustomParams,
   sanitizeOptionalTokenLimit,
 } from "./store.ts"
 
@@ -108,6 +109,12 @@ export class ModelsServiceImpl extends ConnectionService<ModelsService> implemen
           req.reasoningVariants !== undefined
             ? [...req.reasoningVariants]
             : (existing?.reasoningVariants ?? customProviderModelReasoningVariants(provider, modelName)),
+        // 显式传空串表示清除；未传（undefined）沿用已有值；非法 JSON 抛错阻断保存。
+        ...(() => {
+          const raw = req.customParams !== undefined ? req.customParams : existing?.customParams
+          const sanitized = sanitizeCustomParams(raw)
+          return sanitized ? { customParams: sanitized } : {}
+        })(),
       }
       logDiagnostic("models-service", "save custom model", {
         modelName: next.modelName,

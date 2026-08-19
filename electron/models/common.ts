@@ -77,6 +77,8 @@ export interface CustomModelSummary {
   inputTokenLimit?: number
   maxOutputTokens?: number
   reasoningVariants?: readonly DWeisReasoningVariant[]
+  /** 自定义请求参数（JSON object 字符串，透传到 opencode 模型 options）。 */
+  customParams?: string
 }
 
 export type ModelChoice = { kind: "custom"; id: string }
@@ -103,6 +105,8 @@ export interface SaveCustomModelRequest {
   inputTokenLimit?: number
   maxOutputTokens?: number
   reasoningVariants?: readonly DWeisReasoningVariant[]
+  /** 自定义请求参数（JSON object 字符串）；空/未填表示清除。 */
+  customParams?: string
 }
 
 export type ModelsService = typeof ModelsService

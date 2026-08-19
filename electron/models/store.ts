@@ -33,6 +33,8 @@ export interface PersistedCustomModel {
   inputTokenLimit?: number
   maxOutputTokens?: number
   reasoningVariants?: DWeisReasoningVariant[]
+  /** 自定义请求参数（JSON object 字符串，透传到 opencode 模型 options）。 */
+  customParams?: string
 }
 
 export interface RuntimeCustomModel extends PersistedCustomModel {
@@ -342,6 +344,7 @@ export function publicCustomModel(model: PersistedCustomModel): CustomModelSumma
     ...(model.inputTokenLimit ? { inputTokenLimit: model.inputTokenLimit } : {}),
     ...(model.maxOutputTokens ? { maxOutputTokens: model.maxOutputTokens } : {}),
     ...(model.reasoningVariants ? { reasoningVariants: model.reasoningVariants } : {}),
+    ...(model.customParams ? { customParams: model.customParams } : {}),
   }
 }
 
@@ -370,6 +373,24 @@ export function sanitizeOptionalTokenLimit(value: number | undefined, fieldName:
     throw new Error(`${fieldName} must be a positive integer.`)
   }
   return value
+}
+
+/** 校验自定义请求参数：必须可解析为 JSON object（值为 JSON 的扁平键值），返回规范化字符串；空 → undefined。 */
+export function sanitizeCustomParams(value: string | undefined): string | undefined {
+  const trimmed = value?.trim() ?? ""
+  if (!trimmed) {
+    return undefined
+  }
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(trimmed)
+  } catch {
+    throw new Error("Custom params must be a valid JSON object.")
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("Custom params must be a JSON object.")
+  }
+  return JSON.stringify(parsed)
 }
 
 export function isKnownModelChoice(models: PersistedModels, choice: ModelChoice | undefined): choice is ModelChoice {
@@ -542,7 +563,8 @@ function isPersistedCustomModel(value: unknown): value is PersistedCustomModel {
     (model.contextWindow === undefined || isPositiveSafeInteger(model.contextWindow)) &&
     (model.inputTokenLimit === undefined || isPositiveSafeInteger(model.inputTokenLimit)) &&
     (model.maxOutputTokens === undefined || isPositiveSafeInteger(model.maxOutputTokens)) &&
-    (model.reasoningVariants === undefined || isReasoningVariantArray(model.reasoningVariants))
+    (model.reasoningVariants === undefined || isReasoningVariantArray(model.reasoningVariants)) &&
+    (model.customParams === undefined || typeof model.customParams === "string")
   )
 }
 

@@ -11,6 +11,7 @@ import type { UserFacingError } from "@/lib/user-facing-error"
 import { ExternalLink } from "lucide-react"
 import * as React from "react"
 import { DWEIS_REASONING_VARIANT_LEVELS } from "../../../electron/agent/reasoning.ts"
+import { ContextWindowSlider } from "./ContextWindowSlider.tsx"
 import { customModelEndpointSelectionForBaseUrl } from "./custom-model-endpoint-selection.ts"
 import { reasoningLevelLabel } from "./model-control-utils.ts"
 import { ErrorNotice } from "@/components/ErrorNotice"
@@ -158,6 +159,16 @@ function optionalTokenLimit(value: string): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined
 }
 
+/** 自定义参数前端预校验：空/合法 JSON object 返回 true，其余 false（保存仍由主进程兜底校验）。 */
+function isValidJsonObject(value: string): boolean {
+  try {
+    const parsed: unknown = JSON.parse(value)
+    return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
+  } catch {
+    return false
+  }
+}
+
 /** 供应商显示名：自定义供应商默认空（用户输入），预设供应商用固定展示名。 */
 function providerDefaultName(provider: CustomModelProvider | undefined): string {
   if (!provider) {
@@ -194,7 +205,9 @@ export function AddCustomModelDialog({
   // 每次打开/切换编辑目标都换 key → 表单完全重挂载 → 状态从 (model, presetProviderId) 干净派生。
   // 历史 bug（DeepSeek 供应商名残留、删模型后 apiKey 状态脏导致"锁住"）都源于打开时未真正重置状态；
   // 重挂载让 useState 初始化器每次打开都执行，杜绝残留。
-  const formKey = open ? `${model?.id ?? "new"}:${presetProviderId ?? "none"}:${presetProviderName ?? "none"}` : "closed"
+  const formKey = open
+    ? `${model?.id ?? "new"}:${presetProviderId ?? "none"}:${presetProviderName ?? "none"}`
+    : "closed"
   return (
     <AddCustomModelForm
       key={formKey}
@@ -269,6 +282,7 @@ function AddCustomModelForm({
   const [reasoningVariants, setReasoningVariants] = React.useState<DWeisReasoningVariant[]>([
     ...(model?.reasoningVariants ?? providerDefaultReasoningVariants(initialProvider, model?.modelName ?? "")),
   ])
+  const [customParams, setCustomParams] = React.useState(model?.customParams ?? "")
   const [protocol, setProtocol] = React.useState<ModelProtocol>(
     model?.protocol ?? providerDefaultProtocol(initialProvider, model?.modelName ?? ""),
   )
@@ -336,11 +350,14 @@ function AddCustomModelForm({
     setBaseUrl(next.baseUrl)
   }
 
+  const trimmedCustomParams = customParams.trim()
+  const customParamsInvalid = trimmedCustomParams ? isValidJsonObject(trimmedCustomParams) === false : false
   const canSave = Boolean(
     providerId &&
     (apiKey.trim() || model?.apiKeyConfigured) &&
     modelName.trim() &&
-    (!(provider?.requiresBaseUrl ?? true) || baseUrl.trim()),
+    (!(provider?.requiresBaseUrl ?? true) || baseUrl.trim()) &&
+    !customParamsInvalid,
   )
   const toggleReasoningVariant = (variant: DWeisReasoningVariant, checked: boolean): void => {
     setReasoningVariants((current) =>
@@ -365,6 +382,8 @@ function AddCustomModelForm({
       maxOutputTokens: optionalTokenLimit(maxOutputTokens),
       reasoningVariants,
       protocol,
+      // 显式传值（含空串）以便编辑时清除已有自定义参数。
+      customParams: trimmedCustomParams || "",
     })
       .catch((cause: unknown) => {
         reportRendererHandledError("model", "custom model save failed", cause)
@@ -579,18 +598,15 @@ function AddCustomModelForm({
             <span className="oo-text-caption text-muted-foreground">{t("chat.modelTokenLimitsDescription")}</span>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className="grid gap-1.5">
+            <div className="grid gap-1.5 sm:col-span-2">
               <Label htmlFor={contextWindowId}>{t("chat.modelContextWindow")}</Label>
-              <Input
+              <ContextWindowSlider
                 id={contextWindowId}
-                value={contextWindow}
-                onChange={(event) => setContextWindow(event.target.value)}
-                inputMode="numeric"
-                placeholder={t("chat.modelOptionalTokenPlaceholder")}
-                className={modelDialogControlClass}
+                value={optionalTokenLimit(contextWindow) ?? null}
+                onChange={(next) => setContextWindow(next === null ? "" : String(next))}
               />
             </div>
-            <div className="grid gap-1.5">
+            <div className="grid content-start gap-1.5">
               <Label htmlFor={inputTokenLimitId}>{t("chat.modelInputTokenLimit")}</Label>
               <Input
                 id={inputTokenLimitId}
@@ -601,6 +617,8 @@ function AddCustomModelForm({
                 className={modelDialogControlClass}
               />
             </div>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="grid gap-1.5">
               <Label htmlFor={maxOutputTokensId}>{t("chat.modelMaxOutputTokens")}</Label>
               <Input
@@ -633,6 +651,24 @@ function AddCustomModelForm({
               </label>
             ))}
           </div>
+        </div>
+
+        <div className="grid gap-2 rounded-md border border-border/70 px-3 py-2.5">
+          <div className="grid gap-1">
+            <span className="oo-text-label">{t("chat.modelCustomParams")}</span>
+            <span className="oo-text-caption text-muted-foreground">{t("chat.modelCustomParamsDescription")}</span>
+          </div>
+          <textarea
+            value={customParams}
+            onChange={(event) => setCustomParams(event.target.value)}
+            rows={3}
+            spellCheck={false}
+            placeholder={'{\n  "reasoning_effort": "high"\n}'}
+            className="w-full resize-y rounded-md border border-input bg-transparent px-2.5 py-1.5 font-mono text-sm whitespace-pre outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          />
+          {customParamsInvalid ? (
+            <span className="oo-text-caption text-destructive">{t("chat.modelCustomParamsInvalid")}</span>
+          ) : null}
         </div>
 
         {error ? <ErrorNotice error={error} compact /> : null}

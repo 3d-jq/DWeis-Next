@@ -9,17 +9,18 @@ import type { LucideIcon } from "lucide-react"
 import { BotIcon, BrainCircuitIcon, PencilIcon, PlusIcon, SearchIcon, ServerIcon, Trash2Icon } from "lucide-react"
 import * as React from "react"
 import { DWEIS_REASONING_VARIANT_LEVELS, opencodeReasoningVariant } from "../../../electron/agent/reasoning.ts"
+import { customModelsByProvider, filterProviderGroups } from "./model-provider-groups.ts"
 import { SettingsItem } from "./settings-section.tsx"
 import { ErrorNotice } from "@/components/ErrorNotice"
 import { Button } from "@/components/ui/button"
 import { Dialog } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAppSettings } from "@/hooks/useAppSettings"
 import { useI18n } from "@/i18n/i18n"
 import { cn } from "@/lib/utils"
 import { AddCustomModelDialog } from "@/routes/Chat/AddCustomModelDialog"
 import { useModelCatalog } from "@/routes/Chat/useModelCatalog"
-import { customModelsByProvider } from "./model-provider-groups.ts"
 
 /** 运行方案概览（本地模式下的模型设置分类页顶部）。 */
 export function RuntimeProfileSummary({ mode }: { mode: OperatingMode | null }) {
@@ -180,6 +181,8 @@ export function ModelSettings({ models }: { models: ReturnType<typeof useModelCa
   const { t } = useI18n()
   const [editingModel, setEditingModel] = React.useState<CustomModelSummary | undefined>()
   const [deletingModel, setDeletingModel] = React.useState<CustomModelSummary | null>(null)
+  const [search, setSearch] = React.useState("")
+  const [activeGroupKey, setActiveGroupKey] = React.useState<string | null>(null)
   const catalog = models.catalog
   const selected = catalog?.selected
   const selectedCustomId = selected?.kind === "custom" ? selected.id : null
@@ -197,6 +200,18 @@ export function ModelSettings({ models }: { models: ReturnType<typeof useModelCa
     setEditingModel(undefined)
     models.closeDialog()
   }
+
+  // 左右分栏数据：全量分组（选中态基准）+ 搜索过滤后的分组（列表展示）。
+  const groups = React.useMemo(() => (catalog ? customModelsByProvider(catalog.customModels) : []), [catalog])
+  const filteredGroups = React.useMemo(() => filterProviderGroups(groups, search), [groups, search])
+  // 选中组回落链：用户选中 → 当前选中模型所在组 → 第一个组。
+  const selectedGroupKey = React.useMemo<string | null>(() => {
+    const owningKey: string | undefined = selectedCustomId
+      ? groups.find((group) => group.models.some((model) => model.id === selectedCustomId))?.key
+      : undefined
+    return activeGroupKey ?? owningKey ?? groups[0]?.key ?? null
+  }, [activeGroupKey, groups, selectedCustomId])
+  const activeGroup = filteredGroups.find((group) => group.key === selectedGroupKey) ?? null
 
   return (
     <section className="grid gap-4 border-b border-[var(--oo-divider)] px-4 py-4 last:border-b-0">
@@ -223,27 +238,71 @@ export function ModelSettings({ models }: { models: ReturnType<typeof useModelCa
         </Button>
       </div>
 
-      {catalog ? (
-        <div className="grid gap-3">
-          {/* 自定义模型按供应商分组：先供应商，供应商下再模型 */}
-          {customModelsByProvider(catalog.customModels).map((group) => (
-            <div key={group.providerId} className="grid gap-1.5">
+      {catalog && groups.length > 0 ? (
+        <div className="grid gap-4 md:grid-cols-[13rem_minmax(0,1fr)]">
+          {/* 左：厂商列表（搜索 + 选中切换） */}
+          <div className="grid content-start gap-2 md:border-r md:border-[var(--oo-divider)] md:pr-4">
+            <div className="relative">
+              <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder={t("settings.modelsSearchPlaceholder")}
+                className="h-8 pl-8 text-sm"
+              />
+            </div>
+            <div className="grid max-h-72 content-start gap-1 overflow-y-auto">
+              {filteredGroups.map((group) => {
+                const active = group.key === selectedGroupKey
+                return (
+                  <button
+                    key={group.key}
+                    type="button"
+                    className={cn(
+                      "flex min-w-0 items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 text-left transition-colors",
+                      active ? "border-primary/40 bg-primary/[0.035]" : "border-transparent hover:bg-muted/60",
+                    )}
+                    onClick={() => setActiveGroupKey(group.key)}
+                  >
+                    <span
+                      className={cn(
+                        "oo-text-caption-compact truncate font-medium",
+                        active ? "text-foreground" : "text-muted-foreground",
+                      )}
+                    >
+                      {providerDisplayName(catalog.providers, group.providerId, group.providerName)}
+                    </span>
+                    <span className="oo-text-micro shrink-0 text-muted-foreground">{group.models.length}</span>
+                  </button>
+                )
+              })}
+              {filteredGroups.length === 0 ? (
+                <p className="oo-text-caption px-2.5 py-3 text-center text-muted-foreground">
+                  {t("settings.modelsNoMatch")}
+                </p>
+              ) : null}
+            </div>
+          </div>
+
+          {/* 右：选中厂商的模型列表 */}
+          {activeGroup ? (
+            <div className="grid content-start gap-1.5">
               <div className="flex items-center justify-between gap-2">
                 <p className="oo-text-caption-compact font-medium text-muted-foreground">
-                  {providerDisplayName(catalog.providers, group.providerId, group.providerName)}
+                  {providerDisplayName(catalog.providers, activeGroup.providerId, activeGroup.providerName)}
                 </p>
                 <Button
                   type="button"
                   size="sm"
                   variant="ghost"
                   className="h-7 px-2 text-xs"
-                  onClick={() => openAdd(group.providerId, group.providerName)}
+                  onClick={() => openAdd(activeGroup.providerId, activeGroup.providerName)}
                 >
                   <PlusIcon className="size-3.5" />
                   {t("settings.modelsAddModel")}
                 </Button>
               </div>
-              {group.models.map((model) => (
+              {activeGroup.models.map((model) => (
                 <ModelRow
                   key={model.id}
                   active={selectedCustomId === model.id}
@@ -255,12 +314,11 @@ export function ModelSettings({ models }: { models: ReturnType<typeof useModelCa
                 />
               ))}
             </div>
-          ))}
-          {catalog.customModels.length === 0 ? (
-            <div className="rounded-lg border border-dashed px-3 py-4 text-center">
-              <p className="oo-text-caption">{t("settings.modelsEmpty")}</p>
-            </div>
           ) : null}
+        </div>
+      ) : catalog && catalog.customModels.length === 0 ? (
+        <div className="rounded-lg border border-dashed px-3 py-4 text-center">
+          <p className="oo-text-caption">{t("settings.modelsEmpty")}</p>
         </div>
       ) : null}
 

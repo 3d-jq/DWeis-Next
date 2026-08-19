@@ -1,7 +1,7 @@
 import type { CustomModelSummary } from "../../../electron/models/common.ts"
 
 import { describe, expect, it } from "vitest"
-import { customModelsByProvider } from "./model-provider-groups.ts"
+import { customModelsByProvider, filterProviderGroups } from "./model-provider-groups.ts"
 
 function model(overrides: Partial<CustomModelSummary>): CustomModelSummary {
   return {
@@ -48,5 +48,40 @@ describe("customModelsByProvider", () => {
     ])
     expect(groups.map((group) => group.providerName)).toEqual(["厂商A", "厂商B"])
     expect(groups[0]?.models.map((item) => item.id)).toEqual(["a1", "a2"])
+  })
+})
+
+describe("filterProviderGroups", () => {
+  const groups = customModelsByProvider([
+    model({ id: "d1", providerId: "deepseek", providerName: "DeepSeek", displayName: "DeepSeek Chat" }),
+    model({ id: "d2", providerId: "deepseek", providerName: "DeepSeek", displayName: "DeepSeek Reasoner" }),
+    model({ id: "c1", providerId: "custom", providerName: "我的厂商", displayName: "My Model" }),
+  ])
+
+  it("returns all groups unchanged for an empty query", () => {
+    expect(filterProviderGroups(groups, "")).toEqual(groups)
+    expect(filterProviderGroups(groups, "   ")).toEqual(groups)
+  })
+
+  it("keeps the whole group when the provider name matches", () => {
+    const filtered = filterProviderGroups(groups, "deepseek")
+    expect(filtered).toHaveLength(1)
+    expect(filtered[0]?.models).toHaveLength(2)
+  })
+
+  it("filters to matching models when only a model name matches", () => {
+    const filtered = filterProviderGroups(groups, "reasoner")
+    expect(filtered).toHaveLength(1)
+    expect(filtered[0]?.models.map((item) => item.id)).toEqual(["d2"])
+  })
+
+  it("matches custom vendor names in Chinese", () => {
+    const filtered = filterProviderGroups(groups, "我的")
+    expect(filtered).toHaveLength(1)
+    expect(filtered[0]?.providerName).toBe("我的厂商")
+  })
+
+  it("returns nothing when no provider or model matches", () => {
+    expect(filterProviderGroups(groups, "不存在")).toEqual([])
   })
 })

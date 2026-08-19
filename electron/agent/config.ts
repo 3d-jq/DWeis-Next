@@ -40,6 +40,8 @@ export interface OpencodeCustomModel {
   inputTokenLimit?: number
   maxOutputTokens?: number
   reasoningVariants?: readonly DWeisReasoningVariant[]
+  /** 自定义请求参数（JSON object 字符串），解析后注入 opencode 模型 options（如 reasoning_effort）。 */
+  customParams?: string
 }
 
 // 内置工具全部启用；本地 shell、写入和越出私有 scratch workspace 的路径访问经 permission ask
@@ -196,6 +198,7 @@ function customProviderConfig(model: OpencodeCustomModel): NonNullable<Config["p
         reasoningVariants: customReasoningVariants(model),
         supportsImages: model.supportsImages === true,
         toolCall: model.supportsToolCalls !== false,
+        customParams: parseCustomParams(model.customParams),
       }),
     },
   }
@@ -209,6 +212,7 @@ function modelCapabilities({
   reasoningVariants,
   supportsImages,
   toolCall,
+  customParams,
 }: {
   name: string
   contextWindow?: number
@@ -217,6 +221,7 @@ function modelCapabilities({
   reasoningVariants?: Record<string, OpencodeReasoningVariantConfig>
   supportsImages: boolean
   toolCall: boolean
+  customParams?: Record<string, unknown>
 }): OpencodeModelConfig {
   const limitContext = contextWindow ?? inputTokenLimit
   const limit = limitContext
@@ -245,7 +250,25 @@ function modelCapabilities({
           },
         }
       : {}),
+    // 自定义请求参数原样透传给 AI SDK（进请求 body）；保存时已校验为 JSON object。
+    ...(customParams ? { options: customParams } : {}),
   }
+}
+
+/** 解析持久化的 customParams JSON 字符串；非法（历史脏数据）时忽略并告警。 */
+function parseCustomParams(value: string | undefined): Record<string, unknown> | undefined {
+  if (!value?.trim()) {
+    return undefined
+  }
+  try {
+    const parsed: unknown = JSON.parse(value)
+    if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>
+    }
+  } catch {
+    // 保存路径已校验；此分支只兜历史脏数据。
+  }
+  return undefined
 }
 
 function customReasoningVariants(
