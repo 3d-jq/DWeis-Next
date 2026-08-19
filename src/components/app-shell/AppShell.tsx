@@ -965,18 +965,23 @@ export function AppShell() {
     },
     [closeBrowserPanel, closeTabById, rightPanelTabs, setArtifactsPanelOpen],
   )
-  // 标签栏"+"：手动打开当前会话的浏览器标签。走 navigate → 主进程 browserRequested →
-  // 现有自动打开链路（面板展开 + tab 建 + 状态就绪），无需额外接线。
+  // 标签栏"+"：手动打开当前会话的浏览器标签。browserRequested 只在 AI 工具链路（execute）
+  // 触发，渲染层直接 invoke 不会驱动面板展开，所以这里直接建 tab + 展开面板；
+  // BrowserPanel 挂载后自行 invoke show，主进程 ensurePage 创建并显示页面。
   const handleAddRightPanelTab = React.useCallback((): void => {
     if (!activeChatSessionId) {
       return
     }
-    void browserService
-      .invoke("navigate", { sessionId: activeChatSessionId, url: "about:blank" })
-      .catch((cause: unknown) => {
+    openBrowser(activeChatSessionId)
+    setArtifactsPanelOpen(true)
+    // BrowserPanel 挂载要求 browserState 就绪，而它靠 stateChanged 事件回填；会话还没有
+    // 页面时用 loadBlank 拉起（ensurePage + emitState 闭环），已有页面则不重置。
+    if (browserState?.sessionId !== activeChatSessionId) {
+      void browserService.invoke("loadBlank", activeChatSessionId).catch((cause: unknown) => {
         reportRendererHandledError("browser", "open new browser tab failed", cause)
       })
-  }, [activeChatSessionId, browserService])
+    }
+  }, [activeChatSessionId, browserService, browserState, openBrowser, setArtifactsPanelOpen])
   // 加号菜单（对齐 LobsterAI artifactAddTab）：按类型选择打开的标签；不可用项置灰并说明原因，
   // 草稿态（无活跃会话）点开也有明确反馈，不再静默无响应。
   const addTabOptions = React.useMemo<AddTabOption[]>(() => {
