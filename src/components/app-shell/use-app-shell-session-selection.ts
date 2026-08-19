@@ -46,7 +46,9 @@ export function useAppShellSessionSelection({
   selectSession: (session: SessionInfo) => void
 } {
   const [selectedSessionId, setSelectedSessionId] = React.useState<string | null>(null)
-  const [isDraftSession, setIsDraftSession] = React.useState(false)
+  // 启动默认进入「新建对话」草稿界面，不自动恢复上次/最近的会话——
+  // 用户明确"重启打开全新界面"。选中具体会话后进入会话视图。
+  const [isDraftSession, setIsDraftSession] = React.useState(true)
   const [draftPermissionMode, setDraftPermissionMode] = React.useState<AgentPermissionMode>("default")
   const [draftKnowledgeBaseIds, setDraftKnowledgeBaseIds] = React.useState<string[]>([])
   const [draftProjectId, setDraftProjectId] = React.useState<string | null>(null)
