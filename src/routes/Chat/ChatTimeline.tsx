@@ -11,6 +11,7 @@ import type { StickToBottomContext } from "use-stick-to-bottom"
 
 import * as React from "react"
 import { useArtifactBundles } from "./artifact-bundle-records.ts"
+import { lastDisplayableArtifactGroup } from "./artifact-metadata.ts"
 import { shouldRenderGeneratedArtifactsShelf } from "./artifact-shelf-visibility.ts"
 import {
   assistantMessagesFromTimelineBlocks,
@@ -32,6 +33,7 @@ import {
 } from "./chat-turns.ts"
 import { AssistantMessageActions } from "./ChatMessageActions.tsx"
 import { AssistantTimelineMessage, MessageBubble } from "./ChatMessageBubble.tsx"
+import { ChatNavRail } from "./ChatNavRail.tsx"
 import { LoadingShimmerText } from "./LoadingShimmerText.tsx"
 import { assistantResponseActionTextByMessageId } from "./message-text.ts"
 import { hasStoppedTool } from "./tool-state.ts"
@@ -422,6 +424,43 @@ export const ChatTimeline = React.memo(function ChatTimeline({
     artifactGroupsByTurnIdRef.current = artifactGroupsByTurnId
   }, [artifactGroupsByTurnId])
   const latestArtifactGroupMessageId = visibleArtifactGroups.at(-1)?.messageId
+  // 会话级成果可用性：以整个会话的产物合集通知右侧面板。重启/切换会话后"成果"入口
+  // 立即可用（不依赖流式期间的通知），且打开即为全量文件列表（对齐 LobsterAI 文件列表）。
+  // ref 去重：visibleArtifactGroups 引用随父级重渲染变化，不能每次都触发 onArtifactsAvailable。
+  const sessionArtifactsNotifiedKeyRef = React.useRef<string | null>(null)
+  React.useEffect(() => {
+    const displayable = lastDisplayableArtifactGroup(visibleArtifactGroups)
+    if (!displayable) {
+      return
+    }
+    const key = `${displayable.resolved.messageId}:${displayable.displayItem.path}:${visibleArtifactGroups.length}`
+    if (sessionArtifactsNotifiedKeyRef.current === key) {
+      return
+    }
+    sessionArtifactsNotifiedKeyRef.current = key
+    onArtifactsAvailable({
+      messageId: displayable.resolved.messageId,
+      group: displayable.resolved.group,
+      groups: visibleArtifactGroups,
+      ...(displayable.resolved.pack ? { pack: displayable.resolved.pack } : {}),
+      selectedPath: displayable.displayItem.path,
+    })
+  }, [visibleArtifactGroups, onArtifactsAvailable])
+  const chatNavRailItems = React.useMemo(
+    () =>
+      turns.flatMap((turn) => {
+        if (turn.internal) {
+          return []
+        }
+        const label = (turn.user?.parts ?? [])
+          .filter((part) => part.kind === "text")
+          .map((part) => part.text ?? "")
+          .join(" ")
+          .trim()
+        return [{ turnId: turn.id, label }]
+      }),
+    [turns],
+  )
   React.useEffect(() => {
     if (latestTurnOutputRecord) {
       onTurnOutputAvailable({
@@ -449,54 +488,64 @@ export const ChatTimeline = React.memo(function ChatTimeline({
   }, [isGenerating, messages])
 
   return (
-    <Conversation className="min-h-0 flex-1" contextRef={conversationRef}>
-      <ConversationContent
-        data-selectable="true"
-        className={cn("mx-auto min-h-full w-full gap-4 px-4 pt-7 pb-9", CHAT_CONTENT_MAX_WIDTH_CLASS)}
-        scrollClassName="oo-scrollbar-gutter-stable"
-      >
-        {turns.map((turn, index) => {
-          // 内部消息（压缩 summary）turn：渲染为永久「已完成上下文压缩」分隔线，
-          // 不渲染消息内容（对齐 opencode 留在对话流的 summary 元信息行）。
-          if (turn.internal) {
-            return <CompactionDivider key={turn.id} phase="done" />
-          }
-          const turnArtifactGroups = artifactGroupsByTurnId.get(turn.id) ?? EMPTY_ARTIFACT_GROUPS
-          const publishArtifactAvailability =
-            turnArtifactGroups.length > 0 &&
-            turn.assistants.some((message) => message.id === latestArtifactGroupMessageId)
-          const turnActiveAssistantMessageId = chatTurnHasAssistantMessage(turn, activeAssistantMessageId)
-            ? activeAssistantMessageId
-            : undefined
-          const turnSmoothAssistantMessageId = chatTurnHasAssistantMessage(turn, smoothAssistantMessageId)
-            ? smoothAssistantMessageId
-            : undefined
-          return (
-            <div key={turn.id} className="oo-chat-turn-render-boundary grid min-w-0 gap-4">
-              <ChatTurnView
-                activeSessionId={activeSessionId}
-                artifactGroups={turnArtifactGroups}
-                artifactGroupsByMessageId={artifactGroupsByMessageId}
-                turnOutputRecordsByMessage={turnOutputRecordsByMessage}
-                turn={turn}
-                turnOutputRecord={turnOutputRecordsByTurn.get(turn.id) ?? null}
-                activity={activityForChatTurn(turn, activity, activeAssistantMessageId, index === turns.length - 1)}
-                activeAssistantMessageId={turnActiveAssistantMessageId}
-                turnInFlight={turnInFlight}
-                isLatestTurn={index === turns.length - 1}
-                smoothAssistantMessageId={turnSmoothAssistantMessageId}
-                onRecover={onRecover}
-                onRetryFresh={onRetryFresh}
-                onArtifactsOpen={onArtifactsOpen}
-                onArtifactsAvailable={publishArtifactAvailability ? onArtifactsAvailable : noopArtifactsAvailable}
-                onTurnOutputOpen={onTurnOutputOpen}
-              />
-            </div>
-          )
-        })}
-        {activity && isCompactionActivity(activity) ? <CompactionDivider phase={activity.phase} /> : null}
-      </ConversationContent>
-      <ConversationScrollButton />
-    </Conversation>
+    <div className="relative flex min-h-0 min-w-0 flex-1">
+      <Conversation className="min-h-0 flex-1" contextRef={conversationRef}>
+        <ConversationContent
+          data-selectable="true"
+          className={cn("mx-auto min-h-full w-full gap-4 px-4 pt-7 pb-9", CHAT_CONTENT_MAX_WIDTH_CLASS)}
+          scrollClassName="oo-scrollbar-gutter-stable"
+        >
+          {turns.map((turn, index) => {
+            // 内部消息（压缩 summary）turn：渲染为永久「已完成上下文压缩」分隔线，
+            // 不渲染消息内容（对齐 opencode 留在对话流的 summary 元信息行）。
+            if (turn.internal) {
+              return <CompactionDivider key={turn.id} phase="done" />
+            }
+            const turnArtifactGroups = artifactGroupsByTurnId.get(turn.id) ?? EMPTY_ARTIFACT_GROUPS
+            const publishArtifactAvailability =
+              turnArtifactGroups.length > 0 &&
+              turn.assistants.some((message) => message.id === latestArtifactGroupMessageId)
+            const turnActiveAssistantMessageId = chatTurnHasAssistantMessage(turn, activeAssistantMessageId)
+              ? activeAssistantMessageId
+              : undefined
+            const turnSmoothAssistantMessageId = chatTurnHasAssistantMessage(turn, smoothAssistantMessageId)
+              ? smoothAssistantMessageId
+              : undefined
+            return (
+              <div
+                key={turn.id}
+                data-chat-turn-id={turn.id}
+                className="oo-chat-turn-render-boundary grid min-w-0 gap-4"
+              >
+                <ChatTurnView
+                  activeSessionId={activeSessionId}
+                  artifactGroups={turnArtifactGroups}
+                  artifactGroupsByMessageId={artifactGroupsByMessageId}
+                  turnOutputRecordsByMessage={turnOutputRecordsByMessage}
+                  turn={turn}
+                  turnOutputRecord={turnOutputRecordsByTurn.get(turn.id) ?? null}
+                  activity={activityForChatTurn(turn, activity, activeAssistantMessageId, index === turns.length - 1)}
+                  activeAssistantMessageId={turnActiveAssistantMessageId}
+                  turnInFlight={turnInFlight}
+                  isLatestTurn={index === turns.length - 1}
+                  smoothAssistantMessageId={turnSmoothAssistantMessageId}
+                  onRecover={onRecover}
+                  onRetryFresh={onRetryFresh}
+                  onArtifactsOpen={onArtifactsOpen}
+                  onArtifactsAvailable={publishArtifactAvailability ? onArtifactsAvailable : noopArtifactsAvailable}
+                  onTurnOutputOpen={onTurnOutputOpen}
+                />
+              </div>
+            )
+          })}
+          {activity && isCompactionActivity(activity) ? <CompactionDivider phase={activity.phase} /> : null}
+        </ConversationContent>
+        <ConversationScrollButton />
+      </Conversation>
+      <ChatNavRail
+        items={chatNavRailItems}
+        getScrollElement={() => conversationRef.current?.scrollRef.current ?? null}
+      />
+    </div>
   )
 })

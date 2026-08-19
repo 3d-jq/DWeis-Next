@@ -16,7 +16,7 @@ export type RightPanelTabSource = "auto" | "manual"
 export type RightPanelTab =
   | { id: string; kind: "browser"; sessionId: string | null; title: string }
   | { id: string; kind: "turn-output"; selection: TurnOutputSelection; source: RightPanelTabSource; title: string }
-  | { id: string; kind: "artifact"; selection: ArtifactSelection; source: RightPanelTabSource; title: string }
+  | { id: string; kind: "artifact"; selection: ArtifactSelection | null; source: RightPanelTabSource; title: string }
 
 /** 右侧面板内容区的 tabpanel 元素 id（tab 用 aria-controls 指向它）。 */
 export const RIGHT_PANEL_TABPANEL_ID = "right-panel-tabpanel"
@@ -30,8 +30,8 @@ export function browserTabId(sessionId: string | null): string {
   return `browser:${sessionId ?? "draft"}`
 }
 
-export function artifactTabId(selection: ArtifactSelection): string {
-  return `artifact:${selection.messageId}`
+export function artifactTabId(selection: ArtifactSelection | null): string {
+  return `artifact:${selection?.messageId ?? "empty"}`
 }
 
 export function turnOutputTabId(selection: TurnOutputSelection): string {

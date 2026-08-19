@@ -1,4 +1,5 @@
 import type { LocalArtifactGroup, LocalArtifactItem, LocalArtifactPack } from "../../../electron/chat/common.ts"
+import type { ResolvedArtifactGroup } from "./artifact-resolution.ts"
 import type { TranslateFn } from "@/i18n/i18n"
 
 import { fileVisualKind } from "./file-type-kind.ts"
@@ -172,6 +173,23 @@ export function artifactGroupDisplayItem(
     return group.root
   }
   return group.items[0] ?? group.root
+}
+
+/** 从后往前找第一个可显示的产物组（跳过 failed/无可显示项）。 */
+export function lastDisplayableArtifactGroup(
+  groups: readonly ResolvedArtifactGroup[],
+): { displayItem: LocalArtifactItem; resolved: ResolvedArtifactGroup } | null {
+  for (let index = groups.length - 1; index >= 0; index -= 1) {
+    const resolved = groups[index]
+    if (!resolved || resolved.status === "failed") {
+      continue
+    }
+    const displayItem = artifactGroupDisplayItem(resolved.group, resolved.pack)
+    if (displayItem) {
+      return { displayItem, resolved }
+    }
+  }
+  return null
 }
 
 export function previewLanguage(item: LocalArtifactItem): string {

@@ -1008,8 +1008,8 @@ export function AppShell() {
       })
     }
   }, [activeChatSessionId, browserService, browserState, openBrowser, setArtifactsPanelOpen])
-  // 加号菜单（对齐 LobsterAI artifactAddTab）：浏览器永不禁用（草稿态打开引导空态）；
-  // 成果/审查是内容型标签，无内容时置灰并说明原因。
+  // 加号菜单（对齐 LobsterAI artifactAddTab）：浏览器/成果永不禁用（无内容时打开空态
+  // 引导，selection 为 null）；审查是内容型标签，无记录时置灰并说明原因。
   const addTabOptions = React.useMemo<AddTabOption[]>(() => {
     const openPanel = (): void => {
       setArtifactsPanelOpen(true)
@@ -1026,9 +1026,8 @@ export function AppShell() {
         kind: "artifact",
         label: t("rightPanel.tabArtifacts"),
         hint: t("rightPanel.addArtifactsHint"),
-        disabled: !latestArtifactSelection,
+        disabled: false,
         onSelect: () => {
-          if (!latestArtifactSelection) return
           openArtifact(latestArtifactSelection, "manual")
           openPanel()
         },

@@ -14,9 +14,9 @@ import { ExternalLink, FolderOpen, TriangleAlert } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
 import {
-  artifactGroupDisplayItem,
   artifactMetaLabel,
   isImageArtifact,
+  lastDisplayableArtifactGroup,
   readableArtifactTitle,
 } from "./artifact-metadata.ts"
 import { resolveArtifactResultPayloads } from "./artifact-resolution.ts"
@@ -160,22 +160,6 @@ function ArtifactPersistenceWarning({ failure }: { failure?: ArtifactBundleFailu
       </div>
     </div>
   )
-}
-
-function lastDisplayableArtifactGroup(
-  groups: readonly ResolvedArtifactGroup[],
-): { displayItem: LocalArtifactItem; resolved: ResolvedArtifactGroup } | null {
-  for (let index = groups.length - 1; index >= 0; index -= 1) {
-    const resolved = groups[index]
-    if (!resolved || resolved.status === "failed") {
-      continue
-    }
-    const displayItem = artifactGroupDisplayItem(resolved.group, resolved.pack)
-    if (displayItem) {
-      return { displayItem, resolved }
-    }
-  }
-  return null
 }
 
 export function GeneratedArtifactsShelf({

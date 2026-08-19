@@ -27,7 +27,8 @@ interface UseRightPanelTabsResult {
   /** 最近一次自动可用的审查记录（供标签栏加号菜单手动打开）。 */
   latestTurnOutputSelection: TurnOutputSelection | null
   closeTabById: (id: string) => void
-  openArtifact: (selection: ArtifactSelection, source: RightPanelTabSource) => void
+  /** selection 可为 null（会话无成果时打开空态标签，对齐 LobsterAI 文件列表）。 */
+  openArtifact: (selection: ArtifactSelection | null, source: RightPanelTabSource) => void
   openBrowser: (sessionId: string | null) => void
   openTurnOutput: (selection: TurnOutputSelection, source: RightPanelTabSource) => void
   setActiveTabId: (id: string) => void
@@ -69,8 +70,8 @@ export function useRightPanelTabs({ activeSessionId }: UseRightPanelTabsOptions)
     setActiveTabId(tab.id)
   }, [])
 
-  const openArtifact = React.useCallback((selection: ArtifactSelection, source: RightPanelTabSource) => {
-    if (source === "auto") {
+  const openArtifact = React.useCallback((selection: ArtifactSelection | null, source: RightPanelTabSource) => {
+    if (source === "auto" && selection) {
       setLatestArtifactSelection(selection)
     }
     const tab: RightPanelTab = {
