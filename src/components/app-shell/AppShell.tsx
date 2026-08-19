@@ -952,11 +952,16 @@ export function AppShell() {
     },
     [openTurnOutput],
   )
+  // 草稿态浏览器意图标记：草稿中打开过浏览器标签（未手动关闭），会话建立后自动升级。
+  const draftBrowserOpenedRef = React.useRef(false)
   const handleCloseRightPanelTab = React.useCallback(
     (id: string): void => {
       const tab = rightPanelTabs.find((candidate) => candidate.id === id)
       closeTabById(id)
       if (tab?.kind === "browser") {
+        if (tab.sessionId === null) {
+          draftBrowserOpenedRef.current = false
+        }
         closeBrowserPanel()
       }
       if (rightPanelTabs.length <= 1) {
@@ -965,25 +970,46 @@ export function AppShell() {
     },
     [closeBrowserPanel, closeTabById, rightPanelTabs, setArtifactsPanelOpen],
   )
-  // 标签栏"+"：手动打开当前会话的浏览器标签。browserRequested 只在 AI 工具链路（execute）
-  // 触发，渲染层直接 invoke 不会驱动面板展开，所以这里直接建 tab + 展开面板；
-  // BrowserPanel 挂载后自行 invoke show，主进程 ensurePage 创建并显示页面。
+  // 标签栏"+"：手动打开浏览器标签（对齐 LobsterAI：永不禁用，草稿态也能打开）。
+  // browserRequested 只在 AI 工具链路（execute）触发，渲染层直接 invoke 不会驱动面板
+  // 展开，所以这里直接建 tab + 展开面板。草稿态（无会话）建 draft 标签显示引导空态，
+  // 会话建立后由下方升级 effect 重建真实标签并拉起页面。
   const handleAddRightPanelTab = React.useCallback((): void => {
-    if (!activeChatSessionId) {
+    if (activeChatSessionId) {
+      openBrowser(activeChatSessionId)
+      setArtifactsPanelOpen(true)
+      // BrowserPanel 挂载要求 browserState 就绪，而它靠 stateChanged 事件回填；会话还没有
+      // 页面时用 loadBlank 拉起（ensurePage + emitState 闭环），已有页面则不重置。
+      if (browserState?.sessionId !== activeChatSessionId) {
+        void browserService.invoke("loadBlank", activeChatSessionId).catch((cause: unknown) => {
+          reportRendererHandledError("browser", "open new browser tab failed", cause)
+        })
+      }
       return
     }
+    draftBrowserOpenedRef.current = true
+    openBrowser(null)
+    setArtifactsPanelOpen(true)
+  }, [activeChatSessionId, browserService, browserState, openBrowser, setArtifactsPanelOpen])
+
+  // 草稿浏览器标签升级：用户在草稿态打开浏览器后发出首条消息（或切换到会话），
+  // activeSessionId 变化会先触发 clearTabs/面板重置，这里重建真实标签并拉起页面，
+  // 延续用户的浏览器意图（对齐 LobsterAI 浏览器标签跟随会话的行为）。
+  React.useEffect(() => {
+    if (!activeChatSessionId || !draftBrowserOpenedRef.current) {
+      return
+    }
+    draftBrowserOpenedRef.current = false
     openBrowser(activeChatSessionId)
     setArtifactsPanelOpen(true)
-    // BrowserPanel 挂载要求 browserState 就绪，而它靠 stateChanged 事件回填；会话还没有
-    // 页面时用 loadBlank 拉起（ensurePage + emitState 闭环），已有页面则不重置。
     if (browserState?.sessionId !== activeChatSessionId) {
       void browserService.invoke("loadBlank", activeChatSessionId).catch((cause: unknown) => {
         reportRendererHandledError("browser", "open new browser tab failed", cause)
       })
     }
   }, [activeChatSessionId, browserService, browserState, openBrowser, setArtifactsPanelOpen])
-  // 加号菜单（对齐 LobsterAI artifactAddTab）：按类型选择打开的标签；不可用项置灰并说明原因，
-  // 草稿态（无活跃会话）点开也有明确反馈，不再静默无响应。
+  // 加号菜单（对齐 LobsterAI artifactAddTab）：浏览器永不禁用（草稿态打开引导空态）；
+  // 成果/审查是内容型标签，无内容时置灰并说明原因。
   const addTabOptions = React.useMemo<AddTabOption[]>(() => {
     const openPanel = (): void => {
       setArtifactsPanelOpen(true)
@@ -993,7 +1019,7 @@ export function AppShell() {
         kind: "browser",
         label: t("rightPanel.tabBrowser"),
         hint: t("rightPanel.addBrowserHint"),
-        disabled: !activeChatSessionId,
+        disabled: false,
         onSelect: handleAddRightPanelTab,
       },
       {
@@ -1020,7 +1046,6 @@ export function AppShell() {
       },
     ]
   }, [
-    activeChatSessionId,
     handleAddRightPanelTab,
     latestArtifactSelection,
     latestTurnOutputSelection,

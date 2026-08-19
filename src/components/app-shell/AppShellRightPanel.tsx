@@ -5,6 +5,7 @@ import type { ArtifactSelection } from "@/routes/Chat/GeneratedArtifacts"
 import type { TurnOutputSelection } from "@/routes/Chat/TurnOutputs"
 import type { ConnectionClientService } from "@oomol/connection"
 
+import { Globe2 } from "lucide-react"
 import { AnimatePresence, motion } from "motion/react"
 import * as React from "react"
 import { ARTIFACTS_PANEL_MIN_WIDTH_PX } from "./app-shell-model.ts"
@@ -141,6 +142,8 @@ export const AppShellRightPanel = React.memo(function AppShellRightPanel({
                     onToggleMaximized={() => setArtifactsPanelMaximizedState(!artifactsPanelIsMaximized)}
                   />
                 </React.Suspense>
+              ) : activeTab?.kind === "browser" ? (
+                <BrowserDraftPlaceholder />
               ) : activeTab?.kind === "turn-output" ? (
                 <React.Suspense fallback={null}>
                   <TurnOutputsPanel
@@ -179,6 +182,17 @@ function RightPanelEmptyState() {
         <div className="oo-text-caption text-muted-foreground">{t("rightPanel.emptyDescription")}</div>
       </div>
       <div className="oo-text-micro text-muted-foreground/70">{t("rightPanel.emptyHint")}</div>
+    </div>
+  )
+}
+
+/** 草稿态浏览器标签：会话未建立（无 sessionId）时显示引导，会话建立后自动升级为真实页面。 */
+function BrowserDraftPlaceholder() {
+  const t = useT()
+  return (
+    <div className="flex h-full min-h-0 flex-col items-center justify-center gap-3 px-6 py-8 text-center">
+      <Globe2 className="size-8 text-muted-foreground/50" />
+      <div className="oo-text-caption text-muted-foreground">{t("rightPanel.browserDraftHint")}</div>
     </div>
   )
 }

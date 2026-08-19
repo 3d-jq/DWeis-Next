@@ -14,7 +14,7 @@ import type { TurnOutputSelection } from "@/routes/Chat/TurnOutputs"
 export type RightPanelTabSource = "auto" | "manual"
 
 export type RightPanelTab =
-  | { id: string; kind: "browser"; sessionId: string; title: string }
+  | { id: string; kind: "browser"; sessionId: string | null; title: string }
   | { id: string; kind: "turn-output"; selection: TurnOutputSelection; source: RightPanelTabSource; title: string }
   | { id: string; kind: "artifact"; selection: ArtifactSelection; source: RightPanelTabSource; title: string }
 
@@ -26,8 +26,8 @@ export function tabElementId(tabId: string): string {
   return `right-tab-${tabId.replace(/[^a-zA-Z0-9_-]/g, "-")}`
 }
 
-export function browserTabId(sessionId: string): string {
-  return `browser:${sessionId}`
+export function browserTabId(sessionId: string | null): string {
+  return `browser:${sessionId ?? "draft"}`
 }
 
 export function artifactTabId(selection: ArtifactSelection): string {

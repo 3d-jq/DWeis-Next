@@ -768,6 +768,7 @@ export const zhCNMessages = {
   "rightPanel.tabsAria": "右侧面板标签",
   "rightPanel.newTab": "添加标签",
   "rightPanel.addBrowserHint": "先开始一个会话",
+  "rightPanel.browserDraftHint": "发送第一条消息后，浏览器将在此处打开",
   "rightPanel.addArtifactsHint": "暂无成果",
   "rightPanel.addReviewHint": "暂无审查记录",
   "rightPanel.closeTab": "关闭标签",

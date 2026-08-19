@@ -28,7 +28,7 @@ interface UseRightPanelTabsResult {
   latestTurnOutputSelection: TurnOutputSelection | null
   closeTabById: (id: string) => void
   openArtifact: (selection: ArtifactSelection, source: RightPanelTabSource) => void
-  openBrowser: (sessionId: string) => void
+  openBrowser: (sessionId: string | null) => void
   openTurnOutput: (selection: TurnOutputSelection, source: RightPanelTabSource) => void
   setActiveTabId: (id: string) => void
   setTabTitle: (id: string, title: string) => void
@@ -63,7 +63,7 @@ export function useRightPanelTabs({ activeSessionId }: UseRightPanelTabsOptions)
     setTabs((current) => updateTabTitle(current, id, title))
   }, [])
 
-  const openBrowser = React.useCallback((sessionId: string) => {
+  const openBrowser = React.useCallback((sessionId: string | null) => {
     const tab: RightPanelTab = { id: browserTabId(sessionId), kind: "browser", sessionId, title: DEFAULT_BROWSER_TITLE }
     setTabs((current) => upsertTab(current, tab))
     setActiveTabId(tab.id)
