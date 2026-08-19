@@ -5,8 +5,10 @@ import { cn } from "@/lib/utils"
 
 export interface ChatNavRailItem {
   turnId: string
-  /** 悬停提示文案（用户消息文本；空时显示占位标题）。 */
+  /** 悬停提示标题（用户消息文本；空时显示占位标题）。 */
   label: string
+  /** 悬停提示摘要（该轮助手回复文本节选）。 */
+  summary: string
 }
 
 interface ChatNavRailProps {
@@ -15,20 +17,32 @@ interface ChatNavRailProps {
   getScrollElement: () => HTMLElement | null
 }
 
-const RAIL_LINE_MAX_PX = 16
-const RAIL_LINE_MIN_PX = 5
+/** 横线粗细与宽度（对齐 LobsterAI Turn Navigation Rail）。 */
+const RAIL_LINE_HEIGHT = 3
+const RAIL_LINE_DEFAULT_WIDTH = 8
+const RAIL_LINE_ACTIVE_WIDTH = 28
+/** 悬停时以鼠标为中心的起伏波形：距离 0/1/2/3 的横线宽度。 */
+const RAIL_LINE_HOVER_STEPS = [28, 18, 13, 10] as const
 /** 视口顶部以下多少像素内的轮次视为"当前轮次"。 */
 const ACTIVE_TURN_TOP_OFFSET_PX = 96
 /** 滚动距离超过该值用瞬时滚动，否则平滑（对齐 LobsterAI 导航决策）。 */
 const SMOOTH_SCROLL_MAX_DISTANCE_PX = 800
 
-function railLineWidth(distance: number): number {
-  return Math.max(RAIL_LINE_MIN_PX, RAIL_LINE_MAX_PX - distance * 4)
+function getRailLineWidth(index: number, activeIndex: number, hoveredIndex: number | null): number {
+  if (hoveredIndex !== null) {
+    const hoverDistance = Math.abs(index - hoveredIndex)
+    if (hoverDistance < RAIL_LINE_HOVER_STEPS.length) {
+      return RAIL_LINE_HOVER_STEPS[hoverDistance]
+    }
+    return RAIL_LINE_DEFAULT_WIDTH
+  }
+  return index === activeIndex ? RAIL_LINE_ACTIVE_WIDTH : RAIL_LINE_DEFAULT_WIDTH
 }
 
 /**
  * 对话轮次导航栏（对齐 LobsterAI Turn Navigation Rail，放在对话区左缘）：
- * 每轮对话一根横线，点击/上下箭头快速定位到该轮；活动横线跟随视口，悬停显示该轮摘要。
+ * 每轮对话一根横线，悬停时横线宽度以鼠标为中心起伏；点击/上下箭头快速定位到该轮；
+ * 活动横线跟随视口，悬停显示该轮用户消息 + 助手摘要。
  */
 export function ChatNavRail({ items, getScrollElement }: ChatNavRailProps) {
   const t = useT()
@@ -121,6 +135,7 @@ export function ChatNavRail({ items, getScrollElement }: ChatNavRailProps) {
   }
 
   const resolvedActiveIndex = activeIndex < 0 ? items.length - 1 : activeIndex
+  const tooltipItem = tooltip ? items[tooltip.index] : undefined
 
   if (items.length <= 1 || !visible) {
     return null
@@ -158,14 +173,13 @@ export function ChatNavRail({ items, getScrollElement }: ChatNavRailProps) {
       <div className="max-h-[calc(100%-56px)] min-h-0 [scrollbar-width:none] overflow-y-auto overscroll-contain">
         {items.map((item, index) => {
           const isActive = index === resolvedActiveIndex
-          const isHighlighted = hoveredIndex ?? isActive
+          const isHighlighted = hoveredIndex === null ? isActive : index === hoveredIndex
           return (
             <button
               key={item.turnId}
               type="button"
               aria-label={item.label || t("chat.navRailTurn", { index: index + 1 })}
               aria-current={isActive ? "true" : undefined}
-              title={item.label || t("chat.navRailTurn", { index: index + 1 })}
               className="flex w-5 cursor-pointer items-center justify-start py-[5px]"
               onClick={() => navigateToIndex(index)}
               onMouseEnter={(event) => {
@@ -182,12 +196,12 @@ export function ChatNavRail({ items, getScrollElement }: ChatNavRailProps) {
               <span
                 className={cn(
                   "block shrink-0 border-solid transition-[width,border-color]",
-                  isHighlighted ? "border-foreground/80" : "border-muted-foreground/40",
+                  isHighlighted ? "border-foreground" : "border-muted-foreground/50",
                 )}
                 style={{
-                  width: railLineWidth(isHighlighted ? 0 : Math.abs(index - resolvedActiveIndex)),
+                  width: getRailLineWidth(index, resolvedActiveIndex, hoveredIndex),
                   height: 0,
-                  borderTopWidth: 2,
+                  borderTopWidth: RAIL_LINE_HEIGHT,
                 }}
               />
             </button>
@@ -210,15 +224,20 @@ export function ChatNavRail({ items, getScrollElement }: ChatNavRailProps) {
           <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
         </svg>
       </button>
-      {tooltip && items[tooltip.index]
+      {tooltip && tooltipItem
         ? createPortal(
             <div
-              className="pointer-events-none fixed z-50 max-w-[min(360px,45vw)] overflow-hidden rounded-xl border bg-popover px-3 py-2 shadow-md"
+              className="pointer-events-none fixed z-50 w-[min(420px,45vw)] overflow-hidden rounded-xl border bg-popover px-3.5 py-2 shadow-md"
               style={{ left: tooltip.left, top: tooltip.top, transform: "translateY(-50%)" }}
             >
-              <div className="oo-text-caption-compact line-clamp-2 break-all text-foreground">
-                {items[tooltip.index].label || t("chat.navRailTurn", { index: tooltip.index + 1 })}
+              <div className="oo-text-caption line-clamp-1 font-semibold break-all text-foreground">
+                {tooltipItem.label || t("chat.navRailTurn", { index: tooltip.index + 1 })}
               </div>
+              {tooltipItem.summary ? (
+                <div className="oo-text-caption mt-1 line-clamp-2 break-all text-muted-foreground">
+                  {tooltipItem.summary}
+                </div>
+              ) : null}
             </div>,
             document.body,
           )

@@ -21,7 +21,7 @@ import {
 } from "./artifact-metadata.ts"
 import { resolveArtifactResultPayloads } from "./artifact-resolution.ts"
 import { shouldRenderGeneratedArtifactsShelf } from "./artifact-shelf-visibility.ts"
-import { ArtifactFileStrip, ImageGalleryPanel } from "./ArtifactBrowser.tsx"
+import { ArtifactFileList, ImageGalleryPanel } from "./ArtifactBrowser.tsx"
 import { ArtifactContextMenu } from "./ArtifactContextMenu.tsx"
 import { ArtifactPreview, ArtifactsEmptyState } from "./ArtifactPreviewPane.tsx"
 import { FileKindTile } from "./file-type-icons.tsx"
@@ -613,7 +613,7 @@ export function ArtifactsPanel({ maximized, selection, onToggleMaximized, onSetT
           ) : (
             <>
               {showArtifactList ? (
-                <ArtifactFileStrip
+                <ArtifactFileList
                   baseCrumb={baseCrumb}
                   browseLevels={browseLevels}
                   entries={entries}

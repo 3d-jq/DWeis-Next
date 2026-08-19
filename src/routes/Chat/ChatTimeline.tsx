@@ -457,7 +457,16 @@ export const ChatTimeline = React.memo(function ChatTimeline({
           .map((part) => part.text ?? "")
           .join(" ")
           .trim()
-        return [{ turnId: turn.id, label }]
+        const summary = turn.assistants
+          .flatMap((message) =>
+            (message.parts ?? []).filter((part) => part.kind === "text").map((part) => part.text ?? ""),
+          )
+          .join(" ")
+          .replace(/[#*_~>`]+/g, "")
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 160)
+        return [{ turnId: turn.id, label, summary }]
       }),
     [turns],
   )

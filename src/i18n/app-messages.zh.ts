@@ -840,6 +840,8 @@ export const zhCNMessages = {
   "artifacts.count": "{count} 个项目",
   "artifacts.imageCount": "{count} 张图片",
   "artifacts.truncated": "文件较多，仅显示前一部分；可打开文件夹查看全部。",
+  "artifacts.searchFiles": "搜索文件",
+  "artifacts.searchEmpty": "没有匹配的文件",
   "artifacts.backToParent": "返回上级文件夹",
   "artifacts.resizeFileBrowser": "调整文件列表高度",
   "artifacts.previewTab": "预览",

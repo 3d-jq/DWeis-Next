@@ -880,6 +880,8 @@ export const enMessages = {
   "artifacts.count": "{count} items",
   "artifacts.imageCount": "{count} images",
   "artifacts.truncated": "Only the first items are shown. Open the folder to see everything.",
+  "artifacts.searchFiles": "Search files",
+  "artifacts.searchEmpty": "No matching files",
   "artifacts.backToParent": "Back to parent folder",
   "artifacts.resizeFileBrowser": "Resize file browser",
   "artifacts.previewTab": "Preview",

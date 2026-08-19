@@ -2,10 +2,11 @@ import type { LocalArtifactGroup, LocalArtifactItem, LocalArtifactPack } from ".
 import type { LocalArtifactPreviewCache } from "./artifact-preview-cache.ts"
 import type { ResolvedArtifactGroup } from "./artifact-resolution.ts"
 import type { ArtifactPreviewMode } from "./ArtifactPreviewPane.tsx"
+import type { TranslateFn } from "@/i18n/i18n"
 
 import { ChevronLeft, ChevronRight, FolderOpen } from "lucide-react"
 import * as React from "react"
-import { artifactMetaLabel } from "./artifact-metadata.ts"
+import { artifactKindLabel } from "./artifact-metadata.ts"
 import { ImageGalleryPreview, ImageThumbnail } from "./ArtifactImageGallery.tsx"
 import { FileKindTile } from "./file-type-icons.tsx"
 import { useT } from "@/i18n/i18n"
@@ -27,7 +28,35 @@ export interface ArtifactBrowseLevel {
 
 const artifactListMinHeightPx = 96
 
-export function ArtifactFileStrip({
+function shortArtifactPath(path: string): string {
+  const parts = path.replace(/\\/g, "/").split("/")
+  return parts.length > 2 ? `.../${parts.slice(-2).join("/")}` : parts.join("/")
+}
+
+/** 按产物类型分组（目录优先），组内保持产物生成顺序；同名路径去重。 */
+function groupPanelEntries(
+  t: TranslateFn,
+  entries: ArtifactPanelEntry[],
+): { key: string; label: string; entries: ArtifactPanelEntry[] }[] {
+  const seen = new Set<string>()
+  const groups: { key: string; label: string; entries: ArtifactPanelEntry[] }[] = []
+  for (const entry of entries) {
+    if (seen.has(entry.item.path)) {
+      continue
+    }
+    seen.add(entry.item.path)
+    const key = entry.item.kind === "directory" ? "directory" : `kind:${artifactKindLabel(t, entry.item, entry.pack)}`
+    let group = groups.find((candidate) => candidate.key === key)
+    if (!group) {
+      group = { key, label: artifactKindLabel(t, entry.item, entry.pack), entries: [] }
+      groups.push(group)
+    }
+    group.entries.push(entry)
+  }
+  return groups.sort((left, right) => (left.key === "directory" ? -1 : right.key === "directory" ? 1 : 0))
+}
+
+export function ArtifactFileList({
   baseCrumb,
   browseLevels,
   entries,
@@ -59,6 +88,13 @@ export function ArtifactFileStrip({
   onSelect: (path: string) => void
 }) {
   const t = useT()
+  const [search, setSearch] = React.useState("")
+  const keyword = search.trim().toLowerCase()
+  const visibleEntries = React.useMemo(
+    () => (keyword ? entries.filter((entry) => entry.item.name.toLowerCase().includes(keyword)) : entries),
+    [entries, keyword],
+  )
+  const groups = React.useMemo(() => groupPanelEntries(t, visibleEntries), [t, visibleEntries])
   const selectedIndex = Math.max(
     0,
     entries.findIndex((entry) => entry.item.path === selectedItem?.path),
@@ -74,27 +110,46 @@ export function ArtifactFileStrip({
         index={visibleIndex}
         onNavigate={onNavigateBreadcrumb}
       />
-      <div className="oo-artifact-browser-scroll min-h-0 flex-1 overflow-y-auto px-2.5 pb-1.5">
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(112px,1fr))] gap-1.5">
-          {entries.map((entry) => (
-            <ArtifactFileTile
-              key={entry.key}
-              entry={entry}
-              selected={entry.item.path === selectedItem?.path}
-              onClick={() => onSelect(entry.item.path)}
-              onContextMenu={(x, y) => onContextMenu(entry.item, x, y)}
-              onDoubleClick={() => {
-                if (entry.item.kind === "directory") {
-                  onEnterFolder(entry)
-                } else {
-                  onOpenPath(entry.item.path)
-                }
-              }}
-            />
-          ))}
-        </div>
+      <div className="shrink-0 px-2.5 pb-1.5">
+        <input
+          type="text"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder={t("artifacts.searchFiles")}
+          aria-label={t("artifacts.searchFiles")}
+          className="oo-text-caption-compact w-full rounded-md border border-border bg-background px-2 py-1 text-foreground transition-colors outline-none placeholder:text-muted-foreground/70 focus:border-ring"
+        />
+      </div>
+      <div className="oo-artifact-browser-scroll min-h-0 flex-1 overflow-y-auto px-1.5 pb-1.5">
+        {visibleEntries.length === 0 ? (
+          <p className="oo-text-caption px-1.5 py-4 text-center text-muted-foreground">{t("artifacts.searchEmpty")}</p>
+        ) : (
+          groups.map((group) => (
+            <React.Fragment key={group.key}>
+              <div className="oo-text-micro px-1.5 pt-2 pb-1 font-medium tracking-wide text-muted-foreground uppercase">
+                {group.label}
+              </div>
+              {group.entries.map((entry) => (
+                <ArtifactFileRow
+                  key={entry.key}
+                  entry={entry}
+                  selected={entry.item.path === selectedItem?.path}
+                  onClick={() => onSelect(entry.item.path)}
+                  onContextMenu={(x, y) => onContextMenu(entry.item, x, y)}
+                  onDoubleClick={() => {
+                    if (entry.item.kind === "directory") {
+                      onEnterFolder(entry)
+                    } else {
+                      onOpenPath(entry.item.path)
+                    }
+                  }}
+                />
+              ))}
+            </React.Fragment>
+          ))
+        )}
         {truncated ? (
-          <p className="oo-text-caption px-1 pt-2 text-muted-foreground">{t("artifacts.truncated")}</p>
+          <p className="oo-text-caption px-1.5 pt-2 text-muted-foreground">{t("artifacts.truncated")}</p>
         ) : null}
       </div>
       <ArtifactPanelResizeHandle
@@ -209,7 +264,7 @@ function ArtifactPanelResizeHandle({
   )
 }
 
-function ArtifactFileTile({
+function ArtifactFileRow({
   entry,
   selected,
   onClick,
@@ -223,14 +278,13 @@ function ArtifactFileTile({
   onDoubleClick: () => void
 }) {
   const t = useT()
-
   return (
     <button
       type="button"
       title={entry.item.path}
       className={cn(
-        "oo-artifact-selectable relative flex h-12 min-w-0 items-center gap-1.5 rounded-md border px-1.5 text-left shadow-sm hover:text-accent-foreground focus-visible:outline-none",
-        selected && "oo-artifact-selected shadow-none",
+        "oo-artifact-selectable flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md px-1.5 py-1.5 text-left transition-colors focus-visible:outline-none",
+        selected ? "bg-accent text-accent-foreground" : "hover:bg-muted",
       )}
       onClick={onClick}
       onContextMenu={(event) => {
@@ -240,12 +294,13 @@ function ArtifactFileTile({
       }}
       onDoubleClick={onDoubleClick}
     >
-      <FileKindTile source={entry.item} pack={entry.pack} className="size-7" iconClassName="size-3.5" />
+      <FileKindTile source={entry.item} pack={entry.pack} className="size-6" iconClassName="size-3.5" />
       <span className="min-w-0 flex-1">
         <span className="oo-text-caption-compact block truncate font-medium text-foreground">{entry.item.name}</span>
-        <span className="oo-text-caption-compact block truncate text-muted-foreground">
-          {artifactMetaLabel(t, entry.item, entry.pack)}
-        </span>
+        <span className="oo-text-micro block truncate text-muted-foreground">{shortArtifactPath(entry.item.path)}</span>
+      </span>
+      <span className="oo-text-micro shrink-0 text-muted-foreground uppercase">
+        {artifactKindLabel(t, entry.item, entry.pack)}
       </span>
     </button>
   )

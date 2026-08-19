@@ -52,22 +52,34 @@ export function UnifiedTabBar({
   const listRef = React.useRef<HTMLDivElement | null>(null)
   const [menuOpen, setMenuOpen] = React.useState(false)
   const [menuPosition, setMenuPosition] = React.useState<{ left: number; top: number } | null>(null)
-  // 标签溢出检测（对齐 LobsterAI shouldPinArtifactAddTab）：溢出时加号 pin 到右缘，
-  // 避免被滚出可视区；同时显示右缘渐变遮罩提示可滚动。
+  // 标签滚动状态（对齐 LobsterAI shouldPinArtifactAddTab）：未溢出时加号紧跟最后一个标签，
+  // 溢出（或可左右滚动）时加号固定右缘并垫占位，避免被滚出可视区。
+  const [canScrollLeft, setCanScrollLeft] = React.useState(false)
+  const [canScrollRight, setCanScrollRight] = React.useState(false)
   const [tabsOverflowing, setTabsOverflowing] = React.useState(false)
+  const pinAddTab = tabsOverflowing || canScrollLeft || canScrollRight
 
   React.useLayoutEffect(() => {
     const element = listRef.current
     if (!element) {
       return
     }
-    const updateOverflow = (): void => {
-      setTabsOverflowing(element.scrollWidth > element.clientWidth)
+    const updateScrollState = (): void => {
+      const maxScrollLeft = Math.max(0, element.scrollWidth - element.clientWidth)
+      setCanScrollLeft(element.scrollLeft > 1)
+      setCanScrollRight(element.scrollLeft < maxScrollLeft - 1)
+      setTabsOverflowing(element.scrollWidth > element.clientWidth + 1)
     }
-    updateOverflow()
-    const observer = new ResizeObserver(updateOverflow)
+    updateScrollState()
+    const animationFrame = window.requestAnimationFrame(updateScrollState)
+    element.addEventListener("scroll", updateScrollState, { passive: true })
+    const observer = new ResizeObserver(updateScrollState)
     observer.observe(element)
-    return () => observer.disconnect()
+    return () => {
+      window.cancelAnimationFrame(animationFrame)
+      element.removeEventListener("scroll", updateScrollState)
+      observer.disconnect()
+    }
   }, [tabs])
 
   // APG tabs 方向键 roving（自动激活）：左右循环移动、Home/End 首尾，焦点与激活同步。
@@ -137,6 +149,25 @@ export function UnifiedTabBar({
     }
   }, [menuOpen])
 
+  const addTabButton =
+    addTabOptions.length > 0 ? (
+      <button
+        ref={addButtonRef}
+        type="button"
+        aria-label={t("rightPanel.newTab")}
+        title={t("rightPanel.newTab")}
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
+        onClick={() => setMenuOpen((open) => !open)}
+        className={cn(
+          "flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+          menuOpen && "bg-muted text-foreground",
+        )}
+      >
+        <Plus className="size-4" />
+      </button>
+    ) : null
+
   return (
     <div
       className="oo-border-divider relative flex min-h-9 shrink-0 items-center border-b py-1 pr-1.5 pl-1.5"
@@ -147,75 +178,76 @@ export function UnifiedTabBar({
         role="tablist"
         aria-label={t("rightPanel.tabsAria")}
         onKeyDown={handleTablistKeyDown}
-        className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto"
+        className="flex min-h-0 min-w-0 flex-1 [scrollbar-width:none] overflow-x-auto"
       >
-        {tabs.map((tab) => {
-          const active = tab.id === activeTabId
-          const elementId = tabElementId(tab.id)
-          return (
-            <div
-              key={tab.id}
-              role="presentation"
-              className={cn(
-                "flex h-7 max-w-40 min-w-0 shrink-0 items-center gap-0.5 rounded-md pr-1 transition-colors",
-                active ? "bg-accent" : "hover:bg-muted",
-              )}
-            >
-              <button
-                type="button"
-                role="tab"
-                id={elementId}
-                aria-selected={active}
-                aria-controls={RIGHT_PANEL_TABPANEL_ID}
-                tabIndex={active ? 0 : -1}
-                title={tab.title}
-                className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded-md px-1.5 text-muted-foreground transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                onClick={() => onActivateTab(tab.id)}
-                onMouseDown={(event) => {
-                  if (event.button === 1) {
-                    event.preventDefault()
-                    onCloseTab(tab.id)
-                  }
-                }}
+        <div className="flex min-w-max items-center gap-0.5 pr-1">
+          {tabs.map((tab) => {
+            const active = tab.id === activeTabId
+            const elementId = tabElementId(tab.id)
+            return (
+              <div
+                key={tab.id}
+                role="presentation"
+                className={cn(
+                  "flex h-7 max-w-40 min-w-0 shrink-0 items-center gap-0.5 rounded-md pr-1 transition-colors",
+                  active ? "bg-accent" : "hover:bg-muted",
+                )}
               >
-                <span className="shrink-0">{tabIcon(tab)}</span>
-                <span className="oo-text-caption-compact truncate">{tab.title}</span>
-              </button>
-              <button
-                type="button"
-                aria-label={t("rightPanel.closeTab")}
-                tabIndex={active ? 0 : -1}
-                className="flex size-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted-foreground/20 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                onClick={() => onCloseTab(tab.id)}
-              >
-                <X className="size-3" />
-              </button>
-            </div>
-          )
-        })}
+                <button
+                  type="button"
+                  role="tab"
+                  id={elementId}
+                  aria-selected={active}
+                  aria-controls={RIGHT_PANEL_TABPANEL_ID}
+                  tabIndex={active ? 0 : -1}
+                  title={tab.title}
+                  className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded-md px-1.5 text-muted-foreground transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                  onClick={() => onActivateTab(tab.id)}
+                  onMouseDown={(event) => {
+                    if (event.button === 1) {
+                      event.preventDefault()
+                      onCloseTab(tab.id)
+                    }
+                  }}
+                >
+                  <span className="shrink-0">{tabIcon(tab)}</span>
+                  <span className="oo-text-caption-compact truncate">{tab.title}</span>
+                </button>
+                <button
+                  type="button"
+                  aria-label={t("rightPanel.closeTab")}
+                  tabIndex={active ? 0 : -1}
+                  className="flex size-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted-foreground/20 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                  onClick={() => onCloseTab(tab.id)}
+                >
+                  <X className="size-3" />
+                </button>
+              </div>
+            )
+          })}
+          {addTabOptions.length > 0 ? (
+            pinAddTab ? (
+              <div className="h-full w-9 shrink-0" aria-hidden="true" />
+            ) : (
+              <div className="flex h-full shrink-0 items-center pl-0.5">{addTabButton}</div>
+            )
+          ) : null}
+        </div>
       </div>
-      {tabsOverflowing ? (
+      {addTabOptions.length > 0 && pinAddTab ? (
+        <div className="absolute inset-y-0 right-1.5 z-20 flex items-center bg-background">{addTabButton}</div>
+      ) : null}
+      {canScrollLeft ? (
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 right-[34px] z-10 w-10 bg-gradient-to-l from-background via-background/80 to-transparent"
+          className="pointer-events-none absolute inset-y-0 left-0 z-10 w-10 bg-gradient-to-r from-background via-background/80 to-transparent"
         />
       ) : null}
-      {addTabOptions.length > 0 ? (
-        <button
-          ref={addButtonRef}
-          type="button"
-          aria-label={t("rightPanel.newTab")}
-          title={t("rightPanel.newTab")}
-          aria-haspopup="menu"
-          aria-expanded={menuOpen}
-          onClick={() => setMenuOpen((open) => !open)}
-          className={cn(
-            "ml-0.5 flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-            menuOpen && "bg-muted text-foreground",
-          )}
-        >
-          <Plus className="size-4" />
-        </button>
+      {pinAddTab && canScrollRight ? (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 right-[40px] z-10 w-10 bg-gradient-to-l from-background via-background/80 to-transparent"
+        />
       ) : null}
       {menuOpen && menuPosition
         ? createPortal(

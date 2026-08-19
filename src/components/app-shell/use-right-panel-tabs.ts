@@ -18,11 +18,16 @@ interface UseRightPanelTabsOptions {
   activeSessionId: string | null
 }
 
+interface RightPanelTabsState {
+  tabs: RightPanelTab[]
+  activeTabId: string | null
+}
+
 interface UseRightPanelTabsResult {
   tabs: RightPanelTab[]
   activeTab: RightPanelTab | null
   activeTabId: string | null
-  /** 最近一次自动可用的成果（供聊天区成果入口展示）。 */
+  /** 最近一次自动可用的成果（供聊天区成果入口显示）。 */
   latestArtifactSelection: ArtifactSelection | null
   /** 最近一次自动可用的审查记录（供标签栏加号菜单手动打开）。 */
   latestTurnOutputSelection: TurnOutputSelection | null
@@ -42,32 +47,38 @@ const DEFAULT_ARTIFACT_TITLE = "Artifacts"
 const DEFAULT_TURNOUTPUT_TITLE = "Review"
 
 export function useRightPanelTabs({ activeSessionId }: UseRightPanelTabsOptions): UseRightPanelTabsResult {
-  const [tabs, setTabs] = React.useState<RightPanelTab[]>([])
-  const [activeTabId, setActiveTabId] = React.useState<string | null>(null)
+  // tabs 与 activeTabId 必须原子更新：拆成两个 state 时激活写入若被丢弃
+  // （React 可重放/丢弃不纯 updater），会出现"点了成果但面板停在旧标签"的失联表现。
+  const [state, setState] = React.useState<RightPanelTabsState>({ tabs: [], activeTabId: null })
   const [latestArtifactSelection, setLatestArtifactSelection] = React.useState<ArtifactSelection | null>(null)
   const [latestTurnOutputSelection, setLatestTurnOutputSelection] = React.useState<TurnOutputSelection | null>(null)
 
   const activeTab = React.useMemo(
-    () => tabs.find((tab) => tab.id === activeTabId) ?? tabs[0] ?? null,
-    [activeTabId, tabs],
+    () => state.tabs.find((tab) => tab.id === state.activeTabId) ?? state.tabs[0] ?? null,
+    [state],
   )
 
   const closeTabById = React.useCallback((id: string) => {
-    setTabs((current) => {
-      const next = closeTab(current, id)
-      setActiveTabId((currentActive) => activeTabIdAfterClose(current, id, currentActive))
-      return next
-    })
+    setState((current) => ({
+      tabs: closeTab(current.tabs, id),
+      activeTabId: activeTabIdAfterClose(current.tabs, id, current.activeTabId),
+    }))
   }, [])
 
   const setTabTitle = React.useCallback((id: string, title: string) => {
-    setTabs((current) => updateTabTitle(current, id, title))
+    setState((current) => {
+      const tabs = updateTabTitle(current.tabs, id, title)
+      return tabs === current.tabs ? current : { ...current, tabs }
+    })
+  }, [])
+
+  const setActiveTabId = React.useCallback((id: string) => {
+    setState((current) => (current.activeTabId === id ? current : { ...current, activeTabId: id }))
   }, [])
 
   const openBrowser = React.useCallback((sessionId: string | null) => {
     const tab: RightPanelTab = { id: browserTabId(sessionId), kind: "browser", sessionId, title: DEFAULT_BROWSER_TITLE }
-    setTabs((current) => upsertTab(current, tab))
-    setActiveTabId(tab.id)
+    setState((current) => ({ tabs: upsertTab(current.tabs, tab), activeTabId: tab.id }))
   }, [])
 
   const openArtifact = React.useCallback((selection: ArtifactSelection | null, source: RightPanelTabSource) => {
@@ -81,16 +92,15 @@ export function useRightPanelTabs({ activeSessionId }: UseRightPanelTabsOptions)
       source,
       title: DEFAULT_ARTIFACT_TITLE,
     }
-    setTabs((current) => {
-      const exists = current.some((candidate) => candidate.id === tab.id)
-      if (!exists && source === "auto") {
+    setState((current) => {
+      // 自动通知只更新已打开的标签，不新开；手动打开始终新建/更新并激活。
+      if (!current.tabs.some((candidate) => candidate.id === tab.id) && source === "auto") {
         return current
       }
-      const next = upsertTab(current, tab)
-      if (source === "manual") {
-        setActiveTabId(tab.id)
+      return {
+        tabs: upsertTab(current.tabs, tab),
+        activeTabId: source === "manual" ? tab.id : current.activeTabId,
       }
-      return next
     })
   }, [])
 
@@ -105,22 +115,19 @@ export function useRightPanelTabs({ activeSessionId }: UseRightPanelTabsOptions)
       source,
       title: DEFAULT_TURNOUTPUT_TITLE,
     }
-    setTabs((current) => {
-      const exists = current.some((candidate) => candidate.id === tab.id)
-      if (!exists && source === "auto") {
+    setState((current) => {
+      if (!current.tabs.some((candidate) => candidate.id === tab.id) && source === "auto") {
         return current
       }
-      const next = upsertTab(current, tab)
-      if (source === "manual") {
-        setActiveTabId(tab.id)
+      return {
+        tabs: upsertTab(current.tabs, tab),
+        activeTabId: source === "manual" ? tab.id : current.activeTabId,
       }
-      return next
     })
   }, [])
 
   const clearTabs = React.useCallback(() => {
-    setTabs([])
-    setActiveTabId(null)
+    setState({ tabs: [], activeTabId: null })
     setLatestArtifactSelection(null)
     setLatestTurnOutputSelection(null)
   }, [])
@@ -131,9 +138,9 @@ export function useRightPanelTabs({ activeSessionId }: UseRightPanelTabsOptions)
   }, [activeSessionId, clearTabs])
 
   return {
-    tabs,
+    tabs: state.tabs,
     activeTab,
-    activeTabId,
+    activeTabId: state.activeTabId,
     latestArtifactSelection,
     latestTurnOutputSelection,
     closeTabById,
