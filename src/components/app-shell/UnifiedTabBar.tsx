@@ -2,6 +2,7 @@ import type { RightPanelTab } from "./right-panel-tabs.ts"
 
 import { Globe2, FileSearch, Package, Plus, X } from "lucide-react"
 import * as React from "react"
+import { createPortal } from "react-dom"
 import { RIGHT_PANEL_TABPANEL_ID, tabElementId } from "./right-panel-tabs.ts"
 import { useT } from "@/i18n/i18n"
 import { cn } from "@/lib/utils"
@@ -17,12 +18,23 @@ function tabIcon(tab: RightPanelTab): React.ReactNode {
   }
 }
 
+/** 加号菜单项：按标签类型打开对应面板（对齐 LobsterAI 的 artifactAddTab 菜单）。 */
+export interface AddTabOption {
+  kind: RightPanelTab["kind"]
+  label: string
+  /** 不可用原因（禁用项的 title / 次要文案）。 */
+  hint: string
+  disabled: boolean
+  onSelect: () => void
+}
+
 export interface UnifiedTabBarProps {
   tabs: RightPanelTab[]
   activeTabId: string | null
   onActivateTab: (id: string) => void
   onCloseTab: (id: string) => void
-  onAddTab: () => void
+  /** 加号菜单选项（空数组时隐藏加号）。 */
+  addTabOptions: AddTabOption[]
   maximized?: boolean
 }
 
@@ -31,10 +43,14 @@ export function UnifiedTabBar({
   activeTabId,
   onActivateTab,
   onCloseTab,
-  onAddTab,
+  addTabOptions,
   maximized,
 }: UnifiedTabBarProps) {
   const t = useT()
+  const addButtonRef = React.useRef<HTMLButtonElement | null>(null)
+  const menuRef = React.useRef<HTMLDivElement | null>(null)
+  const [menuOpen, setMenuOpen] = React.useState(false)
+  const [menuPosition, setMenuPosition] = React.useState<{ left: number; top: number } | null>(null)
 
   // APG tabs 方向键 roving（自动激活）：左右循环移动、Home/End 首尾，焦点与激活同步。
   const handleTablistKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
@@ -61,6 +77,47 @@ export function UnifiedTabBar({
       document.getElementById(tabElementId(nextTab.id))?.focus()
     }
   }
+
+  const updateMenuPosition = React.useCallback(() => {
+    const rect = addButtonRef.current?.getBoundingClientRect()
+    if (!rect) return
+    setMenuPosition({ left: Math.round(rect.right - 176), top: Math.round(rect.bottom + 6) })
+  }, [])
+
+  React.useEffect(() => {
+    if (!menuOpen) {
+      setMenuPosition(null)
+      return
+    }
+    updateMenuPosition()
+    window.addEventListener("resize", updateMenuPosition)
+    window.addEventListener("scroll", updateMenuPosition, true)
+    return () => {
+      window.removeEventListener("resize", updateMenuPosition)
+      window.removeEventListener("scroll", updateMenuPosition, true)
+    }
+  }, [menuOpen, updateMenuPosition])
+
+  React.useEffect(() => {
+    if (!menuOpen) return
+    const handlePointerDown = (event: PointerEvent): void => {
+      const target = event.target as Node
+      if (menuRef.current?.contains(target) || addButtonRef.current?.contains(target)) return
+      setMenuOpen(false)
+    }
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") {
+        setMenuOpen(false)
+        addButtonRef.current?.focus()
+      }
+    }
+    document.addEventListener("pointerdown", handlePointerDown)
+    document.addEventListener("keydown", handleKeyDown)
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown)
+      document.removeEventListener("keydown", handleKeyDown)
+    }
+  }, [menuOpen])
 
   return (
     <div
@@ -114,15 +171,60 @@ export function UnifiedTabBar({
           </div>
         )
       })}
-      <button
-        type="button"
-        aria-label={t("rightPanel.newTab")}
-        title={t("rightPanel.newTab")}
-        onClick={onAddTab}
-        className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-      >
-        <Plus className="size-4" />
-      </button>
+      {addTabOptions.length > 0 ? (
+        <button
+          ref={addButtonRef}
+          type="button"
+          aria-label={t("rightPanel.newTab")}
+          title={t("rightPanel.newTab")}
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((open) => !open)}
+          className={cn(
+            "flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+            menuOpen && "bg-muted text-foreground",
+          )}
+        >
+          <Plus className="size-4" />
+        </button>
+      ) : null}
+      {menuOpen && menuPosition
+        ? createPortal(
+            <div
+              ref={menuRef}
+              role="menu"
+              aria-label={t("rightPanel.newTab")}
+              className="fixed z-50 w-44 overflow-hidden rounded-lg border border-[var(--oo-divider)] bg-background py-1 shadow-lg"
+              style={{ left: menuPosition.left, top: menuPosition.top }}
+            >
+              {addTabOptions.map((option) => (
+                <button
+                  key={option.kind}
+                  type="button"
+                  role="menuitem"
+                  disabled={option.disabled}
+                  title={option.disabled ? option.hint : option.label}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-none px-3 py-1.5 text-left transition-colors",
+                    option.disabled ? "cursor-not-allowed text-muted-foreground/50" : "text-foreground hover:bg-accent",
+                  )}
+                  onClick={() => {
+                    if (option.disabled) return
+                    setMenuOpen(false)
+                    option.onSelect()
+                  }}
+                >
+                  <span className="shrink-0">{tabIcon({ kind: option.kind } as RightPanelTab)}</span>
+                  <span className="oo-text-caption min-w-0 flex-1 truncate">{option.label}</span>
+                  {option.disabled ? (
+                    <span className="oo-text-micro shrink-0 truncate text-muted-foreground/60">{option.hint}</span>
+                  ) : null}
+                </button>
+              ))}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   )
 }

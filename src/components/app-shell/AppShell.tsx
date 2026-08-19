@@ -3,6 +3,7 @@ import type { SessionInfo } from "../../../electron/session/common.ts"
 import type { Persona } from "../../../electron/settings/common.ts"
 import type { AppShellRoute as Route, SettingsCategory } from "./app-shell-types.ts"
 import type { SidebarTaskSortMode } from "./sidebar-persistence.ts"
+import type { AddTabOption } from "./UnifiedTabBar.tsx"
 import type { KnowledgeBaseIdsUpdate } from "@/hooks/useSessions"
 import type { ComposerState } from "@/routes/Chat/composer-state"
 import type { ArtifactSelection } from "@/routes/Chat/GeneratedArtifacts"
@@ -256,6 +257,7 @@ export function AppShell() {
     activeTab: activeRightPanelTab,
     activeTabId: activeRightPanelTabId,
     latestArtifactSelection,
+    latestTurnOutputSelection,
     closeTabById,
     openArtifact,
     openBrowser,
@@ -975,6 +977,53 @@ export function AppShell() {
         reportRendererHandledError("browser", "open new browser tab failed", cause)
       })
   }, [activeChatSessionId, browserService])
+  // 加号菜单（对齐 LobsterAI artifactAddTab）：按类型选择打开的标签；不可用项置灰并说明原因，
+  // 草稿态（无活跃会话）点开也有明确反馈，不再静默无响应。
+  const addTabOptions = React.useMemo<AddTabOption[]>(() => {
+    const openPanel = (): void => {
+      setArtifactsPanelOpen(true)
+    }
+    return [
+      {
+        kind: "browser",
+        label: t("rightPanel.tabBrowser"),
+        hint: t("rightPanel.addBrowserHint"),
+        disabled: !activeChatSessionId,
+        onSelect: handleAddRightPanelTab,
+      },
+      {
+        kind: "artifact",
+        label: t("rightPanel.tabArtifacts"),
+        hint: t("rightPanel.addArtifactsHint"),
+        disabled: !latestArtifactSelection,
+        onSelect: () => {
+          if (!latestArtifactSelection) return
+          openArtifact(latestArtifactSelection, "manual")
+          openPanel()
+        },
+      },
+      {
+        kind: "turn-output",
+        label: t("rightPanel.tabReview"),
+        hint: t("rightPanel.addReviewHint"),
+        disabled: !latestTurnOutputSelection,
+        onSelect: () => {
+          if (!latestTurnOutputSelection) return
+          openTurnOutput(latestTurnOutputSelection, "manual")
+          openPanel()
+        },
+      },
+    ]
+  }, [
+    activeChatSessionId,
+    handleAddRightPanelTab,
+    latestArtifactSelection,
+    latestTurnOutputSelection,
+    openArtifact,
+    openTurnOutput,
+    setArtifactsPanelOpen,
+    t,
+  ])
   useAppShellCommands({
     appUpdate,
     onFocusComposer: requestComposerFocus,
@@ -1350,7 +1399,7 @@ export function AppShell() {
             handleArtifactsPanelResizeStart={handleArtifactsPanelResizeStart}
             isArtifactsPanelResizing={isArtifactsPanelResizing}
             onActivateTab={setActiveTabId}
-            onAddTab={handleAddRightPanelTab}
+            addTabOptions={addTabOptions}
             onCloseTab={handleCloseRightPanelTab}
             rightPanelVisible={rightPanelVisible}
             setArtifactsPanelMaximizedState={setArtifactsPanelMaximizedState}

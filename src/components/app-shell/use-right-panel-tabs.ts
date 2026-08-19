@@ -24,6 +24,8 @@ interface UseRightPanelTabsResult {
   activeTabId: string | null
   /** 最近一次自动可用的成果（供聊天区成果入口展示）。 */
   latestArtifactSelection: ArtifactSelection | null
+  /** 最近一次自动可用的审查记录（供标签栏加号菜单手动打开）。 */
+  latestTurnOutputSelection: TurnOutputSelection | null
   closeTabById: (id: string) => void
   openArtifact: (selection: ArtifactSelection, source: RightPanelTabSource) => void
   openBrowser: (sessionId: string) => void
@@ -42,6 +44,7 @@ export function useRightPanelTabs({ activeSessionId }: UseRightPanelTabsOptions)
   const [tabs, setTabs] = React.useState<RightPanelTab[]>([])
   const [activeTabId, setActiveTabId] = React.useState<string | null>(null)
   const [latestArtifactSelection, setLatestArtifactSelection] = React.useState<ArtifactSelection | null>(null)
+  const [latestTurnOutputSelection, setLatestTurnOutputSelection] = React.useState<TurnOutputSelection | null>(null)
 
   const activeTab = React.useMemo(
     () => tabs.find((tab) => tab.id === activeTabId) ?? tabs[0] ?? null,
@@ -91,6 +94,9 @@ export function useRightPanelTabs({ activeSessionId }: UseRightPanelTabsOptions)
   }, [])
 
   const openTurnOutput = React.useCallback((selection: TurnOutputSelection, source: RightPanelTabSource) => {
+    if (source === "auto") {
+      setLatestTurnOutputSelection(selection)
+    }
     const tab: RightPanelTab = {
       id: turnOutputTabId(selection),
       kind: "turn-output",
@@ -115,6 +121,7 @@ export function useRightPanelTabs({ activeSessionId }: UseRightPanelTabsOptions)
     setTabs([])
     setActiveTabId(null)
     setLatestArtifactSelection(null)
+    setLatestTurnOutputSelection(null)
   }, [])
 
   // 会话切换：清空全部标签（与原 handleArtifactsReset 行为一致）。
@@ -127,6 +134,7 @@ export function useRightPanelTabs({ activeSessionId }: UseRightPanelTabsOptions)
     activeTab,
     activeTabId,
     latestArtifactSelection,
+    latestTurnOutputSelection,
     closeTabById,
     openArtifact,
     openBrowser,

@@ -1,5 +1,6 @@
 import type { BrowserPageState, BrowserService } from "../../../electron/browser/common.ts"
 import type { RightPanelTab } from "./right-panel-tabs.ts"
+import type { AddTabOption } from "./UnifiedTabBar.tsx"
 import type { ArtifactSelection } from "@/routes/Chat/GeneratedArtifacts"
 import type { TurnOutputSelection } from "@/routes/Chat/TurnOutputs"
 import type { ConnectionClientService } from "@oomol/connection"
@@ -36,7 +37,8 @@ interface AppShellRightPanelProps {
   handleArtifactsPanelResizeStart: (event: React.PointerEvent<HTMLDivElement>) => void
   isArtifactsPanelResizing: boolean
   onActivateTab: (id: string) => void
-  onAddTab: () => void
+  /** 标签栏加号菜单选项（空数组时隐藏加号）。 */
+  addTabOptions: AddTabOption[]
   onCloseTab: (id: string) => void
   rightPanelVisible: boolean
   setArtifactsPanelMaximizedState: (maximized: boolean) => void
@@ -60,7 +62,7 @@ export const AppShellRightPanel = React.memo(function AppShellRightPanel({
   handleArtifactsPanelResizeStart,
   isArtifactsPanelResizing,
   onActivateTab,
-  onAddTab,
+  addTabOptions,
   onCloseTab,
   rightPanelVisible,
   setArtifactsPanelMaximizedState,
@@ -109,7 +111,7 @@ export const AppShellRightPanel = React.memo(function AppShellRightPanel({
           maximized={artifactsPanelIsMaximized}
           tabs={tabs}
           onActivateTab={onActivateTab}
-          onAddTab={onAddTab}
+          addTabOptions={addTabOptions}
           onCloseTab={onCloseTab}
         />
         <div
