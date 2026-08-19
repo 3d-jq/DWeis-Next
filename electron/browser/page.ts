@@ -165,6 +165,19 @@ export class BrowserPage {
     return this.state()
   }
 
+  public setZoomFactor(factor: number): void {
+    const clamped = Math.min(5, Math.max(0.25, factor))
+    if (!this.view.webContents.isDestroyed()) {
+      this.view.webContents.setZoomFactor(clamped)
+    }
+  }
+
+  /** 加载空白页（不销毁视图，用于面板"打开空白页"）。 */
+  public async loadBlank(): Promise<BrowserPageState> {
+    await this.view.webContents.loadURL("about:blank")
+    return this.state()
+  }
+
   public async read(target?: string, signal?: AbortSignal): Promise<BrowserReadResult> {
     const dialog = this.dialogState()
     if (dialog) {

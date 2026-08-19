@@ -102,6 +102,7 @@ describe("BrowserPanel native view visibility", () => {
     expect(invoke).toHaveBeenCalledWith("show", {
       bounds: { height: 400, width: 500, x: 600, y: 100 },
       sessionId: "session-1",
+      zoom: 1,
     })
     // After show succeeds the snapshot must be cleared to avoid overlapping the native view
     expect(document.querySelector("img")).toBeNull()
@@ -137,6 +138,7 @@ describe("BrowserPanel native view visibility", () => {
     expect(invoke).toHaveBeenCalledWith("show", {
       bounds: { height: 400, width: 500, x: 600, y: 100 },
       sessionId: "session-1",
+      zoom: 1,
     })
 
     const overlay = document.createElement("div")
@@ -186,6 +188,7 @@ describe("BrowserPanel native view visibility", () => {
     expect(invoke).toHaveBeenCalledWith("show", {
       bounds: { height: 400, width: 500, x: 600, y: 100 },
       sessionId: "session-1",
+      zoom: 1,
     })
 
     // After show succeeds, preview must be cleared (no overlapping snapshot on native view)
@@ -200,7 +203,7 @@ describe("BrowserPanel titlebar drag regions", () => {
     const html = renderPanel()
 
     expect(html).toMatch(/oo-titlebar[^"]*\[-webkit-app-region:drag\]/u)
-    expect(html.match(/\[-webkit-app-region:no-drag\]/gu)).toHaveLength(6)
+    expect(html.match(/\[-webkit-app-region:no-drag\]/gu)).toHaveLength(7)
     expect(html).toMatch(/<form class="[^"]*\[-webkit-app-region:no-drag\]/u)
   })
 })

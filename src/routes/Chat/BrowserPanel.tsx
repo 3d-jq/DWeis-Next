@@ -3,7 +3,20 @@ import type { BrowserService } from "../../../electron/browser/common.ts"
 import type { PanelHeaderAction } from "@/components/app-shell/PanelHeader.tsx"
 import type { ConnectionClientService } from "@oomol/connection"
 
-import { ArrowLeft, ArrowLeftRight, ArrowRight, ExternalLink, LoaderCircle, RotateCw, Smartphone } from "lucide-react"
+import {
+  ArrowLeft,
+  ArrowLeftRight,
+  ArrowRight,
+  Camera,
+  EllipsisVertical,
+  ExternalLink,
+  FileX2,
+  LoaderCircle,
+  Minus,
+  Plus,
+  RotateCw,
+  Smartphone,
+} from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
 import {
@@ -15,6 +28,13 @@ import {
   parseDeviceDimension,
 } from "./browser-device.ts"
 import { PanelHeader } from "@/components/app-shell/PanelHeader.tsx"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useT } from "@/i18n/i18n"
 import { reportRendererHandledError } from "@/lib/renderer-diagnostics"
@@ -80,6 +100,9 @@ export function BrowserPanel({
   const nativeViewVisibleRef = React.useRef(false)
   /** Mount 时若未在模拟，跳过首次 applyDeviceOverrides（主进程本就是默认态）。 */
   const skipInitialDeviceSyncRef = React.useRef(!state.device)
+  /** 用户手动缩放（独立于设备模拟的 fit 缩放）；ref 供 show 闭包读取。 */
+  const [zoom, setZoomState] = React.useState(1)
+  const zoomRef = React.useRef(1)
 
   React.useEffect(() => {
     setAddress(state.navigation.url === "about:blank" ? "" : state.navigation.url)
@@ -201,10 +224,10 @@ export function BrowserPanel({
       nativeViewVisibleRef.current = true
       setPreviewDataUrl(null)
       snapshotShown = false
-      // 模拟视口按设备框实际宽 / 目标 CSS 宽换算缩放，交给主进程 setZoomFactor。
+      // 模拟视口按设备框实际宽 / 目标 CSS 宽换算缩放；普通模式用用户手动缩放。
       const viewport = device ? deviceViewport(device) : null
       void browserService
-        .invoke("show", { bounds, sessionId, zoom: viewport ? bounds.width / viewport.width : undefined })
+        .invoke("show", { bounds, sessionId, zoom: viewport ? bounds.width / viewport.width : zoomRef.current })
         .catch((cause: unknown) => {
           reportRendererHandledError("browser", "show browser page failed", cause)
         })
@@ -263,6 +286,41 @@ export function BrowserPanel({
       toast.error(t("browser.actionFailed"))
     })
   }, [browserService, sessionId, t])
+
+  const runPanelAction = React.useCallback(
+    (action: "saveScreenshot" | "clearCookies" | "clearCache", successMessage: string): void => {
+      const promise =
+        action === "saveScreenshot" ? browserService.invoke("saveScreenshot", sessionId) : browserService.invoke(action)
+      void promise
+        .then(() => toast.success(successMessage))
+        .catch((cause: unknown) => {
+          reportRendererHandledError("browser", `browser ${action} failed`, cause)
+          toast.error(t("browser.actionFailed"))
+        })
+    },
+    [browserService, sessionId, t],
+  )
+
+  const loadBlank = React.useCallback((): void => {
+    void browserService.invoke("loadBlank", sessionId).catch((cause: unknown) => {
+      reportRendererHandledError("browser", "load blank page failed", cause)
+      toast.error(t("browser.actionFailed"))
+    })
+  }, [browserService, sessionId, t])
+
+  // 手动缩放：设备模拟时由 fit 自动控制，忽略手动档位。
+  const changeZoom = React.useCallback(
+    (next: number): void => {
+      if (device) return
+      const clamped = Math.min(5, Math.max(0.25, Math.round(next * 100) / 100))
+      zoomRef.current = clamped
+      setZoomState(clamped)
+      void browserService.invoke("setZoom", sessionId, clamped).catch((cause: unknown) => {
+        reportRendererHandledError("browser", "set browser zoom failed", cause)
+      })
+    },
+    [browserService, device, sessionId],
+  )
 
   const pageTitle = state.navigation.title || state.navigation.url || t("rightPanel.tabBrowser")
 
@@ -378,6 +436,69 @@ export function BrowserPanel({
             onChange={(event) => setAddress(event.currentTarget.value)}
           />
         </form>
+        <DropdownMenu>
+          <DropdownMenuTrigger className={toolbarButtonClass} title={t("browser.more")} aria-label={t("browser.more")}>
+            <EllipsisVertical className="size-4" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuItem
+              onSelect={() => runPanelAction("saveScreenshot", t("browser.screenshotSaved"))}
+              disabled={!state.navigation.url || state.navigation.url === "about:blank"}
+            >
+              <Camera />
+              {t("browser.saveScreenshot")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={loadBlank}>
+              <FileX2 />
+              {t("browser.blankPage")}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            {/* 缩放行：设备模拟时由 fit 自动控制，禁用手动档位。 */}
+            <div className="flex items-center justify-between gap-2 px-2 py-1.5">
+              <span className={cn("text-xs", device && "text-muted-foreground/60")}>{t("browser.zoom")}</span>
+              <div
+                className="flex h-7 items-center overflow-hidden rounded-md border border-border"
+                title={device ? t("browser.zoomUnavailable") : undefined}
+              >
+                <button
+                  type="button"
+                  className="flex size-7 items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                  disabled={Boolean(device) || zoom <= 0.25}
+                  aria-label={t("browser.zoomOut")}
+                  onClick={() => changeZoom(zoom - 0.1)}
+                >
+                  <Minus className="size-3.5" />
+                </button>
+                <button
+                  type="button"
+                  className="min-w-12 border-x border-border px-1.5 text-center text-xs text-foreground tabular-nums transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-60"
+                  disabled={Boolean(device)}
+                  aria-label={t("browser.zoomReset")}
+                  title={t("browser.zoomReset")}
+                  onClick={() => changeZoom(1)}
+                >
+                  {Math.round(zoom * 100)}%
+                </button>
+                <button
+                  type="button"
+                  className="flex size-7 items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                  disabled={Boolean(device) || zoom >= 5}
+                  aria-label={t("browser.zoomIn")}
+                  onClick={() => changeZoom(zoom + 0.1)}
+                >
+                  <Plus className="size-3.5" />
+                </button>
+              </div>
+            </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => runPanelAction("clearCookies", t("browser.clearDone"))}>
+              {t("browser.clearCookies")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => runPanelAction("clearCache", t("browser.clearDone"))}>
+              {t("browser.clearCache")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
       {device ? (
         <div className="flex h-[33px] shrink-0 items-center gap-1.5 border-b border-border px-2 [-webkit-app-region:no-drag]">

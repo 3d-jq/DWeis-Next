@@ -212,6 +212,41 @@ export class BrowserManager {
     await shell.openExternal(state.navigation.url)
   }
 
+  public async setZoom(sessionId: string, factor: number): Promise<void> {
+    const page = this.pages.get(sessionId)?.page
+    page?.setZoomFactor(factor)
+  }
+
+  /** 面板"保存截图"：可视区域截图存时间戳文件并在文件管理器中定位（不占用 agent 的 latest.png）。 */
+  public async saveScreenshot(sessionId: string): Promise<void> {
+    const page = this.pages.get(sessionId)?.page
+    if (!page || page.isCrashed()) {
+      throw new Error("The browser page is unavailable.")
+    }
+    const image = await page.screenshot(false)
+    const sessionDir = this.sessionScreenshotDir(sessionId)
+    await mkdir(sessionDir, { recursive: true })
+    const filePath = path.join(sessionDir, `screenshot-${Date.now()}.png`)
+    await writeFile(filePath, image)
+    shell.showItemInFolder(filePath)
+  }
+
+  /** 只清 Cookies，不销毁页面（clearData 会重建页面，面板场景太重）。 */
+  public async clearCookies(): Promise<void> {
+    await this.getPartitionSession().clearStorageData({ storages: ["cookies"] })
+  }
+
+  public async clearCache(): Promise<void> {
+    await this.getPartitionSession().clearCache()
+  }
+
+  public async loadBlank(sessionId: string): Promise<BrowserPageState> {
+    const page = await this.ensurePage(sessionId)
+    const state = await page.loadBlank()
+    this.emitState(state)
+    return state
+  }
+
   public async openDownloadsFolder(): Promise<void> {
     const error = await shell.openPath(this.downloadsDir)
     if (error) throw new Error(error)
@@ -481,5 +516,25 @@ export class BrowserServiceImpl
 
   public openInSystemBrowser(sessionId: string): Promise<void> {
     return this.browser.openInSystemBrowser(sessionId)
+  }
+
+  public setZoom(sessionId: string, factor: number): Promise<void> {
+    return this.browser.setZoom(sessionId, factor)
+  }
+
+  public saveScreenshot(sessionId: string): Promise<void> {
+    return this.browser.saveScreenshot(sessionId)
+  }
+
+  public clearCookies(): Promise<void> {
+    return this.browser.clearCookies()
+  }
+
+  public clearCache(): Promise<void> {
+    return this.browser.clearCache()
+  }
+
+  public loadBlank(sessionId: string): Promise<BrowserPageState> {
+    return this.browser.loadBlank(sessionId)
   }
 }

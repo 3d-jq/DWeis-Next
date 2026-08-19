@@ -77,5 +77,15 @@ export const BrowserService = serviceName("browser-service") as ServiceName<{
     reload(sessionId: string): Promise<BrowserPageState>
     openDownloadsFolder(): Promise<void>
     openInSystemBrowser(sessionId: string): Promise<void>
+    /** 用户手动缩放（0.25-5）；独立于设备模拟的 fit 缩放。 */
+    setZoom(sessionId: string, factor: number): Promise<void>
+    /** 截图当前可视区域并存文件，成功后在系统文件管理器中定位。 */
+    saveScreenshot(sessionId: string): Promise<void>
+    /** 清除浏览器分区 Cookies（不重载/关闭页面）。 */
+    clearCookies(): Promise<void>
+    /** 清除浏览器分区缓存（不重载/关闭页面）。 */
+    clearCache(): Promise<void>
+    /** 加载空白页（重置地址栏视图，不销毁会话）。 */
+    loadBlank(sessionId: string): Promise<BrowserPageState>
   }
 }>
