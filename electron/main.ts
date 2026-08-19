@@ -333,6 +333,7 @@ const automationService = new AutomationServiceImpl({
     }
     const session = await agent.createSession(task.name)
     await agent.promptStreaming(session.id, task.prompt, { mode: "build" })
+    return session.id
   },
   parseTaskText: async (text, signal) => {
     // AI 解析优先（用户不需要懂任何语法），本地确定性解析兜底。

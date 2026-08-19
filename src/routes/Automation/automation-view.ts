@@ -80,3 +80,32 @@ export const AUTOMATION_TEMPLATES: { text: string; title: string }[] = [
   { text: "每周五下午5点生成本周复盘报告", title: "每周复盘" },
   { text: "每2小时汇总一次行业最新资讯", title: "资讯速递" },
 ]
+
+/** 按关键词过滤任务（名称/指令/调度原文，忽略大小写）。 */
+export function filterAutomationTasks(tasks: AutomationTask[], query: string): AutomationTask[] {
+  const keyword = query.trim().toLowerCase()
+  if (!keyword) return tasks
+  return tasks.filter((task) => [task.name, task.prompt, task.scheduleText].join("\n").toLowerCase().includes(keyword))
+}
+
+/** 全局执行历史条目：跨任务聚合，按时间降序。 */
+export interface AutomationHistoryEntry {
+  at: number
+  sessionId?: string
+  status: "success" | "error"
+  taskName: string
+}
+
+/** 聚合所有任务的执行历史（跳过 running 占位前的记录天然只有终态）。 */
+export function automationRunHistory(tasks: AutomationTask[]): AutomationHistoryEntry[] {
+  return tasks
+    .flatMap((task) =>
+      (task.runHistory ?? []).map((record) => ({
+        at: record.at,
+        sessionId: record.sessionId,
+        status: record.status,
+        taskName: task.name,
+      })),
+    )
+    .sort((left, right) => right.at - left.at)
+}

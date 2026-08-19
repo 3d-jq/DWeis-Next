@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest"
 import {
   automationDisplayStatus,
   automationNextRunAt,
+  automationRunHistory,
+  filterAutomationTasks,
   formatLastRun,
   formatRelativeNextRun,
   sortAutomationTasks,
@@ -83,6 +85,49 @@ describe("sortAutomationTasks", () => {
       now,
     )
     expect(sorted.map((entry) => entry.id)).toEqual(["running", "noon", "evening", "disabled"])
+  })
+})
+
+describe("filterAutomationTasks", () => {
+  const tasks = [
+    task({ id: "a", name: "日报", prompt: "总结今天的工作", scheduleText: "工作日晚上6点" }),
+    task({ id: "b", name: "资讯", prompt: "汇总行业最新资讯", scheduleText: "每2小时" }),
+  ]
+
+  it("matches name, prompt, and schedule text case-insensitively", () => {
+    expect(filterAutomationTasks(tasks, "日报").map((entry) => entry.id)).toEqual(["a"])
+    expect(filterAutomationTasks(tasks, "资讯").map((entry) => entry.id)).toEqual(["b"])
+    expect(filterAutomationTasks(tasks, "工作日").map((entry) => entry.id)).toEqual(["a"])
+    expect(filterAutomationTasks(tasks, "")).toEqual(tasks)
+  })
+
+  it("returns nothing when no task matches", () => {
+    expect(filterAutomationTasks(tasks, "不存在")).toEqual([])
+  })
+})
+
+describe("automationRunHistory", () => {
+  it("aggregates run records across tasks in reverse chronological order", () => {
+    const entries = automationRunHistory([
+      task({
+        id: "a",
+        name: "日报",
+        runHistory: [
+          { at: 300, sessionId: "s3", status: "success" },
+          { at: 100, status: "error" },
+        ],
+      }),
+      task({ id: "b", name: "资讯", runHistory: [{ at: 200, sessionId: "s2", status: "success" }] }),
+    ])
+    expect(entries).toEqual([
+      { at: 300, sessionId: "s3", status: "success", taskName: "日报" },
+      { at: 200, sessionId: "s2", status: "success", taskName: "资讯" },
+      { at: 100, sessionId: undefined, status: "error", taskName: "日报" },
+    ])
+  })
+
+  it("returns empty for tasks without history", () => {
+    expect(automationRunHistory([task({})])).toEqual([])
   })
 })
 

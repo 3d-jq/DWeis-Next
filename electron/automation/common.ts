@@ -9,6 +9,8 @@ export type AutomationTaskStatus = "success" | "error" | "running"
 export interface AutomationRunRecord {
   at: number
   status: "success" | "error"
+  /** 执行产生的会话 id（历史记录可跳转查看结果）；agent 未就绪等失败场景可能缺失。 */
+  sessionId?: string
 }
 
 export interface AutomationTask {
@@ -64,5 +66,7 @@ export const AutomationService = serviceName("automation-service") as ServiceNam
     deleteTask(id: string): Promise<AutomationTask[]>
     /** 立即手动运行一次（不影响原调度；正在运行中时拒绝）。 */
     runTaskNow(id: string): Promise<AutomationTask[]>
+    /** 只解析不落库：编辑任务时用一句话重新解析调度规则。 */
+    parseTaskDraft(text: string): Promise<ParsedTaskDraft | null>
   }
 }>

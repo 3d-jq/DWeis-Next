@@ -15,8 +15,8 @@ import { nextRunAtInTimezone } from "./schedule.ts"
 
 export interface AutomationServiceDeps {
   store: AutomationStore
-  /** 到点执行任务：创建新会话并让 agent 执行 prompt（结果留在新会话）。 */
-  runTask: (task: AutomationTask) => Promise<void>
+  /** 到点执行任务：创建新会话并让 agent 执行 prompt（结果留在新会话）；返回会话 id。 */
+  runTask: (task: AutomationTask) => Promise<string | null>
   /** 把用户一句话解析成任务草稿（AI 解析 + 本地兜底）；解析失败返回 null。 */
   parseTaskText: (text: string, signal?: AbortSignal) => Promise<ParsedTaskDraft | null>
 }
@@ -107,6 +107,10 @@ export class AutomationServiceImpl
     return this.tasks
   }
 
+  public parseTaskDraft(text: string): Promise<ParsedTaskDraft | null> {
+    return this.deps.parseTaskText(text)
+  }
+
   private async persistAndSchedule(): Promise<void> {
     await this.deps.store.write(this.tasks)
     this.rebuildSchedule()
@@ -149,8 +153,8 @@ export class AutomationServiceImpl
       })
     }
     try {
-      await this.deps.runTask(task)
-      await this.recordRunResult(task.id, "success")
+      const sessionId = await this.deps.runTask(task)
+      await this.recordRunResult(task.id, "success", sessionId ?? undefined)
     } catch (error) {
       console.warn("[dweis] automation task failed:", task.id, error)
       await this.recordRunResult(task.id, "error")
@@ -162,11 +166,11 @@ export class AutomationServiceImpl
     }
   }
 
-  private async recordRunResult(id: string, status: "success" | "error"): Promise<void> {
+  private async recordRunResult(id: string, status: "success" | "error", sessionId?: string): Promise<void> {
     const index = this.tasks.findIndex((task) => task.id === id)
     if (index < 0) return
     const current = this.tasks[index]
-    const record: AutomationRunRecord = { at: Date.now(), status }
+    const record: AutomationRunRecord = sessionId ? { at: Date.now(), sessionId, status } : { at: Date.now(), status }
     const runHistory = [record, ...(current.runHistory ?? [])].slice(0, runHistoryLimit)
     this.tasks = [
       ...this.tasks.slice(0, index),

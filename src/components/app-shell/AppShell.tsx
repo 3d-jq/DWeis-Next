@@ -1227,7 +1227,14 @@ export function AppShell() {
               {route === "skills" ? (
                 <SkillsRoute />
               ) : route === "automation" ? (
-                <AutomationRoute />
+                <AutomationRoute
+                  onOpenSession={(sessionId) => {
+                    // 历史记录跳会话：对齐 handleSelectSession 的选中语义（结束草稿态并回聊天）。
+                    setSelectedSessionId(sessionId)
+                    setIsDraftSession(false)
+                    setRoute("chat")
+                  }}
+                />
               ) : route === "knowledge" && knowledgeBaseBetaEnabled ? (
                 <KnowledgeRoute
                   currentDirectory={knowledgeDirectory}

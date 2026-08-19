@@ -1,4 +1,4 @@
-import type { AutomationTask, AutomationTaskInput } from "../../electron/automation/common.ts"
+import type { AutomationTask, AutomationTaskInput, ParsedTaskDraft } from "../../electron/automation/common.ts"
 
 import * as React from "react"
 import { useAutomationService } from "../components/AppContext.ts"
@@ -13,6 +13,8 @@ export function useAutomation(): {
   deleteTask: (id: string) => Promise<void>
   /** 立即手动运行一次（正在运行中时服务端会忽略）。 */
   runTaskNow: (id: string) => Promise<void>
+  /** 只解析不落库：编辑任务时用一句话重新解析调度规则。 */
+  parseTaskDraft: (text: string) => Promise<ParsedTaskDraft | null>
 } {
   const service = useAutomationService()
   const [tasks, setTasks] = React.useState<AutomationTask[]>([])
@@ -72,5 +74,7 @@ export function useAutomation(): {
     [service],
   )
 
-  return { createTask, deleteTask, loading, runTaskNow, tasks, updateTask }
+  const parseTaskDraft = React.useCallback((text: string) => service.invoke("parseTaskDraft", text), [service])
+
+  return { createTask, deleteTask, loading, parseTaskDraft, runTaskNow, tasks, updateTask }
 }
