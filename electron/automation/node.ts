@@ -98,6 +98,15 @@ export class AutomationServiceImpl
     return this.tasks
   }
 
+  public async runTaskNow(id: string): Promise<AutomationTask[]> {
+    const task = this.tasks.find((entry) => entry.id === id)
+    if (!task || task.lastRunStatus === "running") {
+      return this.tasks
+    }
+    void this.fireTask(task)
+    return this.tasks
+  }
+
   private async persistAndSchedule(): Promise<void> {
     await this.deps.store.write(this.tasks)
     this.rebuildSchedule()
@@ -134,6 +143,10 @@ export class AutomationServiceImpl
     const runningIndex = this.tasks.findIndex((entry) => entry.id === task.id)
     if (runningIndex >= 0) {
       this.tasks = [...this.tasks.slice(0, runningIndex), running, ...this.tasks.slice(runningIndex + 1)]
+      // 广播 running 状态，让 UI（尤其手动运行）立即看到"运行中"。
+      void this.send("automationChanged", this.tasks).catch((error: unknown) => {
+        console.warn("[dweis] automation broadcast failed:", error)
+      })
     }
     try {
       await this.deps.runTask(task)

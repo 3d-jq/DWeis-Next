@@ -62,5 +62,7 @@ export const AutomationService = serviceName("automation-service") as ServiceNam
     createTask(text: string): Promise<AutomationTask[]>
     updateTask(id: string, input: AutomationTaskInput): Promise<AutomationTask[]>
     deleteTask(id: string): Promise<AutomationTask[]>
+    /** 立即手动运行一次（不影响原调度；正在运行中时拒绝）。 */
+    runTaskNow(id: string): Promise<AutomationTask[]>
   }
 }>

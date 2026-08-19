@@ -11,6 +11,8 @@ export function useAutomation(): {
   createTask: (text: string) => Promise<void>
   updateTask: (id: string, input: AutomationTaskInput) => Promise<void>
   deleteTask: (id: string) => Promise<void>
+  /** 立即手动运行一次（正在运行中时服务端会忽略）。 */
+  runTaskNow: (id: string) => Promise<void>
 } {
   const service = useAutomationService()
   const [tasks, setTasks] = React.useState<AutomationTask[]>([])
@@ -62,5 +64,13 @@ export function useAutomation(): {
     [service],
   )
 
-  return { createTask, deleteTask, loading, tasks, updateTask }
+  const runTaskNow = React.useCallback(
+    async (id: string) => {
+      const next = await service.invoke("runTaskNow", id)
+      setTasks(next)
+    },
+    [service],
+  )
+
+  return { createTask, deleteTask, loading, runTaskNow, tasks, updateTask }
 }
