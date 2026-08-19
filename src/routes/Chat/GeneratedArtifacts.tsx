@@ -61,6 +61,8 @@ interface ArtifactsPanelProps {
   selection: ArtifactSelection | null
   /** 会话 id：selection 为 null 的「成果」总列表模式用它拉取全量产物。 */
   sessionId: string | null
+  /** 成果列表点击某条产物 → 交给外层打开该产物的独立预览标签（成果本身不预览）。 */
+  onOpenArtifact: (selection: ArtifactSelection) => void
   onToggleMaximized: () => void
   onSetTitle: (title: string) => void
 }
@@ -311,6 +313,7 @@ export function ArtifactsPanel({
   maximized,
   selection,
   sessionId,
+  onOpenArtifact,
   onToggleMaximized,
   onSetTitle,
 }: ArtifactsPanelProps) {
@@ -439,6 +442,23 @@ export function ArtifactsPanel({
     setSelectedPath(path)
     setPreviewMode("preview")
   }, [])
+
+  /** 成果列表点击某条产物 → 作为独立产出在新标签预览（仅该产物的 group，不携带全量）。 */
+  const openOutputFromPath = React.useCallback(
+    (path: string): void => {
+      const entry = entries.find((candidate) => candidate.item.path === path)
+      if (!entry) {
+        return
+      }
+      onOpenArtifact({
+        messageId: entry.messageId,
+        group: entry.group,
+        ...(entry.pack ? { pack: entry.pack } : {}),
+        selectedPath: entry.item.path,
+      })
+    },
+    [entries, onOpenArtifact],
+  )
 
   const enterFolder = React.useCallback(
     async (entry: ArtifactPanelEntry): Promise<void> => {
@@ -626,7 +646,27 @@ export function ArtifactsPanel({
 
       <div className="flex min-h-0 flex-1 flex-col">
         {hasArtifactBrowser ? (
-          showImageGallery ? (
+          // 成果总列表：无具体选择（+菜单打开）时只展示全会话文件列表，不叠加预览
+          // （对齐 LobsterAI FileDirectoryView）；点具体产物才进入单条输出 + 预览。
+          !selection ? (
+            <ArtifactFileList
+              baseCrumb={baseCrumb}
+              browseLevels={browseLevels}
+              entries={entries}
+              listHeight={artifactListHeight}
+              selectedItem={selectedItem}
+              truncated={activeGroups.some(({ group }) => group.truncated)}
+              onContextMenu={(item, x, y) => setContextMenu({ item, x, y })}
+              onEnterFolder={(entry) => void enterFolder(entry)}
+              onOpenPath={openArtifactPath}
+              onNavigateBreadcrumb={navigateToBreadcrumb}
+              onResizeDoubleClick={() => updateArtifactListHeight(artifactListDefaultHeightPx)}
+              onResizeKeyDown={handleArtifactListResizeKeyDown}
+              onResizeStart={handleArtifactListResizeStart}
+              onSelect={openOutputFromPath}
+              fill
+            />
+          ) : showImageGallery ? (
             <ImageGalleryPanel
               entries={entries}
               group={selectedEntry?.group ?? null}

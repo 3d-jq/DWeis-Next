@@ -71,6 +71,7 @@ export function ArtifactFileList({
   truncated,
   onOpenPath,
   onSelect,
+  fill,
 }: {
   baseCrumb: { label: string; path: string }
   browseLevels: ArtifactBrowseLevel[]
@@ -86,6 +87,8 @@ export function ArtifactFileList({
   truncated: boolean
   onOpenPath: (path: string | undefined) => void
   onSelect: (path: string) => void
+  /** 全高纯列表（成果总列表）：铺满面板、无拖拽条，对齐 LobsterAI FileDirectoryView。 */
+  fill?: boolean
 }) {
   const t = useT()
   const [search, setSearch] = React.useState("")
@@ -102,7 +105,10 @@ export function ArtifactFileList({
   const visibleIndex = entries.length > 0 ? selectedIndex + 1 : 0
 
   return (
-    <section className="flex shrink-0 flex-col" style={{ height: listHeight }}>
+    <section
+      className={cn("flex flex-col", fill ? "min-h-0 flex-1" : "shrink-0")}
+      style={fill ? undefined : { height: listHeight }}
+    >
       <ArtifactBrowserHeader
         baseCrumb={baseCrumb}
         browseLevels={browseLevels}
@@ -152,12 +158,14 @@ export function ArtifactFileList({
           <p className="oo-text-caption px-1.5 pt-2 text-muted-foreground">{t("artifacts.truncated")}</p>
         ) : null}
       </div>
-      <ArtifactPanelResizeHandle
-        value={listHeight}
-        onDoubleClick={onResizeDoubleClick}
-        onKeyDown={onResizeKeyDown}
-        onPointerDown={onResizeStart}
-      />
+      {fill ? null : (
+        <ArtifactPanelResizeHandle
+          value={listHeight}
+          onDoubleClick={onResizeDoubleClick}
+          onKeyDown={onResizeKeyDown}
+          onPointerDown={onResizeStart}
+        />
+      )}
     </section>
   )
 }

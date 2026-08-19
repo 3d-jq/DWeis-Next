@@ -1423,6 +1423,7 @@ export function AppShell() {
             onActivateTab={setActiveTabId}
             addTabOptions={addTabOptions}
             onCloseTab={handleCloseRightPanelTab}
+            onOpenArtifact={handleArtifactsOpen}
             rightPanelVisible={rightPanelVisible}
             sessionId={activeChatSessionId}
             setArtifactsPanelMaximizedState={setArtifactsPanelMaximizedState}

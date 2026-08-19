@@ -5,7 +5,7 @@ import type { ArtifactSelection } from "@/routes/Chat/GeneratedArtifacts"
 import type { TurnOutputSelection } from "@/routes/Chat/TurnOutputs"
 import type { ConnectionClientService } from "@oomol/connection"
 
-import { Globe2, LoaderCircle } from "lucide-react"
+import { LoaderCircle } from "lucide-react"
 import { AnimatePresence, motion } from "motion/react"
 import * as React from "react"
 import { ARTIFACTS_PANEL_MIN_WIDTH_PX } from "./app-shell-model.ts"
@@ -25,6 +25,9 @@ const BrowserPanel = React.lazy(() =>
   import("@/routes/Chat/BrowserPanel").then((module) => ({ default: module.BrowserPanel })),
 )
 
+/** 草稿态浏览器的稳定会话 key：无真实会话时也建一个真实空白页，保证「点浏览器就能打开」。 */
+const DRAFT_BROWSER_SESSION = "dweis:draft-browser"
+
 interface AppShellRightPanelProps {
   activeTab: RightPanelTab | null
   activeTabId: string | null
@@ -42,6 +45,8 @@ interface AppShellRightPanelProps {
   /** 标签栏加号菜单选项（空数组时隐藏加号）。 */
   addTabOptions: AddTabOption[]
   onCloseTab: (id: string) => void
+  /** 成果列表点击产物 → 打开该产物的独立预览标签（成果本身不预览）。 */
+  onOpenArtifact: (selection: ArtifactSelection) => void
   rightPanelVisible: boolean
   /** 当前会话 id：供「成果」总列表拉取全量产物。 */
   sessionId: string | null
@@ -68,6 +73,7 @@ export const AppShellRightPanel = React.memo(function AppShellRightPanel({
   onActivateTab,
   addTabOptions,
   onCloseTab,
+  onOpenArtifact,
   rightPanelVisible,
   sessionId,
   setArtifactsPanelMaximizedState,
@@ -77,9 +83,27 @@ export const AppShellRightPanel = React.memo(function AppShellRightPanel({
   onSetTabTitle,
 }: AppShellRightPanelProps) {
   const t = useT()
+  // 草稿态浏览器：无真实会话（sessionId 为 null）时用一个稳定 key 建真实空白页，
+  // 并订阅其 stateChanged 维持可用，避免「点浏览器打不开」。发首条消息后升级为真实会话浏览器。
+  const [draftBrowserState, setDraftBrowserState] = React.useState<BrowserPageState | null>(null)
+  const draftBrowserActive = activeTab?.kind === "browser" && !activeTab.sessionId
+  React.useEffect(() => {
+    if (!draftBrowserActive) {
+      return
+    }
+    const off = browserService.serverEvents.on("stateChanged", (state) => {
+      if (state.sessionId === DRAFT_BROWSER_SESSION) {
+        setDraftBrowserState(state)
+      }
+    })
+    void browserService.invoke("loadBlank", DRAFT_BROWSER_SESSION).catch((cause: unknown) => {
+      reportRendererHandledError("browser", "open draft browser failed", cause)
+    })
+    return off
+  }, [browserService, draftBrowserActive])
 
   // 真实会话的浏览器 tab：browserState 未就绪时自动拉起页面（对齐 LobsterAI 打开即见浏览器），
-  // 面板先显示 loading，stateChanged 回填后再渲染 BrowserPanel。仅草稿态（无 sessionId）显示引导占位。
+  // 面板先显示 loading，stateChanged 回填后再渲染 BrowserPanel。
   React.useEffect(() => {
     if (activeTab?.kind !== "browser" || !activeTab.sessionId) {
       return
@@ -162,8 +186,19 @@ export const AppShellRightPanel = React.memo(function AppShellRightPanel({
                 </React.Suspense>
               ) : activeTab?.kind === "browser" && activeTab.sessionId ? (
                 <BrowserPending />
+              ) : activeTab?.kind === "browser" && draftBrowserState ? (
+                <React.Suspense fallback={null}>
+                  <BrowserPanel
+                    browserService={browserService}
+                    sessionId={DRAFT_BROWSER_SESSION}
+                    state={draftBrowserState}
+                    onSetTitle={(title) => onSetTabTitle(activeTab.id, title)}
+                    maximized={artifactsPanelIsMaximized}
+                    onToggleMaximized={() => setArtifactsPanelMaximizedState(!artifactsPanelIsMaximized)}
+                  />
+                </React.Suspense>
               ) : activeTab?.kind === "browser" ? (
-                <BrowserDraftPlaceholder />
+                <BrowserPending />
               ) : activeTab?.kind === "turn-output" ? (
                 <React.Suspense fallback={null}>
                   <TurnOutputsPanel
@@ -179,6 +214,7 @@ export const AppShellRightPanel = React.memo(function AppShellRightPanel({
                     maximized={artifactsPanelIsMaximized}
                     selection={artifactSelection}
                     sessionId={sessionId}
+                    onOpenArtifact={onOpenArtifact}
                     onToggleMaximized={() => setArtifactsPanelMaximizedState(!artifactsPanelIsMaximized)}
                     onSetTitle={(title) => onSetTabTitle(activeTab.id, title)}
                   />
@@ -214,17 +250,6 @@ function BrowserPending() {
     <div className="flex h-full min-h-0 flex-col items-center justify-center gap-3 px-6 py-8 text-center">
       <LoaderCircle className="size-6 animate-spin text-muted-foreground/60" />
       <div className="oo-text-caption text-muted-foreground">{t("rightPanel.browserPending")}</div>
-    </div>
-  )
-}
-
-/** 草稿态浏览器标签：会话未建立（无 sessionId）时显示引导，会话建立后自动升级为真实页面。 */
-function BrowserDraftPlaceholder() {
-  const t = useT()
-  return (
-    <div className="flex h-full min-h-0 flex-col items-center justify-center gap-3 px-6 py-8 text-center">
-      <Globe2 className="size-8 text-muted-foreground/50" />
-      <div className="oo-text-caption text-muted-foreground">{t("rightPanel.browserDraftHint")}</div>
     </div>
   )
 }
