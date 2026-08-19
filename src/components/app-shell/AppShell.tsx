@@ -1028,7 +1028,8 @@ export function AppShell() {
         hint: t("rightPanel.addArtifactsHint"),
         disabled: false,
         onSelect: () => {
-          openArtifact(latestArtifactSelection, "manual")
+          // 成果 = 会话级全量产物总列表（selection 留空，面板自己拉取，对齐 LobsterAI）。
+          openArtifact(null, "manual")
           openPanel()
         },
       },
@@ -1044,15 +1045,7 @@ export function AppShell() {
         },
       },
     ]
-  }, [
-    handleAddRightPanelTab,
-    latestArtifactSelection,
-    latestTurnOutputSelection,
-    openArtifact,
-    openTurnOutput,
-    setArtifactsPanelOpen,
-    t,
-  ])
+  }, [handleAddRightPanelTab, latestTurnOutputSelection, openArtifact, openTurnOutput, setArtifactsPanelOpen, t])
   useAppShellCommands({
     appUpdate,
     onFocusComposer: requestComposerFocus,
@@ -1431,6 +1424,7 @@ export function AppShell() {
             addTabOptions={addTabOptions}
             onCloseTab={handleCloseRightPanelTab}
             rightPanelVisible={rightPanelVisible}
+            sessionId={activeChatSessionId}
             setArtifactsPanelMaximizedState={setArtifactsPanelMaximizedState}
             tabs={rightPanelTabs}
             turnOutputSelection={activeRightPanelTab?.kind === "turn-output" ? activeRightPanelTab.selection : null}

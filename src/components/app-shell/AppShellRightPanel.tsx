@@ -5,13 +5,14 @@ import type { ArtifactSelection } from "@/routes/Chat/GeneratedArtifacts"
 import type { TurnOutputSelection } from "@/routes/Chat/TurnOutputs"
 import type { ConnectionClientService } from "@oomol/connection"
 
-import { Globe2 } from "lucide-react"
+import { Globe2, LoaderCircle } from "lucide-react"
 import { AnimatePresence, motion } from "motion/react"
 import * as React from "react"
 import { ARTIFACTS_PANEL_MIN_WIDTH_PX } from "./app-shell-model.ts"
 import { RIGHT_PANEL_TABPANEL_ID, tabElementId } from "./right-panel-tabs.ts"
 import { UnifiedTabBar } from "./UnifiedTabBar.tsx"
 import { useT } from "@/i18n/i18n"
+import { reportRendererHandledError } from "@/lib/renderer-diagnostics"
 import { cn } from "@/lib/utils"
 
 const ArtifactsPanel = React.lazy(() =>
@@ -42,6 +43,8 @@ interface AppShellRightPanelProps {
   addTabOptions: AddTabOption[]
   onCloseTab: (id: string) => void
   rightPanelVisible: boolean
+  /** 当前会话 id：供「成果」总列表拉取全量产物。 */
+  sessionId: string | null
   setArtifactsPanelMaximizedState: (maximized: boolean) => void
   tabs: RightPanelTab[]
   turnOutputSelection: TurnOutputSelection | null
@@ -66,6 +69,7 @@ export const AppShellRightPanel = React.memo(function AppShellRightPanel({
   addTabOptions,
   onCloseTab,
   rightPanelVisible,
+  sessionId,
   setArtifactsPanelMaximizedState,
   tabs,
   turnOutputSelection,
@@ -73,6 +77,20 @@ export const AppShellRightPanel = React.memo(function AppShellRightPanel({
   onSetTabTitle,
 }: AppShellRightPanelProps) {
   const t = useT()
+
+  // 真实会话的浏览器 tab：browserState 未就绪时自动拉起页面（对齐 LobsterAI 打开即见浏览器），
+  // 面板先显示 loading，stateChanged 回填后再渲染 BrowserPanel。仅草稿态（无 sessionId）显示引导占位。
+  React.useEffect(() => {
+    if (activeTab?.kind !== "browser" || !activeTab.sessionId) {
+      return
+    }
+    if (browserState?.sessionId === activeTab.sessionId) {
+      return
+    }
+    void browserService.invoke("loadBlank", activeTab.sessionId).catch((cause: unknown) => {
+      reportRendererHandledError("browser", "open browser page failed", cause)
+    })
+  }, [activeTab, browserService, browserState])
 
   return (
     <div
@@ -142,6 +160,8 @@ export const AppShellRightPanel = React.memo(function AppShellRightPanel({
                     onToggleMaximized={() => setArtifactsPanelMaximizedState(!artifactsPanelIsMaximized)}
                   />
                 </React.Suspense>
+              ) : activeTab?.kind === "browser" && activeTab.sessionId ? (
+                <BrowserPending />
               ) : activeTab?.kind === "browser" ? (
                 <BrowserDraftPlaceholder />
               ) : activeTab?.kind === "turn-output" ? (
@@ -158,6 +178,7 @@ export const AppShellRightPanel = React.memo(function AppShellRightPanel({
                   <ArtifactsPanel
                     maximized={artifactsPanelIsMaximized}
                     selection={artifactSelection}
+                    sessionId={sessionId}
                     onToggleMaximized={() => setArtifactsPanelMaximizedState(!artifactsPanelIsMaximized)}
                     onSetTitle={(title) => onSetTabTitle(activeTab.id, title)}
                   />
@@ -182,6 +203,17 @@ function RightPanelEmptyState() {
         <div className="oo-text-caption text-muted-foreground">{t("rightPanel.emptyDescription")}</div>
       </div>
       <div className="oo-text-micro text-muted-foreground/70">{t("rightPanel.emptyHint")}</div>
+    </div>
+  )
+}
+
+/** 真实会话浏览器页面加载中：stateChanged 回填前短暂显示，避免“点了没反应”。 */
+function BrowserPending() {
+  const t = useT()
+  return (
+    <div className="flex h-full min-h-0 flex-col items-center justify-center gap-3 px-6 py-8 text-center">
+      <LoaderCircle className="size-6 animate-spin text-muted-foreground/60" />
+      <div className="oo-text-caption text-muted-foreground">{t("rightPanel.browserPending")}</div>
     </div>
   )
 }

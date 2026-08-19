@@ -1915,6 +1915,14 @@ export class ChatServiceImpl extends ConnectionService<ChatService> implements I
     return bundles
   }
 
+  public async getSessionArtifacts(sessionId: string): Promise<ArtifactBundle[]> {
+    const records = (await this.readArtifactBundles()).get(sessionId)
+    if (!records) {
+      return []
+    }
+    return [...records.values()].sort((left, right) => left.createdAt - right.createdAt)
+  }
+
   public async getTurnFileDiff(req: TurnFileDiffRequest): Promise<TurnFileDiffResult> {
     const record = (await this.readTurnOutputs()).get(req.sessionId)?.get(req.messageId)
     const file = record?.files.find((item) => item.path === req.path)

@@ -3507,6 +3507,63 @@ test("resolveLocalArtifacts reads artifact pack manifests", async () => {
   )
 })
 
+test("getSessionArtifacts returns all bundles for a session in chronological order", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "dweis-session-artifacts-"))
+  try {
+    const artifactBundleStore = new ArtifactBundleStore(root)
+    const rootA = path.join(root, "a")
+    const rootB = path.join(root, "b")
+    const rootOther = path.join(root, "other")
+    await mkdir(rootA, { recursive: true })
+    await mkdir(rootB, { recursive: true })
+    await mkdir(rootOther, { recursive: true })
+    await writeFile(path.join(rootA, "a.png"), "a")
+    await writeFile(path.join(rootB, "b.png"), "b")
+    await writeFile(path.join(rootOther, "o.png"), "o")
+    const bundleA = await buildArtifactBundle({
+      artifactRoot: rootA,
+      completedAt: 2,
+      createdAt: 1,
+      generatedPreviewCount: 0,
+      messageId: "assistant-1",
+      sessionId: "session-1",
+    })
+    const bundleB = await buildArtifactBundle({
+      artifactRoot: rootB,
+      completedAt: 4,
+      createdAt: 3,
+      generatedPreviewCount: 0,
+      messageId: "assistant-2",
+      sessionId: "session-1",
+    })
+    const otherSession = await buildArtifactBundle({
+      artifactRoot: rootOther,
+      completedAt: 6,
+      createdAt: 5,
+      generatedPreviewCount: 0,
+      messageId: "assistant-1",
+      sessionId: "session-2",
+    })
+    assert.ok(bundleA && bundleB && otherSession)
+    const records = new Map()
+    recordArtifactBundle(records, bundleB)
+    recordArtifactBundle(records, otherSession)
+    recordArtifactBundle(records, bundleA)
+    await artifactBundleStore.write(records)
+
+    const service = new ChatServiceImpl(null, { artifactBundleStore })
+    const all = await service.getSessionArtifacts("session-1")
+    assert.equal(all.length, 2)
+    assert.deepEqual(
+      all.map((bundle) => bundle.messageId),
+      ["assistant-1", "assistant-2"],
+    )
+    assert.equal((await service.getSessionArtifacts("session-missing")).length, 0)
+  } finally {
+    await rm(root, { force: true, recursive: true })
+  }
+})
+
 test("resolveLocalArtifacts rejects an unregistered directory", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "dweis-artifacts-untrusted-"))
   try {

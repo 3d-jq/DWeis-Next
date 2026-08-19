@@ -867,6 +867,8 @@ export const ChatService = serviceName("chat-service") as ServiceName<{
     getTurnFileDiff(req: TurnFileDiffRequest): Promise<TurnFileDiffResult>
     resolveLocalArtifacts(req: ResolveLocalArtifactsRequest): Promise<ResolveLocalArtifactsResult>
     getArtifactBundles(req: ArtifactBundlesRequest): Promise<ArtifactBundle[]>
+    /** 会话级全量产物：一次性返回该会话的全部 bundle（对齐 LobsterAI 成果总列表）。 */
+    getSessionArtifacts(sessionId: string): Promise<ArtifactBundle[]>
     openLocalPath(req: OpenLocalPathRequest): Promise<void>
     showLocalPathInFolder(req: ShowLocalPathInFolderRequest): Promise<void>
     /** 用系统浏览器打开一个 http/https URL（渲染层已自行解析好 URL 后调用；主进程仅校验+外开）。 */

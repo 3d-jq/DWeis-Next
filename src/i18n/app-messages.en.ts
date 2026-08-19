@@ -809,6 +809,7 @@ export const enMessages = {
   "rightPanel.newTab": "Add tab",
   "rightPanel.addBrowserHint": "Start a chat first",
   "rightPanel.browserDraftHint": "The browser will open here once you send your first message",
+  "rightPanel.browserPending": "Opening browser…",
   "rightPanel.addArtifactsHint": "No artifacts yet",
   "rightPanel.addReviewHint": "No review records yet",
   "rightPanel.closeTab": "Close tab",

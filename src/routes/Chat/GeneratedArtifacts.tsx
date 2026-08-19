@@ -1,4 +1,5 @@
 import type {
+  ArtifactBundle,
   ArtifactBundleFailure,
   LocalArtifactGroup,
   LocalArtifactItem,
@@ -26,6 +27,7 @@ import { ArtifactContextMenu } from "./ArtifactContextMenu.tsx"
 import { ArtifactPreview, ArtifactsEmptyState } from "./ArtifactPreviewPane.tsx"
 import { FileKindTile } from "./file-type-icons.tsx"
 import { OutputShelfCard } from "./OutputShelfCard.tsx"
+import { useSessionArtifacts } from "./session-artifacts.ts"
 import { useArtifactFileActions } from "./use-artifact-file-actions.ts"
 import { PanelHeader } from "@/components/app-shell/PanelHeader.tsx"
 import { useChatService } from "@/components/AppContext"
@@ -57,8 +59,32 @@ interface GeneratedArtifactsProps {
 interface ArtifactsPanelProps {
   maximized: boolean
   selection: ArtifactSelection | null
+  /** 会话 id：selection 为 null 的「成果」总列表模式用它拉取全量产物。 */
+  sessionId: string | null
   onToggleMaximized: () => void
   onSetTitle: (title: string) => void
+}
+
+/** bundle → ResolvedArtifactGroup（与 ChatTimeline 的转换保持一致）。 */
+function resolvedGroupsFromBundles(bundles: ArtifactBundle[]): ResolvedArtifactGroup[] {
+  return bundles.map((bundle) => ({
+    display: bundle.display,
+    messageId: bundle.messageId,
+    kind: bundle.kind,
+    group: {
+      root: {
+        path: bundle.rootPath,
+        name: bundle.rootPath.split(/[\\/]/u).pop() ?? bundle.rootPath,
+        kind: "directory",
+        mime: "inode/directory",
+      },
+      items: bundle.items,
+      totalItems: bundle.totalItems,
+      truncated: bundle.truncated,
+    },
+    status: bundle.status,
+    ...(bundle.failure ? { failure: bundle.failure } : {}),
+  }))
 }
 
 function packDisplayItems(pack: LocalArtifactPack): LocalArtifactItem[] {
@@ -281,10 +307,18 @@ export function GeneratedArtifacts({ groups, onOpen, onAvailable }: GeneratedArt
   )
 }
 
-export function ArtifactsPanel({ maximized, selection, onToggleMaximized, onSetTitle }: ArtifactsPanelProps) {
+export function ArtifactsPanel({
+  maximized,
+  selection,
+  sessionId,
+  onToggleMaximized,
+  onSetTitle,
+}: ArtifactsPanelProps) {
   const t = useT()
   const chatService = useChatService()
   const { openPath, showInFolder } = useArtifactFileActions()
+  const sessionBundles = useSessionArtifacts(sessionId)
+  const sessionGroups = React.useMemo(() => resolvedGroupsFromBundles(sessionBundles), [sessionBundles])
   const [contextMenu, setContextMenu] = React.useState<ArtifactContextMenuState | null>(null)
   const previewCache = React.useRef<LocalArtifactPreviewCache>(new Map()).current
   const shellRef = React.useRef<HTMLElement | null>(null)
@@ -295,16 +329,18 @@ export function ArtifactsPanel({ maximized, selection, onToggleMaximized, onSetT
     if (selection?.groups?.length) {
       return selection.groups
     }
-    return selection
-      ? [
-          {
-            messageId: selection.messageId,
-            group: selection.group,
-            ...(selection.pack ? { pack: selection.pack } : {}),
-          },
-        ]
-      : []
-  }, [selection])
+    if (selection) {
+      return [
+        {
+          messageId: selection.messageId,
+          group: selection.group,
+          ...(selection.pack ? { pack: selection.pack } : {}),
+        },
+      ]
+    }
+    // 「成果」总列表：无具体选择时展示会话全量产物（对齐 LobsterAI FileDirectoryView）。
+    return sessionGroups
+  }, [selection, sessionGroups])
   const activeGroups = browseLevels.at(-1)?.groups ?? groups
   const entries = React.useMemo(() => flattenPanelEntries(activeGroups), [activeGroups])
   const showArtifactList = entries.length > 1 || browseLevels.length > 0
