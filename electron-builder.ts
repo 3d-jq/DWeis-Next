@@ -347,6 +347,7 @@ export default {
     //   点产物用单个 group 在侧栏新开独立预览标签；草稿态浏览器稳定 key 真实创建空白页订阅 stateChanged，
     //   首条消息后自动升级真实会话浏览器。
     // build258 = 成果标签点击产物只进独立预览（f53867a）：不再混叠相册/列表。
+    // build259 = 弹出浮层隐藏浏览器视图 + 活动标记定位修复（6722a41/98b4d67）。
     // build226 = 版本 1.8.0：①git 工具区补全——创建并检出新分支 + git log --graph 图谱（getGraph IPC）；
     //   ②权限/提问卡片借鉴 deepseek-harness——composer takeover（请求接管输入框位置）+「我想直接说」
     //   讨论第三操作 + tinted strip 彩色顶条。
@@ -354,7 +355,7 @@ export default {
     // build224 = Apple HIG 视觉对齐（c5242cc）：设置页全高侧栏 + 全行图标 + iOS 分段控件、
     //   工具配置改弹窗、用量热力图缩放跟随、权限/提问卡片外壳统一、推理滑块标签对齐、Work/Code
     //   切换 pill、技能页卡片升级；agent workspace 启动 ENOTEMPTY 退避重试（dc2bcd3）。
-    output: "release/build258",
+    output: "release/build259",
   },
   publish: {
     provider: "github",
