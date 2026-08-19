@@ -1,7 +1,7 @@
 {
   "name": "dweis-next",
   "displayName": "DWeis Next",
-  "version": "1.9.0",
+  "version": "1.9.7",
   "private": true,
   "description": "DWeis Next — desktop AI agent for local work, custom models, and automation.",
   "homepage": "https://dweis.ai/",
