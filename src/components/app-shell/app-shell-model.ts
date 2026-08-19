@@ -24,10 +24,13 @@ export const SIDEBAR_DEFAULT_WIDTH_PX = 264
 export const SIDEBAR_MIN_WIDTH_PX = 220
 export const SIDEBAR_MAX_WIDTH_PX = 420
 export const SIDEBAR_WIDTH_STORAGE_KEY = storageKey("sidebarWidth")
-// 聊天区最小宽度。曾为 420：侧边栏展开（264）时面板最大宽度在 1080 窗口下只剩 277，
-// 默认面板 300 打开即被压到上限，向左拖（变宽）直接锁死，表现为"手柄拖不动"。
-// 降到 240 后同一窗口下面板最大宽度 576（240 仍可舒适读聊天气泡）。
-export const CHAT_AREA_MIN_WIDTH_PX = 240
+// 对话区保底宽度（对齐 LobsterAI COWORK_DETAIL_MIN_WIDTH=480）：面板拖宽的硬边界，
+// 保证对话区在任何窗口宽度下都可舒适阅读。窄窗口（如 1080 + 侧边栏展开）下面板
+// 打开即贴近上限、无法继续拖宽属预期保护行为，与 LobsterAI 一致。
+export const CHAT_AREA_MIN_WIDTH_PX = 480
+// 面板绝对上限（对齐 LobsterAI MAX_PANEL_WIDTH=1000）：即使超宽窗口也不允许面板
+// 无限膨胀，防止对话区被挤成窄条。
+export const ARTIFACTS_PANEL_MAX_WIDTH_PX = 1000
 export const ARTIFACTS_PANEL_DEFAULT_WIDTH_PX = 300
 export const ARTIFACTS_PANEL_MIN_WIDTH_PX = 260
 export const ARTIFACTS_PANEL_WIDTH_STORAGE_KEY = storageKey("artifactsPanelWidth")
@@ -208,8 +211,9 @@ export function clampArtifactsPanelWidth(width: number): number {
 
 export function artifactsPanelMaxWidth(appWidth: number, sidebarWidth: number, sidebarCollapsed: boolean): number {
   const sidebarTrackWidth = sidebarCollapsed ? 0 : sidebarWidth
+  // 对齐 LobsterAI：面板上限 = min(绝对上限, 剩余空间)，且不低于面板自身最小宽。
   const maxWidth = Math.floor(appWidth - sidebarTrackWidth - CHAT_AREA_MIN_WIDTH_PX)
-  return Math.max(ARTIFACTS_PANEL_MIN_WIDTH_PX, maxWidth)
+  return Math.max(ARTIFACTS_PANEL_MIN_WIDTH_PX, Math.min(ARTIFACTS_PANEL_MAX_WIDTH_PX, maxWidth))
 }
 
 export function clampArtifactsPanelWidthForLayout(width: number, maxWidth: number): number {

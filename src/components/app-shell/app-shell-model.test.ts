@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test, vi } from "vitest"
 import {
   existingSessionComposerDraftKey,
+  artifactsPanelMaxWidth,
   chatSendAccepted,
   initialRoute,
   NO_DRAFT_PROJECT_ID,
@@ -14,6 +15,26 @@ import {
 
 afterEach(() => {
   vi.unstubAllEnvs()
+})
+
+describe("artifacts panel max width", () => {
+  test("caps panel at absolute max on wide windows so chat keeps its floor", () => {
+    // 1920 - 264 sidebar - 480 chat = 1176 可用，但绝对上限 1000 生效 → 对话区保底 656。
+    expect(artifactsPanelMaxWidth(1920, 264, false)).toBe(1000)
+  })
+
+  test("keeps chat floor when remaining space is below absolute max", () => {
+    // 1080 - 264 - 480 = 336 < 1000，上限收缩为剩余空间，对话区稳定保底 480。
+    expect(artifactsPanelMaxWidth(1080, 264, false)).toBe(336)
+  })
+
+  test("ignores sidebar track when collapsed", () => {
+    expect(artifactsPanelMaxWidth(1080, 264, true)).toBe(600)
+  })
+
+  test("never drops below panel min width on narrow windows", () => {
+    expect(artifactsPanelMaxWidth(720, 264, false)).toBe(260)
+  })
 })
 
 describe("route resolution", () => {
