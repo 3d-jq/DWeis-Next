@@ -330,6 +330,9 @@ export default {
     //   oxfmt 全量格式化收尾。
     // build251 = 浏览器面板更多菜单 + 自动化三能力 + 启动草稿（fb29dde/538995a/59c5b48）：保存截图/空白页/
     //   手动缩放/清 Cookies；任务/执行历史双 tab+搜索+一键跳会话+任务编辑对话框；启动默认新建对话草稿（不自动恢复）。
+    // build252 = 自动化结构化表单 + 右侧标签栏加号菜单（5f6ffeb/c777eff）：创建任务改表单（名称/指令/触发
+    //   类型一次/每小时/每天/每周/每月/自定义 cron，onceAt 过期自动停用）；标签栏 + 弹菜单（浏览器/成果/审查，
+    //   最近审查标签可手动重开）。
     // build226 = 版本 1.8.0：①git 工具区补全——创建并检出新分支 + git log --graph 图谱（getGraph IPC）；
     //   ②权限/提问卡片借鉴 deepseek-harness——composer takeover（请求接管输入框位置）+「我想直接说」
     //   讨论第三操作 + tinted strip 彩色顶条。
@@ -337,7 +340,7 @@ export default {
     // build224 = Apple HIG 视觉对齐（c5242cc）：设置页全高侧栏 + 全行图标 + iOS 分段控件、
     //   工具配置改弹窗、用量热力图缩放跟随、权限/提问卡片外壳统一、推理滑块标签对齐、Work/Code
     //   切换 pill、技能页卡片升级；agent workspace 启动 ENOTEMPTY 退避重试（dc2bcd3）。
-    output: "release/build251",
+    output: "release/build252",
   },
   publish: {
     provider: "github",
