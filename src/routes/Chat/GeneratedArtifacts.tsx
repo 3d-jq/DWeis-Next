@@ -22,8 +22,9 @@ import {
 } from "./artifact-metadata.ts"
 import { resolveArtifactResultPayloads } from "./artifact-resolution.ts"
 import { shouldRenderGeneratedArtifactsShelf } from "./artifact-shelf-visibility.ts"
-import { ArtifactFileList, ImageGalleryPanel } from "./ArtifactBrowser.tsx"
+import { ArtifactFileList } from "./ArtifactBrowser.tsx"
 import { ArtifactContextMenu } from "./ArtifactContextMenu.tsx"
+import { ImageGalleryPreview } from "./ArtifactImageGallery.tsx"
 import { ArtifactPreview, ArtifactsEmptyState } from "./ArtifactPreviewPane.tsx"
 import { FileKindTile } from "./file-type-icons.tsx"
 import { OutputShelfCard } from "./OutputShelfCard.tsx"
@@ -346,7 +347,6 @@ export function ArtifactsPanel({
   }, [selection, sessionGroups])
   const activeGroups = browseLevels.at(-1)?.groups ?? groups
   const entries = React.useMemo(() => flattenPanelEntries(activeGroups), [activeGroups])
-  const showArtifactList = entries.length > 1 || browseLevels.length > 0
   const hasArtifactBrowser = entries.length > 0 || browseLevels.length > 0
   const fallbackPath =
     browseLevels.at(-1) && entries.length > 0
@@ -437,13 +437,6 @@ export function ArtifactsPanel({
     setPreviewMode("preview")
   }, [selection])
 
-  const selectPreviewPath = React.useCallback((path: string): void => {
-    navigationRequestRef.current += 1
-    setSelectedPath(path)
-    setPreviewMode("preview")
-  }, [])
-
-  /** 成果列表点击某条产物 → 作为独立产出在新标签预览（仅该产物的 group，不携带全量）。 */
   const openOutputFromPath = React.useCallback(
     (path: string): void => {
       const entry = entries.find((candidate) => candidate.item.path === path)
@@ -667,57 +660,27 @@ export function ArtifactsPanel({
               fill
             />
           ) : showImageGallery ? (
-            <ImageGalleryPanel
-              entries={entries}
+            <ImageGalleryPreview
               group={selectedEntry?.group ?? null}
-              listHeight={artifactListHeight}
-              previewCache={previewCache}
+              item={selectedItem}
               mode={previewMode}
-              baseCrumb={baseCrumb}
-              browseLevels={browseLevels}
-              selectedItem={selectedItem}
-              onOpenPath={openArtifactPath}
               onContextMenu={(item, x, y) => setContextMenu({ item, x, y })}
-              onEnterFolder={(entry) => void enterFolder(entry)}
               onModeChange={setPreviewMode}
-              onNavigateBreadcrumb={navigateToBreadcrumb}
-              onResizeDoubleClick={() => updateArtifactListHeight(artifactListDefaultHeightPx)}
-              onResizeKeyDown={handleArtifactListResizeKeyDown}
-              onResizeStart={handleArtifactListResizeStart}
-              onSelect={selectPreviewPath}
+              previewCache={previewCache}
+              onOpen={() => openArtifactPath(selectedItem?.path)}
             />
           ) : (
-            <>
-              {showArtifactList ? (
-                <ArtifactFileList
-                  baseCrumb={baseCrumb}
-                  browseLevels={browseLevels}
-                  entries={entries}
-                  listHeight={artifactListHeight}
-                  selectedItem={selectedItem}
-                  truncated={activeGroups.some(({ group }) => group.truncated)}
-                  onContextMenu={(item, x, y) => setContextMenu({ item, x, y })}
-                  onEnterFolder={(entry) => void enterFolder(entry)}
-                  onOpenPath={openArtifactPath}
-                  onNavigateBreadcrumb={navigateToBreadcrumb}
-                  onResizeDoubleClick={() => updateArtifactListHeight(artifactListDefaultHeightPx)}
-                  onResizeKeyDown={handleArtifactListResizeKeyDown}
-                  onResizeStart={handleArtifactListResizeStart}
-                  onSelect={selectPreviewPath}
-                />
-              ) : null}
-              <ArtifactPreview
-                item={selectedItem}
-                group={selectedEntry?.group ?? null}
-                mode={previewMode}
-                onModeChange={setPreviewMode}
-                pack={selectedPack}
-                previewCache={previewCache}
-                showHeader={false}
-                onContextMenu={(item, x, y) => setContextMenu({ item, x, y })}
-                onOpen={() => openArtifactPath(selectedItem?.path)}
-              />
-            </>
+            <ArtifactPreview
+              item={selectedItem}
+              group={selectedEntry?.group ?? null}
+              mode={previewMode}
+              onModeChange={setPreviewMode}
+              pack={selectedPack}
+              previewCache={previewCache}
+              showHeader={false}
+              onContextMenu={(item, x, y) => setContextMenu({ item, x, y })}
+              onOpen={() => openArtifactPath(selectedItem?.path)}
+            />
           )
         ) : (
           <ArtifactsEmptyState />
