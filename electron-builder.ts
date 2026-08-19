@@ -340,6 +340,9 @@ export default {
     //   + 引导空态，首条消息后升级真实会话标签。
     // build255 = 版本号 1.9.7 + 右侧面板交互全面对齐（2625ad2）：导航栏横线起伏跟随、成果列表改竖列清单
     //   （搜索+类型分组）、tabs 与 activeTabId 合并原子状态修加号成果无反应。
+    // build256 = 成果/浏览器加号点击无反应根因修复（2ad2986）：新增会话级全量产物 RPC getSessionArtifacts +
+    //   useSessionArtifacts hook（一次拉全量+增量订阅）；成果=全会话产物总列表，产物=会话内单条输出；
+    //   浏览器真实会话未就绪自动 loadBlank + loading。
     // build226 = 版本 1.8.0：①git 工具区补全——创建并检出新分支 + git log --graph 图谱（getGraph IPC）；
     //   ②权限/提问卡片借鉴 deepseek-harness——composer takeover（请求接管输入框位置）+「我想直接说」
     //   讨论第三操作 + tinted strip 彩色顶条。
@@ -347,7 +350,7 @@ export default {
     // build224 = Apple HIG 视觉对齐（c5242cc）：设置页全高侧栏 + 全行图标 + iOS 分段控件、
     //   工具配置改弹窗、用量热力图缩放跟随、权限/提问卡片外壳统一、推理滑块标签对齐、Work/Code
     //   切换 pill、技能页卡片升级；agent workspace 启动 ENOTEMPTY 退避重试（dc2bcd3）。
-    output: "release/build255",
+    output: "release/build256",
   },
   publish: {
     provider: "github",
