@@ -94,6 +94,9 @@ export function ChatNavRail({ items, getScrollElement }: ChatNavRailProps) {
       return
     }
     measure()
+    // 新 turn 提交后已进入 DOM，但 use-stick-to-bottom 的贴底滚动发生在 commit 之后，
+    // 上面的同步 measure 读到的是旧滚动位。下一帧再量一次，把活动标记对齐到最新位置。
+    const settleFrame = window.requestAnimationFrame(measure)
     let frame: number | null = null
     const handleScroll = (): void => {
       if (frame !== null) {
@@ -107,8 +110,15 @@ export function ChatNavRail({ items, getScrollElement }: ChatNavRailProps) {
     container.addEventListener("scroll", handleScroll, { passive: true })
     const observer = new ResizeObserver(handleScroll)
     observer.observe(container)
+    // 滚动容器的盒子大小固定，流式输出导致内容增减时不会触发自身 ResizeObserver；
+    // 观测首个子元素（内容包裹层）才能拿到真实内容高度变化并重新定位。
+    const content = container.firstElementChild
+    if (content) {
+      observer.observe(content)
+    }
     return () => {
       container.removeEventListener("scroll", handleScroll)
+      window.cancelAnimationFrame(settleFrame)
       if (frame !== null) {
         window.cancelAnimationFrame(frame)
       }
