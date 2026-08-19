@@ -52,6 +52,10 @@ export function useTurnOutputRecords(sessionId: string | null, messageIdsKey: st
   // turnOutputUpdated 增量；仅回滚/删除导致消息缩减时强制重拉纠正）。
   const [forcedRevision, setForcedRevision] = React.useState(0)
   const previousIdsKeyRef = React.useRef(messageIdsKey)
+  // 最新值 ref：load 闭包不依赖 messageIdsKey，否则新增消息改变 load 引用即触发重拉，
+  // 与随后 turnOutputUpdated 事件的重拉叠加成双请求。真事件驱动必须从 ref 取值。
+  const messageIdsKeyRef = React.useRef(messageIdsKey)
+  messageIdsKeyRef.current = messageIdsKey
   React.useEffect(() => {
     const previous = previousIdsKeyRef.current
     previousIdsKeyRef.current = messageIdsKey
@@ -70,17 +74,18 @@ export function useTurnOutputRecords(sessionId: string | null, messageIdsKey: st
     [chatService, sessionId],
   )
   const load = React.useCallback(async (): Promise<TurnOutputRecord[]> => {
-    if (!sessionId || !messageIdsKey) {
+    const idsKey = messageIdsKeyRef.current
+    if (!sessionId || !idsKey) {
       return []
     }
     const records = await chatService.invoke("getTurnOutputs", {
       sessionId,
-      messageIds: messageIdsKey.split("\n"),
+      messageIds: idsKey.split("\n"),
     })
     return visibleTurnOutputRecords(records).sort(
       (left, right) => turnOutputRecordSortValue(left) - turnOutputRecordSortValue(right),
     )
-  }, [chatService, messageIdsKey, sessionId])
+  }, [chatService, sessionId])
   const onError = React.useCallback((error: unknown): void => {
     console.error("[dweis] getTurnOutputs failed", error)
   }, [])

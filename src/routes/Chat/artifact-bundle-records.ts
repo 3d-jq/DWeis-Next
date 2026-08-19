@@ -10,6 +10,10 @@ export function useArtifactBundles(sessionId: string | null, messageIdsKey: stri
   // artifactBundleUpdated 增量；仅回滚/删除导致消息缩减时强制重拉纠正）。
   const [forcedRevision, setForcedRevision] = React.useState(0)
   const previousIdsKeyRef = React.useRef(messageIdsKey)
+  // 最新值 ref：load 闭包不依赖 messageIdsKey，否则新增消息改变 load 引用即触发重拉，
+  // 与随后 artifactBundleUpdated 事件的重拉叠加成双请求。真事件驱动必须从 ref 取值。
+  const messageIdsKeyRef = React.useRef(messageIdsKey)
+  messageIdsKeyRef.current = messageIdsKey
   React.useEffect(() => {
     const previous = previousIdsKeyRef.current
     previousIdsKeyRef.current = messageIdsKey
@@ -28,15 +32,16 @@ export function useArtifactBundles(sessionId: string | null, messageIdsKey: stri
     [chatService, sessionId],
   )
   const load = React.useCallback(async (): Promise<ArtifactBundle[]> => {
-    if (!sessionId || !messageIdsKey) {
+    const idsKey = messageIdsKeyRef.current
+    if (!sessionId || !idsKey) {
       return []
     }
     const bundles = await chatService.invoke("getArtifactBundles", {
       sessionId,
-      messageIds: messageIdsKey.split("\n"),
+      messageIds: idsKey.split("\n"),
     })
     return [...bundles].sort((left, right) => left.createdAt - right.createdAt)
-  }, [chatService, messageIdsKey, sessionId])
+  }, [chatService, sessionId])
   const onError = React.useCallback((error: unknown): void => {
     console.error("[dweis] getArtifactBundles failed", error)
   }, [])
