@@ -76,9 +76,12 @@ export function ChatNavRail({ items, getScrollElement }: ChatNavRailProps) {
       return
     }
     const containerTop = container.getBoundingClientRect().top
+    // 贴底（不可再往下滚）时活动标记应指向最新一条：此时最新消息在视口底部，按“视口顶部
+    // 的轮次”算会停留在更早的轮次。仅在向上滚动时才用顶部轮次作为当前浏览位置。
+    const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 24
     let next = -1
     for (const element of container.querySelectorAll<HTMLElement>("[data-chat-turn-id]")) {
-      if (element.getBoundingClientRect().top - containerTop <= ACTIVE_TURN_TOP_OFFSET_PX) {
+      if (atBottom || element.getBoundingClientRect().top - containerTop <= ACTIVE_TURN_TOP_OFFSET_PX) {
         next += 1
         continue
       }
