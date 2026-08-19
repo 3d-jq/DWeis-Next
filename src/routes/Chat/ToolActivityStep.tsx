@@ -25,6 +25,7 @@ import {
   Wrench,
 } from "lucide-react"
 import * as React from "react"
+import { ToolCard } from "./cards/index.tsx"
 import { ImageGenAnimation } from "./ImageGenAnimation.tsx"
 import { shouldShowRunningNoOutput } from "./tool-activity.ts"
 import { shouldHideToolDetailsImmediately } from "./tool-details-visibility.ts"
@@ -33,7 +34,6 @@ import { formatToolOutputPreview, toolOutputPreviewLimitChars } from "./tool-out
 import { isActiveToolPart, isToolCancellation } from "./tool-state.ts"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { useT } from "@/i18n/i18n"
-import { ToolCard } from "./cards/index.tsx"
 import { cn } from "@/lib/utils"
 
 function hasKeys(value: Record<string, unknown> | undefined): boolean {
@@ -257,7 +257,7 @@ function ToolIoSection({
       </span>
       <div
         className={cn(
-          "min-w-0 text-[13px] leading-6 whitespace-pre-wrap break-words",
+          "min-w-0 text-[13px] leading-6 break-words whitespace-pre-wrap",
           tone === "error" ? "text-destructive" : "text-muted-foreground",
         )}
       >
@@ -271,7 +271,7 @@ function ToolPre({ children, tone = "default" }: { children: string; tone?: "def
   return (
     <pre
       className={cn(
-        "min-w-0 font-mono text-[13px] leading-6 whitespace-pre-wrap break-words",
+        "min-w-0 font-mono text-[13px] leading-6 break-words whitespace-pre-wrap",
         tone === "error" && "text-destructive",
       )}
     >
@@ -482,15 +482,13 @@ export const ToolActivityStep = React.memo(function ToolActivityStep({
               grep/glob→Search、webfetch/dweis_websearch→Web。其余工具回落到下方通用 IN/OUT 卡。 */}
           <div className="ml-7 space-y-2">
             {detailsVisible ? <ToolCard part={part} running={active} /> : null}
-            {(
-              (detailsVisible && part.tool === "question" && answerSummary) ||
-              (detailsVisible && part.tool !== "question" && hasKeys(part.input) && !isSpecialCardTool) ||
-              (detailsVisible && outputPreview && !isSpecialCardTool) ||
-              (detailsVisible && part.error && !stopped) ||
-              (detailsVisible && auth?.message) ||
-              (detailsVisible && hasKeys(part.metadata) && !isSpecialCardTool) ||
-              (detailsVisible && part.attachmentsCount)
-            ) ? (
+            {(detailsVisible && part.tool === "question" && answerSummary) ||
+            (detailsVisible && part.tool !== "question" && hasKeys(part.input) && !isSpecialCardTool) ||
+            (detailsVisible && outputPreview && !isSpecialCardTool) ||
+            (detailsVisible && part.error && !stopped) ||
+            (detailsVisible && auth?.message) ||
+            (detailsVisible && hasKeys(part.metadata) && !isSpecialCardTool) ||
+            (detailsVisible && part.attachmentsCount) ? (
               <div className="overflow-hidden rounded-xl border border-[var(--oo-divider)] bg-background/60">
                 {detailsVisible && part.tool === "question" && answerSummary ? (
                   <ToolIoSection label={t("chat.questionAnswered")}>
@@ -515,7 +513,7 @@ export const ToolActivityStep = React.memo(function ToolActivityStep({
                   </ToolIoSection>
                 ) : null}
                 {detailsVisible && !stopped && shouldShowRunningNoOutput(part) ? (
-                  <div className="border-t border-border/60 px-4 py-2 oo-text-caption text-muted-foreground">
+                  <div className="oo-text-caption border-t border-border/60 px-4 py-2 text-muted-foreground">
                     {t("chat.toolRunningNoOutput")}
                   </div>
                 ) : null}
@@ -535,7 +533,7 @@ export const ToolActivityStep = React.memo(function ToolActivityStep({
                   </ToolIoSection>
                 ) : null}
                 {detailsVisible && part.attachmentsCount ? (
-                  <div className="border-t border-border/60 px-4 py-2 oo-text-caption text-muted-foreground">
+                  <div className="oo-text-caption border-t border-border/60 px-4 py-2 text-muted-foreground">
                     {t("chat.toolAttachments", { count: part.attachmentsCount })}
                   </div>
                 ) : null}

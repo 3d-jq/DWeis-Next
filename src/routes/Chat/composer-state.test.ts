@@ -108,17 +108,11 @@ describe("composer state", () => {
   })
 
   it("sets the command chip on select-command without filling the draft", () => {
-    const selected = composerReducer(
-      initialComposerState(),
-      { type: "select-command", command: "compact" },
-    )
+    const selected = composerReducer(initialComposerState(), { type: "select-command", command: "compact" })
     expect(selected.command).toBe("compact")
     expect(selected.draft).toBe("")
     expect(hasComposerDraftContent(selected)).toBe(true)
-    const custom = composerReducer(
-      initialComposerState(),
-      { type: "select-command", command: "custom:release-notes" },
-    )
+    const custom = composerReducer(initialComposerState(), { type: "select-command", command: "custom:release-notes" })
     expect(custom.command).toBe("custom:release-notes")
     expect(composerSubmissionText(custom)).toBe("/release-notes")
   })

@@ -1,10 +1,10 @@
 import type { AssistantActivityEvent } from "../../../electron/chat/common.ts"
+import type { TurnOutputRecord } from "../../../electron/chat/common.ts"
 import type { ChatErrorKind } from "../../../electron/chat/error.ts"
-import type { ArtifactSelection } from "@/routes/Chat/GeneratedArtifacts"
-import type { TurnOutputSelection } from "@/routes/Chat/TurnOutputs"
 import type { ResolvedArtifactGroup } from "./artifact-resolution.ts"
 import type { ChatTurn, ChatTurnRetrySource } from "./chat-turns.ts"
-import type { TurnOutputRecord } from "../../../electron/chat/common.ts"
+import type { ArtifactSelection } from "@/routes/Chat/GeneratedArtifacts"
+import type { TurnOutputSelection } from "@/routes/Chat/TurnOutputs"
 
 export interface ChatTurnViewProps {
   activeSessionId: string | null

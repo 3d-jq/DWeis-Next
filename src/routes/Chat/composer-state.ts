@@ -11,14 +11,7 @@ export type DraftAttachment = ChatAttachment & {
 /** 输入框命令 chip：斜杠动作命令（compact/undo/redo）与模板命令（init/review/自定义）。
  *  选择后显示 chip（对齐 skill/bug-report），不把 "/命令" 文本填入输入框——避免触发
  *  斜杠 palette 弹出、回车被拦截发不出去。 */
-export type ComposerCommand =
-  | "bug-report"
-  | "compact"
-  | "init"
-  | "redo"
-  | "review"
-  | "undo"
-  | `custom:${string}`
+export type ComposerCommand = "bug-report" | "compact" | "init" | "redo" | "review" | "undo" | `custom:${string}`
 
 export interface ComposerState {
   attachments: DraftAttachment[]

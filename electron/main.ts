@@ -276,7 +276,8 @@ const chatService: ChatServiceImpl = new ChatServiceImpl(null, {
   onSessionCompleted: (input) => attentionService.completeSession(input),
   onTurnCompleted: (input) => memoryReviewer.onTurnCompleted(input),
 })
-const sessionService = new SessionServiceImpl(null, {
+// 显式类型注解断开循环推断：sessionService → attentionService → sessionService（getSessionPersona）。
+const sessionService: SessionServiceImpl = new SessionServiceImpl(null, {
   activityStore: sessionActivityStore,
   metadataStore: sessionMetadataStore,
   onSessionArchived: (sessionId) => attentionService.removeSession(sessionId),
@@ -491,7 +492,7 @@ async function parseTaskTextWithAgent(text: string, signal?: AbortSignal): Promi
     return null
   }
 }
-const attentionService = new AttentionServiceImpl({
+const attentionService: AttentionServiceImpl = new AttentionServiceImpl({
   getLocale: activeLocale,
   getSettings: () => settingsService.current(),
   getWindow: () => mainWindow,

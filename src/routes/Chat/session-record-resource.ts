@@ -16,17 +16,11 @@ interface SessionRecordResourceOptions<T> {
 }
 
 /** 是否应继续渲染旧记录：同 key（最新）或同作用域（同会话）内 key 变化都保留，等待新数据替换。 */
-export function keepStaleRecords(
-  key: string | null,
-  stateKey: string | null,
-  staleScopeKey?: string | null,
-): boolean {
+export function keepStaleRecords(key: string | null, stateKey: string | null, staleScopeKey?: string | null): boolean {
   if (stateKey === key) {
     return true
   }
-  return Boolean(
-    staleScopeKey && key?.startsWith(`${staleScopeKey}\0`) && stateKey?.startsWith(`${staleScopeKey}\0`),
-  )
+  return Boolean(staleScopeKey && key?.startsWith(`${staleScopeKey}\0`) && stateKey?.startsWith(`${staleScopeKey}\0`))
 }
 
 /** 消息 id 集是否发生"缩减"（回滚/删除）：新集是旧集的子集且非空。新增消息（发送）不算缩减。 */

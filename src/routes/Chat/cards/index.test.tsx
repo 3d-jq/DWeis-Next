@@ -42,7 +42,8 @@ describe("ToolCard", () => {
       tool: "read",
       status: "completed",
       input: { filePath: "C:/x/src/main.ts" },
-      output: "<path>C:/x/src/main.ts</path>\n<type>file</type>\n<content>\n1: export const a = 1\n2: export const b = 2\n</content>",
+      output:
+        "<path>C:/x/src/main.ts</path>\n<type>file</type>\n<content>\n1: export const a = 1\n2: export const b = 2\n</content>",
     })
     expect(html).toContain("src/main.ts")
     expect(html).toContain("1")

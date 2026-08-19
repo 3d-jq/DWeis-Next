@@ -1,3 +1,6 @@
+import type { TokenizedCode } from "@/components/ai-elements/code-block"
+import type { TranslateFn } from "@/i18n/i18n"
+
 /**
  * Edit 工具差异卡（对齐 dsh DiffBlock）：增删行着色 + 复制。
  * edit 工具输出格式未定（opencode apply_patch），按 shiki `diff` 语言高亮 fallback。
@@ -5,12 +8,10 @@
  */
 import { CheckIcon, CopyIcon } from "lucide-react"
 import { useEffect, useState } from "react"
-import type { TokenizedCode } from "@/components/ai-elements/code-block"
 import { highlightCode } from "@/components/ai-elements/code-block"
 import { Button } from "@/components/ui/button"
 import { writeClipboardText } from "@/lib/clipboard"
 import { cn } from "@/lib/utils"
-import type { TranslateFn } from "@/i18n/i18n"
 
 const ICON_CLASS = "size-3.5 shrink-0"
 const DEFAULT_MAX_LINES = 24
@@ -81,7 +82,7 @@ export function DiffCard({ output, t }: DiffCardProps) {
   }
 
   return (
-    <section className="rounded-xl border border-[var(--oo-divider)] bg-muted/30 p-2.5 space-y-1.5">
+    <section className="space-y-1.5 rounded-xl border border-[var(--oo-divider)] bg-muted/30 p-2.5">
       {/* 状态行：增删计数 + 复制 */}
       <div className="flex items-center gap-2 text-xs">
         <span className="font-mono tabular-nums">
@@ -104,7 +105,11 @@ export function DiffCard({ output, t }: DiffCardProps) {
             })
           }}
         >
-          {copied ? <CheckIcon className={ICON_CLASS} aria-hidden="true" /> : <CopyIcon className={ICON_CLASS} aria-hidden="true" />}
+          {copied ? (
+            <CheckIcon className={ICON_CLASS} aria-hidden="true" />
+          ) : (
+            <CopyIcon className={ICON_CLASS} aria-hidden="true" />
+          )}
         </Button>
       </div>
       {/* diff 内容：shiki diff 语法高亮（每行 token 颜色对应 +/-/上下文） */}

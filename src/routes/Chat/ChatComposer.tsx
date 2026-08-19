@@ -12,6 +12,7 @@ import type { ArtifactSelection } from "./GeneratedArtifacts.tsx"
 import type { PromptInputMessage } from "@/components/ai-elements/prompt-input"
 import type { ChatSendRequest, ChatSendResult } from "@/components/app-shell/app-shell-model"
 import type { QueuedChatMessage, QueuedMessageMovePlacement } from "@/components/app-shell/chat-queue"
+import type { TranslateFn } from "@/i18n/i18n"
 import type { UserFacingError } from "@/lib/user-facing-error"
 
 import { Bug, SquareTerminal, Terminal, X } from "lucide-react"
@@ -64,7 +65,6 @@ import { ErrorNotice } from "@/components/ErrorNotice"
 import { useAppSettings } from "@/hooks/useAppSettings"
 import { useMcpServers } from "@/hooks/useMcpServers"
 import { useMemory } from "@/hooks/useMemory"
-import type { TranslateFn } from "@/i18n/i18n"
 import { useT } from "@/i18n/i18n"
 import { resolveUserFacingError } from "@/lib/user-facing-error"
 import { cn } from "@/lib/utils"
@@ -668,13 +668,11 @@ export function ChatComposer({
                   title={composerCommandLabel(t, command)}
                 >
                   <span className="flex size-5 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                    {command === "bug-report" ? (
-                      <Bug className="size-3.5" />
-                    ) : (
-                      <SquareTerminal className="size-3.5" />
-                    )}
+                    {command === "bug-report" ? <Bug className="size-3.5" /> : <SquareTerminal className="size-3.5" />}
                   </span>
-                  <span className="min-w-0 truncate font-medium text-foreground">{composerCommandLabel(t, command)}</span>
+                  <span className="min-w-0 truncate font-medium text-foreground">
+                    {composerCommandLabel(t, command)}
+                  </span>
                   {!composerDisabled ? (
                     <button
                       type="button"

@@ -1,3 +1,6 @@
+import type { CodeBlockProps, TokenizedCode } from "@/components/ai-elements/code-block"
+import type { TranslateFn } from "@/i18n/i18n"
+
 /**
  * Read 工具输出卡（对齐 dsh ReadBlock）：
  * 顶部 banner（路径 + 显示 N/M 行 + 复制）+ 行号 gutter + shiki 语法高亮。
@@ -5,12 +8,10 @@
  */
 import { CheckIcon, CopyIcon } from "lucide-react"
 import { useEffect, useState } from "react"
-import type { CodeBlockProps, TokenizedCode } from "@/components/ai-elements/code-block"
 import { highlightCode } from "@/components/ai-elements/code-block"
 import { Button } from "@/components/ui/button"
 import { writeClipboardText } from "@/lib/clipboard"
 import { cn } from "@/lib/utils"
-import type { TranslateFn } from "@/i18n/i18n"
 
 const ICON_CLASS = "size-3.5 shrink-0"
 
@@ -142,7 +143,7 @@ export function ReadCard({ output, t }: ReadCardProps) {
   }
 
   return (
-    <section className="rounded-xl border border-[var(--oo-divider)] bg-muted/30 p-2.5 space-y-1.5">
+    <section className="space-y-1.5 rounded-xl border border-[var(--oo-divider)] bg-muted/30 p-2.5">
       {/* banner：路径 + N/M + 复制 */}
       <div className="flex items-center gap-2 text-xs">
         <span className="min-w-0 flex-1 truncate font-mono text-muted-foreground">
@@ -165,7 +166,11 @@ export function ReadCard({ output, t }: ReadCardProps) {
             })
           }}
         >
-          {copied ? <CheckIcon className={ICON_CLASS} aria-hidden="true" /> : <CopyIcon className={ICON_CLASS} aria-hidden="true" />}
+          {copied ? (
+            <CheckIcon className={ICON_CLASS} aria-hidden="true" />
+          ) : (
+            <CopyIcon className={ICON_CLASS} aria-hidden="true" />
+          )}
         </Button>
       </div>
       {/* 文件内容：行号 gutter + shiki 高亮 */}
@@ -179,7 +184,7 @@ export function ReadCard({ output, t }: ReadCardProps) {
           const lineTokens = tokenized?.tokens[index]
           return (
             <span key={line.number} className="block whitespace-pre">
-              <span className="inline-block w-10 select-none pr-3 text-right text-muted-foreground/50 tabular-nums">
+              <span className="inline-block w-10 pr-3 text-right text-muted-foreground/50 tabular-nums select-none">
                 {line.number}
               </span>
               <span>

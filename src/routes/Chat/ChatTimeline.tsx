@@ -1,6 +1,7 @@
 import type { AssistantActivityEvent, ChatMessage } from "../../../electron/chat/common.ts"
 import type { ChatErrorKind } from "../../../electron/chat/error.ts"
 import type { ResolvedArtifactGroup } from "./artifact-resolution.ts"
+import type { ChatTurnViewProps } from "./chat-turn-view-props.ts"
 import type { ChatTurn, ChatTurnRetrySource } from "./chat-turns.ts"
 import type { ChatTurnGrouping } from "./chat-turns.ts"
 import type { ArtifactSelection } from "@/routes/Chat/GeneratedArtifacts"
@@ -18,6 +19,7 @@ import {
   timelineHasVisibleOutcome,
 } from "./assistant-timeline.ts"
 import { TurnProcessActivity } from "./AssistantTurnRenderer.tsx"
+import { chatTurnViewPropsEqual } from "./chat-turn-view-props.ts"
 import {
   activityForChatTurn,
   isCompactionActivity,
@@ -28,8 +30,6 @@ import {
   summarizeTurnProcess,
   updateChatTurnGrouping,
 } from "./chat-turns.ts"
-import type { ChatTurnViewProps } from "./chat-turn-view-props.ts"
-import { chatTurnViewPropsEqual } from "./chat-turn-view-props.ts"
 import { AssistantMessageActions } from "./ChatMessageActions.tsx"
 import { AssistantTimelineMessage, MessageBubble } from "./ChatMessageBubble.tsx"
 import { LoadingShimmerText } from "./LoadingShimmerText.tsx"

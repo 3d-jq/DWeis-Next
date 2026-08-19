@@ -763,15 +763,20 @@
    文字保持实色可读，一条 300px 的 glare band 从左往右滑过整行（90% 处停留一拍），
    扫过处字形向背景色淡化——比文字透明渐变更安静、更清晰。 */
 @keyframes oo-row-sweep {
-  0% { left: -300px; }
-  90%, 100% { left: 100%; }
+  0% {
+    left: -300px;
+  }
+  90%,
+  100% {
+    left: 100%;
+  }
 }
 .oo-row-sweep {
   position: relative;
   overflow: hidden;
 }
 .oo-row-sweep::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   bottom: 0;
@@ -787,5 +792,7 @@
   pointer-events: none;
 }
 @media (prefers-reduced-motion: reduce) {
-  .oo-row-sweep::after { animation: none; }
+  .oo-row-sweep::after {
+    animation: none;
+  }
 }

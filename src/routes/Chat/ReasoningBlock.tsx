@@ -3,9 +3,9 @@ import type { ChatMessagePart } from "../../../electron/chat/common.ts"
 import { BrainIcon, ChevronRight } from "lucide-react"
 import { AnimatePresence, motion } from "motion/react"
 import * as React from "react"
+import { useThrottledVisualUpdate } from "./use-throttled-visual-update.ts"
 import { useT } from "@/i18n/i18n"
 import { cn } from "@/lib/utils"
-import { useThrottledVisualUpdate } from "./use-throttled-visual-update.ts"
 
 function firstLine(text: string): string {
   const newline = text.indexOf("\n")
@@ -67,7 +67,10 @@ export function ReasoningBlock({ part, live = false }: { part: ChatMessagePart; 
       >
         {/* 16px 图标槽：平时显脑图标，hover 时图标淡出、chevron 预览淡入（dsh leading 样式）。 */}
         <span className="relative mr-1.5 flex size-4 shrink-0 items-center justify-center text-muted-foreground">
-          <BrainIcon className="absolute size-3.5 transition-opacity duration-100 group-hover/reasoning:opacity-0" aria-hidden="true" />
+          <BrainIcon
+            className="absolute size-3.5 transition-opacity duration-100 group-hover/reasoning:opacity-0"
+            aria-hidden="true"
+          />
           <ChevronRight
             className={cn(
               "absolute size-3.5 transition-opacity duration-100 group-hover/reasoning:opacity-100",
@@ -107,7 +110,7 @@ export function ReasoningBlock({ part, live = false }: { part: ChatMessagePart; 
             className="overflow-hidden"
           >
             {/* 思考内容：pl 匹配图标槽宽度（22px = 16px + 6px margin），定长 + 内部滚动。 */}
-            <div className="mt-1 max-h-40 overflow-y-auto pl-[22px] text-sm leading-6 whitespace-pre-wrap break-words text-muted-foreground/90">
+            <div className="mt-1 max-h-40 overflow-y-auto pl-[22px] text-sm leading-6 break-words whitespace-pre-wrap text-muted-foreground/90">
               {text}
             </div>
           </motion.div>

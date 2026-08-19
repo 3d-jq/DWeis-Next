@@ -146,7 +146,13 @@ export function useComposerPalette({
         focusDraftAt(currentTrigger.start)
         return
       }
-      if (item.action === "compact" || item.action === "undo" || item.action === "redo" || item.action === "init" || item.action === "review") {
+      if (
+        item.action === "compact" ||
+        item.action === "undo" ||
+        item.action === "redo" ||
+        item.action === "init" ||
+        item.action === "review"
+      ) {
         // 动作/模板命令：设置命令 chip（对齐 skill/bug-report），不把 "/命令" 填入输入框——
         // 避免斜杠触发 palette 弹出、回车被拦截发不出去；回车由提交路径统一执行。
         dispatch({ type: "select-command", command: item.action })

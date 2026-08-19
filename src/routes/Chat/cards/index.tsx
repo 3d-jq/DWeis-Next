@@ -4,6 +4,7 @@
  * 其余工具 fallback：通用 IN/OUT 卡（参数/结果/错误/元数据）。
  */
 import type { ChatMessagePart } from "../../../../electron/chat/common.ts"
+
 import { DiffCard } from "./DiffBlock.tsx"
 import { ReadCard } from "./ReadBlock.tsx"
 import { SearchCard } from "./SearchBlock.tsx"
@@ -25,7 +26,7 @@ export function ToolCard({ part, running }: { part: ChatMessagePart; running: bo
   const input = part.input ?? {}
 
   if (part.tool === "bash") {
-    const command = typeof input.command === "string" ? input.command.split("\n").pop() ?? input.command : ""
+    const command = typeof input.command === "string" ? (input.command.split("\n").pop() ?? input.command) : ""
     return (
       <TerminalCard
         command={command}
