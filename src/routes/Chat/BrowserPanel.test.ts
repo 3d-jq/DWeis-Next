@@ -15,6 +15,7 @@ import { I18nContext, translate } from "@/i18n/i18n"
 
 const state: BrowserPageState = {
   crashed: false,
+  device: null,
   sessionId: "session-1",
   visible: true,
   navigation: {
@@ -199,7 +200,7 @@ describe("BrowserPanel titlebar drag regions", () => {
     const html = renderPanel()
 
     expect(html).toMatch(/oo-titlebar[^"]*\[-webkit-app-region:drag\]/u)
-    expect(html.match(/\[-webkit-app-region:no-drag\]/gu)).toHaveLength(5)
+    expect(html.match(/\[-webkit-app-region:no-drag\]/gu)).toHaveLength(6)
     expect(html).toMatch(/<form class="[^"]*\[-webkit-app-region:no-drag\]/u)
   })
 })

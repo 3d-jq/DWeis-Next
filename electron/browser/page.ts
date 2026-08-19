@@ -1,5 +1,5 @@
 import type { WindowsTitleBarTheme } from "../window/title-bar-overlay.ts"
-import type { BrowserPageState, BrowserViewBounds } from "./common.ts"
+import type { BrowserDeviceEmulation, BrowserPageState, BrowserViewBounds } from "./common.ts"
 import type {
   BrowserWindow as ElectronBrowserWindow,
   Event as ElectronEvent,
@@ -40,6 +40,8 @@ export class BrowserPage {
   public readonly sessionId: string
   private crashed = false
   private currentDialog: Dialog | null = null
+  private device: BrowserDeviceEmulation | null = null
+  private readonly defaultUserAgent: string
   private documentColorScheme: string | null = null
   private readonly mainWindow: ElectronBrowserWindow
   private navigationSequence = 0
@@ -58,6 +60,7 @@ export class BrowserPage {
     this.mainWindow = input.mainWindow
     this.sessionId = input.sessionId
     this.stateChanged = input.stateChanged
+    this.defaultUserAgent = input.partitionSession.getUserAgent()
     this.view = new WebContentsView({
       webPreferences: {
         contextIsolation: true,
@@ -88,6 +91,7 @@ export class BrowserPage {
     const history = this.view.webContents.navigationHistory
     return {
       crashed: this.crashed,
+      device: this.device,
       navigation: {
         canGoBack: history.canGoBack(),
         canGoForward: history.canGoForward(),
@@ -104,7 +108,8 @@ export class BrowserPage {
     return this.crashed || this.view.webContents.isDestroyed()
   }
 
-  public show(bounds: BrowserViewBounds): void {
+  public show(bounds: BrowserViewBounds, zoom = 1): void {
+    this.view.webContents.setZoomFactor(zoom)
     if (this.visible) {
       this.view.setBounds(bounds)
       return
@@ -114,6 +119,22 @@ export class BrowserPage {
     this.view.setBounds(bounds)
     this.view.webContents.focus()
     this.emitState()
+  }
+
+  /** 应用/关闭设备模拟：切换 UA（变化时重载当前页），尺寸缩放由渲染层的 show zoom 负责。 */
+  public applyDeviceOverrides(device: BrowserDeviceEmulation | null): BrowserPageState {
+    this.device = device
+    const contents = this.view.webContents
+    if (!contents.isDestroyed()) {
+      const nextAgent = device?.userAgent?.trim() || this.defaultUserAgent
+      if (contents.getUserAgent() !== nextAgent) {
+        contents.setUserAgent(nextAgent)
+        const url = contents.getURL()
+        if (url && url !== "about:blank") contents.reload()
+      }
+    }
+    this.emitState()
+    return this.state()
   }
 
   public hide(): void {

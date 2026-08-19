@@ -17,9 +17,18 @@ export interface BrowserNavigationState {
   url: string
 }
 
+/** 设备模拟配置：目标 CSS 视口 + 移动端 UA（null 表示恢复桌面默认）。 */
+export interface BrowserDeviceEmulation {
+  height: number
+  userAgent: string | null
+  width: number
+}
+
 export interface BrowserPageState {
   crashed: boolean
   navigation: BrowserNavigationState
+  /** null = 未开启设备模拟；随 state 广播以便面板重建后恢复模拟状态。 */
+  device: BrowserDeviceEmulation | null
   sessionId: string
   visible: boolean
 }
@@ -31,6 +40,14 @@ export interface BrowserNavigateRequest {
 
 export interface BrowserShowRequest {
   bounds: BrowserViewBounds
+  sessionId: string
+  /** 显示缩放（设备模拟时 = 设备框宽 / 目标视口宽）；缺省 1。 */
+  zoom?: number
+}
+
+export interface BrowserDeviceRequest {
+  /** null = 关闭设备模拟并恢复默认 UA。 */
+  device: BrowserDeviceEmulation | null
   sessionId: string
 }
 
@@ -53,6 +70,7 @@ export const BrowserService = serviceName("browser-service") as ServiceName<{
     getState(sessionId: string): Promise<BrowserPageState | null>
     show(request: BrowserShowRequest): Promise<BrowserPageState>
     hide(sessionId: string): Promise<void>
+    applyDeviceOverrides(request: BrowserDeviceRequest): Promise<BrowserPageState>
     navigate(request: BrowserNavigateRequest): Promise<BrowserPageState>
     goBack(sessionId: string): Promise<BrowserPageState>
     goForward(sessionId: string): Promise<BrowserPageState>

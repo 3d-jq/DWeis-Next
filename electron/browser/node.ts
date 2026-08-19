@@ -1,4 +1,5 @@
 import type {
+  BrowserDeviceRequest,
   BrowserDownloadResult,
   BrowserNavigateRequest,
   BrowserPageState,
@@ -157,7 +158,7 @@ export class BrowserManager {
       x: 0,
       y: 0,
     })
-    page.show(bounds)
+    page.show(bounds, request.zoom)
     this.visibleSessionId = request.sessionId
     this.touch(request.sessionId)
     return page.state()
@@ -168,6 +169,12 @@ export class BrowserManager {
     page?.hide()
     if (this.visibleSessionId === sessionId) this.visibleSessionId = null
     return Promise.resolve()
+  }
+
+  public async applyDeviceOverrides(request: BrowserDeviceRequest): Promise<BrowserPageState> {
+    const page = await this.ensurePage(request.sessionId)
+    this.touch(request.sessionId)
+    return page.applyDeviceOverrides(request.device)
   }
 
   public async navigate(request: BrowserNavigateRequest): Promise<BrowserPageState> {
@@ -446,6 +453,10 @@ export class BrowserServiceImpl
 
   public hide(sessionId: string): Promise<void> {
     return this.browser.hide(sessionId)
+  }
+
+  public applyDeviceOverrides(request: BrowserDeviceRequest): Promise<BrowserPageState> {
+    return this.browser.applyDeviceOverrides(request)
   }
 
   public navigate(request: BrowserNavigateRequest): Promise<BrowserPageState> {
