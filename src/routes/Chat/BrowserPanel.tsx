@@ -53,7 +53,14 @@ const toolbarButtonClass =
   "oo-toolbar-button flex size-8 shrink-0 items-center justify-center rounded-md [-webkit-app-region:no-drag] hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground disabled:pointer-events-none disabled:opacity-40"
 
 function browserViewIsOccluded(root: ParentNode = document): boolean {
-  return Boolean(root.querySelector('[aria-modal="true"]'))
+  // 原生浏览器视图是 OS 层，始终叠在渲染层之上。除了模态对话框，凡在浏览器面板区域弹出的
+  // 浮层（+ 菜单、下拉、右键菜单、Select 等）也必须隐藏它，否则浮层被原生视图盖住，
+  // hover 与点击全部失效。这些浮层只在打开时才挂载在 document，因此凭角色即可判定。
+  return Boolean(
+    root.querySelector(
+      '[aria-modal="true"], [role="dialog"], [role="menu"], [role="listbox"], [data-radix-popper-content-wrapper]',
+    ),
+  )
 }
 
 /** 面板侧的模拟状态：竖屏尺寸 + 横屏标志 + 当前 UA（id 仅用于 Select 显示）。 */

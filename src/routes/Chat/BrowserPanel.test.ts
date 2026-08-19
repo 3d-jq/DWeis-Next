@@ -110,6 +110,43 @@ describe("BrowserPanel native view visibility", () => {
     act(() => root.unmount())
   })
 
+  it("hides the native page behind an open popover menu and restores it after it closes", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+      bottom: 500,
+      height: 400,
+      left: 600,
+      right: 1100,
+      top: 100,
+      width: 500,
+      x: 600,
+      y: 100,
+      toJSON: () => undefined,
+    })
+    const previewDataUrl = "data:image/png;base64,cHJldmlldw=="
+    const invoke = vi.fn(async (action: string) => (action === "capturePreview" ? previewDataUrl : undefined))
+    const menu = document.createElement("div")
+    menu.setAttribute("role", "menu")
+    document.body.append(menu)
+    const root = await renderInteractivePanel(invoke)
+
+    expect(invoke).toHaveBeenCalledWith("hide", "session-1")
+    expect(document.querySelector(`img[src="${previewDataUrl}"]`)).not.toBeNull()
+
+    menu.remove()
+    await act(async () => {
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
+    })
+
+    expect(invoke).toHaveBeenCalledWith("show", {
+      bounds: { height: 400, width: 500, x: 600, y: 100 },
+      sessionId: "session-1",
+      zoom: 1,
+    })
+    expect(document.querySelector("img")).toBeNull()
+
+    act(() => root.unmount())
+  })
+
   it("hides after an in-flight show when a modal opens", async () => {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
       bottom: 500,
