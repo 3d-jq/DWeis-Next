@@ -58,6 +58,7 @@ resources/agent-tool-runtime
 # Local dev Electron userData (legacy + current; storeDirName is "dweisnext")
 wanta/
 dweisnext/
+dweis/
 
 # Build leftovers renamed during sandbox builds (not committed)
 dist_trash_*/
