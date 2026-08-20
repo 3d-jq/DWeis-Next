@@ -1,6 +1,13 @@
 // 轻量启动画面：冷启动时主窗口还在后台加载（agent 初始化、渲染进程就绪），
 // 先弹一个与主窗口同尺寸的品牌画面遮挡加载；渲染层 UI 就绪后由调用方触发淡出销毁。
-import { BrowserWindow, nativeTheme } from "electron"
+//
+// 设计：
+//   - 始终深色（与 logo 自带黑底白角色调一致，避免浅色下 logo 矩形块喧宾夺主）。
+//   - 径向渐变背景 + 中心品牌蓝辉光，logo 浮在光晕中央。
+//   - logo 缓慢呼吸 + 外环周期扩散，3 点错位弹跳替代单调进度条。
+import { app, BrowserWindow, nativeTheme } from "electron"
+import { existsSync, readFileSync } from "node:fs"
+import { join } from "node:path"
 import { branding } from "../branding.ts"
 
 /** 与主窗口默认尺寸一致（electron/main.ts 主窗口 1280×800），切换时无尺寸跳跃。 */
@@ -14,36 +21,80 @@ export const SPLASH_FALLBACK_MS = 10_000
 const SPLASH_MAX_MS = 20_000
 
 interface SplashPalette {
+  /** 背景：外圈深色，作为径向渐变的终点。 */
   background: string
+  /** 背景：中心亮色，作为径向渐变的起点。 */
+  backgroundCenter: string
+  /** logo 周围的品牌色辉光。 */
+  glow: string
+  /** 主文字色。 */
   foreground: string
-  bar: string
-  accent: string
+  /** 副标 / 暗文字色。 */
+  muted: string
+  /** 加载点默认色。 */
+  dot: string
+  /** 加载点弹起时的强调色。 */
+  dotActive: string
+  /** 外环颜色。 */
+  ring: string
 }
 
 function splashPalette(): SplashPalette {
-  const dark = nativeTheme.shouldUseDarkColors
-  if (dark) {
-    return {
-      background: "#161618",
-      foreground: "#f5f5f7",
-      bar: "rgba(245,245,247,0.22)",
-      accent: "rgba(245,245,247,0.85)",
-    }
-  }
+  // 始终走深色：logo 自带黑底白角色，深色背景下轮廓自然融入、角色清晰；浅色背景下
+  // 黑圆角方块会过于抢眼，破坏整体调性。这里保留 nativeTheme 入参便于未来扩展。
+  void nativeTheme.shouldUseDarkColors
   return {
-    background: "#fbfbfd",
-    foreground: "#1d1d1f",
-    bar: "rgba(0,0,0,0.14)",
-    accent: "rgba(0,0,0,0.7)",
+    background: "#0a0a0c",
+    backgroundCenter: "rgba(34, 36, 42, 1)",
+    glow: "rgba(10, 132, 255, 0.22)",
+    foreground: "#f5f5f7",
+    muted: "rgba(245, 245, 247, 0.55)",
+    dot: "rgba(245, 245, 247, 0.28)",
+    dotActive: "#0a84ff",
+    ring: "rgba(10, 132, 255, 0.4)",
   }
 }
 
 function escapeHtml(value: string): string {
-  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
 }
 
-function splashHtml(palette: SplashPalette): string {
+/**
+ * 把 logo.png 内联成 data URI。
+ *
+ * 解析顺序：
+ *   1) `process.resourcesPath/logo.png` —— 打包后，electron-builder.ts 把 logo 复制为 extraResources。
+ *   2) `<appPath>/resources/branding/logo.png` —— dev，资源随仓库提交。
+ * 任意一个读得到就 base64 编码；都失败就返回空串，HTML 走首字母 fallback。
+ */
+function loadLogoDataUri(): string {
+  const candidates = [
+    join(process.resourcesPath ?? "", "logo.png"),
+    join(app.getAppPath(), "resources", "branding", "logo.png"),
+  ]
+  for (const filePath of candidates) {
+    try {
+      if (filePath && existsSync(filePath)) {
+        const buf = readFileSync(filePath)
+        return `data:image/png;base64,${buf.toString("base64")}`
+      }
+    } catch {
+      // 路径解析或读盘失败，继续尝试下一个候选。
+    }
+  }
+  return ""
+}
+
+function splashHtml(palette: SplashPalette, logoDataUri: string): string {
   const brand = escapeHtml(branding.appName)
+  const version = escapeHtml(app.getVersion())
+  const logoNode = logoDataUri
+    ? `<img class="logo" src="${logoDataUri}" alt="" draggable="false" />`
+    : `<div class="logo logo-fallback">${escapeHtml(brand.charAt(0))}</div>`
   return `<!doctype html>
 <html>
 <head>
@@ -52,35 +103,108 @@ function splashHtml(palette: SplashPalette): string {
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; }
   body {
-    background: ${palette.background};
+    background:
+      radial-gradient(ellipse 65% 55% at 50% 46%, ${palette.backgroundCenter} 0%, ${palette.background} 72%),
+      ${palette.background};
     color: ${palette.foreground};
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
     display: flex; align-items: center; justify-content: center;
     overflow: hidden;
     user-select: none; -webkit-user-select: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
-  .card { text-align: center; }
-  .brand { font-size: 46px; font-weight: 600; letter-spacing: 0.04em; }
-  .bar {
-    width: 180px; height: 3px; margin: 30px auto 0;
-    border-radius: 999px; background: ${palette.bar};
-    position: relative; overflow: hidden;
+  .stage {
+    display: flex; flex-direction: column; align-items: center;
+    animation: stage-in 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   }
-  .bar::after {
-    content: ""; position: absolute; inset: 0; border-radius: 999px;
-    background: linear-gradient(90deg, transparent, ${palette.accent}, transparent);
-    animation: sweep 1.5s ease-in-out infinite;
+  @keyframes stage-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
   }
-  @keyframes sweep {
-    from { transform: translateX(-100%); }
-    to { transform: translateX(100%); }
+  .logo-wrap {
+    position: relative;
+    width: 128px; height: 128px;
+    margin-bottom: 32px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  /* 中心品牌色辉光：给 logo 锚定"光源"，是整张图最强的视觉支点。 */
+  .logo-wrap::before {
+    content: ""; position: absolute; inset: -24px;
+    background: radial-gradient(circle, ${palette.glow} 0%, transparent 65%);
+    z-index: 0;
+    animation: glow-pulse 4s ease-in-out infinite;
+    pointer-events: none;
+  }
+  @keyframes glow-pulse {
+    0%, 100% { opacity: 0.7; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.06); }
+  }
+  /* 周期扩散的环：让静态画面"活"起来，又不喧宾夺主。 */
+  .logo-wrap::after {
+    content: ""; position: absolute; inset: 0;
+    border-radius: 30px;
+    border: 1.5px solid ${palette.ring};
+    opacity: 0;
+    animation: ring-expand 2.6s cubic-bezier(0.2, 0.6, 0.2, 1) infinite;
+    pointer-events: none;
+  }
+  @keyframes ring-expand {
+    0% { transform: scale(0.94); opacity: 0.75; }
+    100% { transform: scale(1.4); opacity: 0; }
+  }
+  .logo {
+    position: relative; z-index: 1;
+    width: 128px; height: 128px;
+    border-radius: 28px;
+    object-fit: cover;
+    filter: drop-shadow(0 14px 32px rgba(0, 0, 0, 0.45));
+    animation: logo-breathe 3.6s ease-in-out infinite;
+  }
+  .logo-fallback {
+    background: linear-gradient(135deg, ${palette.dotActive}, ${palette.ring});
+    color: #ffffff;
+    font-size: 56px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 28px;
+  }
+  @keyframes logo-breathe {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.025); }
+  }
+  .brand {
+    font-size: 30px; font-weight: 600; letter-spacing: 0.005em;
+    margin-bottom: 8px;
+  }
+  .tagline {
+    font-size: 13px; font-weight: 500; letter-spacing: 0.04em;
+    color: ${palette.muted};
+    margin-bottom: 44px;
+    font-variant-numeric: tabular-nums;
+  }
+  .dots {
+    display: flex; gap: 9px;
+  }
+  .dots span {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: ${palette.dot};
+    animation: dot-bounce 1.4s ease-in-out infinite;
+  }
+  .dots span:nth-child(2) { animation-delay: 0.18s; }
+  .dots span:nth-child(3) { animation-delay: 0.36s; }
+  @keyframes dot-bounce {
+    0%, 80%, 100% { transform: translateY(0); background: ${palette.dot}; }
+    40% { transform: translateY(-8px); background: ${palette.dotActive}; }
   }
 </style>
 </head>
 <body>
-  <div class="card">
+  <div class="stage">
+    <div class="logo-wrap">${logoNode}</div>
     <div class="brand">${brand}</div>
-    <div class="bar"></div>
+    <div class="tagline">v${version}</div>
+    <div class="dots"><span></span><span></span><span></span></div>
   </div>
 </body>
 </html>`
@@ -95,6 +219,7 @@ export function showSplashWindow(): BrowserWindow | null {
     return splashWindow
   }
   const palette = splashPalette()
+  const logoDataUri = loadLogoDataUri()
   let win: BrowserWindow
   try {
     win = new BrowserWindow({
@@ -117,7 +242,7 @@ export function showSplashWindow(): BrowserWindow | null {
     return null
   }
   void win
-    .loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(splashHtml(palette))}`)
+    .loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(splashHtml(palette, logoDataUri))}`)
     .catch((error: unknown) => {
       console.warn("[dweis] failed to load splash content:", error)
       if (!win.isDestroyed()) {

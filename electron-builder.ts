@@ -408,6 +408,11 @@ export default {
       to: "icon.ico",
     },
     {
+      // 启动画面 logo：electron/window/splash.ts 在 process.resourcesPath 读它，dev 走项目根 resources/。
+      from: "resources/branding/logo.png",
+      to: "logo.png",
+    },
+    {
       from: "resources/bin",
       to: "bin",
     },
