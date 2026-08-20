@@ -8,7 +8,7 @@ export function SettingsSection({ children, title }: { children: React.ReactNode
   return (
     <section className="grid gap-3">
       <SectionHeading>{title}</SectionHeading>
-      <div className="overflow-hidden rounded-xl border border-[var(--oo-divider)] bg-background shadow-sm">
+      <div className="overflow-hidden rounded-2xl border border-[var(--oo-divider)] bg-[var(--oo-surface)] shadow-sm">
         {children}
       </div>
     </section>
@@ -36,7 +36,7 @@ export function SettingsItem({
       )}
     >
       {Icon ? (
-        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-secondary text-muted-foreground">
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
           <Icon className="size-4" />
         </span>
       ) : null}

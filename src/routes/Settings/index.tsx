@@ -17,6 +17,7 @@ import {
   RefreshCwIcon,
   ServerIcon,
   SparklesIcon,
+  XIcon,
 } from "lucide-react"
 import * as React from "react"
 import { AboutSettings, UpdateChannelSettings } from "./about-settings.tsx"
@@ -31,7 +32,6 @@ import { SettingsItem, SettingsSection } from "./settings-section.tsx"
 import { StorageSettings } from "./storage-settings.tsx"
 import { ToolsSettings } from "./tools-settings.tsx"
 import { UsageStatsSettings } from "./usage-settings.tsx"
-import { PageRouteShell } from "@/components/PageRouteShell"
 import { useTheme } from "@/components/theme-context"
 import { useAppSettings } from "@/hooks/useAppSettings"
 import { useAttention } from "@/hooks/useAttention"
@@ -80,15 +80,9 @@ export function SettingsRoute({
   const effectiveCategory = categories.some((cat) => cat.key === category && cat.show) ? category : "appearance"
 
   return (
-    <PageRouteShell
-      backLabel={t("settings.backToApp")}
-      contentClassName="h-full grid-rows-[minmax(0,1fr)]"
-      flush
-      onBack={onBack}
-      titlebarActions={titlebarActions}
-    >
-      <div className="flex min-h-0 flex-col md:flex-row">
-        <nav className="flex gap-1 overflow-x-auto border-b border-[var(--oo-divider)] px-3 py-3 max-[760px]:gap-0 max-[760px]:px-2 max-[760px]:py-2 md:w-52 md:shrink-0 md:flex-col md:overflow-y-auto md:border-r md:border-b-0 md:bg-[var(--oo-sidebar)] md:px-2 md:py-4">
+    <div className="oo-settings-scene relative flex h-full min-h-0 items-center justify-center overflow-hidden bg-[var(--oo-surface)] p-4">
+      <div className="relative flex h-[min(720px,calc(100vh-2.5rem))] min-h-0 w-[min(1040px,calc(100vw-2.5rem))] overflow-hidden rounded-2xl border border-[var(--oo-divider)] bg-background shadow-[0_16px_48px_rgba(0,0,0,0.16)]">
+        <nav className="flex w-[220px] shrink-0 flex-col gap-1 overflow-y-auto rounded-l-2xl border-r border-[var(--oo-divider)] bg-[var(--oo-surface-raised)] px-2 py-4 max-[760px]:w-full max-[760px]:flex-row max-[760px]:overflow-x-auto max-[760px]:rounded-t-2xl max-[760px]:rounded-l-none max-[760px]:border-r-0 max-[760px]:border-b">
           {categories
             .filter((cat) => cat.show)
             .map((cat) => {
@@ -112,108 +106,122 @@ export function SettingsRoute({
             })}
         </nav>
 
-        <div className="min-w-0 flex-1 overflow-y-auto px-6 py-6 max-[760px]:px-4 max-[760px]:py-4">
-          {effectiveCategory === "models" ? (
-            <SettingsSection title={t("settings.categoryModels")}>
-              <RuntimeProfileSummary mode={appSettings.settings.operatingMode} />
-              <ModelSettings models={models} />
-            </SettingsSection>
-          ) : null}
+        <section className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="flex shrink-0 items-center gap-1 border-b border-[var(--oo-divider)] px-4 py-2.5">
+            {titlebarActions ? <div className="ml-auto flex shrink-0 items-center gap-1">{titlebarActions}</div> : null}
+            <button
+              type="button"
+              onClick={onBack}
+              aria-label={t("settings.backToApp")}
+              title={t("settings.backToApp")}
+              className="grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground transition-all hover:bg-[var(--oo-surface-raised)] hover:text-foreground active:scale-[0.98]"
+            >
+              <XIcon className="size-4" />
+            </button>
+          </div>
+          <div className="min-w-0 flex-1 overflow-y-auto px-6 py-6 max-[760px]:px-4 max-[760px]:py-4">
+            {effectiveCategory === "models" ? (
+              <SettingsSection title={t("settings.categoryModels")}>
+                <RuntimeProfileSummary mode={appSettings.settings.operatingMode} />
+                <ModelSettings models={models} />
+              </SettingsSection>
+            ) : null}
 
-          {effectiveCategory === "subagent" ? (
-            <SettingsSection title={t("settings.categorySubagent")}>
-              <SubagentModelSettings models={models} />
-            </SettingsSection>
-          ) : null}
+            {effectiveCategory === "subagent" ? (
+              <SettingsSection title={t("settings.categorySubagent")}>
+                <SubagentModelSettings models={models} />
+              </SettingsSection>
+            ) : null}
 
-          {effectiveCategory === "mcp" ? <McpServersSettings /> : null}
+            {effectiveCategory === "mcp" ? <McpServersSettings /> : null}
 
-          {effectiveCategory === "memory" ? <MemorySettings /> : null}
+            {effectiveCategory === "memory" ? <MemorySettings /> : null}
 
-          {effectiveCategory === "tools" ? <ToolsSettings /> : null}
+            {effectiveCategory === "tools" ? <ToolsSettings /> : null}
 
-          {effectiveCategory === "appearance" ? (
-            <SettingsSection title={t("settings.groupAccount")}>
-              <SettingsItem title={t("settings.theme")} icon={PaletteIcon}>
-                <PaletteSettings palette={preferencePalette} setPalette={setPreferencePalette} />
-              </SettingsItem>
-              <SettingsItem title={t("settings.appearance")} icon={MonitorIcon}>
-                <ThemeSettings preference={preference} setPreference={setPreference} />
-              </SettingsItem>
-              <SettingsItem title={t("settings.language")} icon={GlobeIcon}>
-                <LanguageSettings locale={locale} setLocale={setLocale} />
-              </SettingsItem>
-            </SettingsSection>
-          ) : null}
+            {effectiveCategory === "appearance" ? (
+              <SettingsSection title={t("settings.groupAccount")}>
+                <SettingsItem title={t("settings.theme")} icon={PaletteIcon}>
+                  <PaletteSettings palette={preferencePalette} setPalette={setPreferencePalette} />
+                </SettingsItem>
+                <SettingsItem title={t("settings.appearance")} icon={MonitorIcon}>
+                  <ThemeSettings preference={preference} setPreference={setPreference} />
+                </SettingsItem>
+                <SettingsItem title={t("settings.language")} icon={GlobeIcon}>
+                  <LanguageSettings locale={locale} setLocale={setLocale} />
+                </SettingsItem>
+              </SettingsSection>
+            ) : null}
 
-          {effectiveCategory === "browser" ? (
-            <SettingsSection title={t("settings.groupBrowser")}>
-              <BrowserSettings
-                enabled={appSettings.settings.browserEnabled}
-                loading={appSettings.loading}
-                onEnabledChange={appSettings.setBrowserEnabled}
-              />
-            </SettingsSection>
-          ) : null}
-
-          {effectiveCategory === "notifications" ? (
-            <SettingsSection title={t("settings.categoryNotifications")}>
-              <NotificationSettings
-                capability={attention.notificationCapability}
-                loading={appSettings.loading}
-                settings={appSettings.settings}
-                onConditionChange={appSettings.setCompletionNotificationCondition}
-                onSoundChange={appSettings.setNotificationSoundEnabled}
-                onOpenSystemSettings={attention.openSystemNotificationSettings}
-                onBadgeChange={appSettings.setUnreadBadgeEnabled}
-                onTest={attention.testCompletionNotification}
-              />
-            </SettingsSection>
-          ) : null}
-
-          {effectiveCategory === "storage" ? (
-            <SettingsSection title={t("settings.categoryStorage")}>
-              <StorageSettings
-                currentDirectory={appSettings.settings.dataDirectory}
-                defaultDirectory={appSettings.settings.dataDirectoryDefault}
-                loading={appSettings.loading}
-                onChange={appSettings.setDataDirectory}
-              />
-            </SettingsSection>
-          ) : null}
-
-          {effectiveCategory === "usage" ? <UsageStatsSettings /> : null}
-
-          {effectiveCategory === "about" ? (
-            <SettingsSection title={t("settings.categoryAbout")}>
-              <AboutSettings update={update} />
-              <SettingsItem
-                title={t("settings.updateChannel")}
-                description={t("settings.channelHint")}
-                icon={RefreshCwIcon}
-              >
-                <UpdateChannelSettings update={update} />
-              </SettingsItem>
-            </SettingsSection>
-          ) : null}
-
-          {effectiveCategory === "beta" ? (
-            <SettingsSection title={t("settings.groupBetaFeatures")}>
-              <SettingsItem
-                title={t("settings.knowledgeBeta")}
-                description={t("settings.knowledgeBetaDescription")}
-                icon={SparklesIcon}
-              >
-                <KnowledgeBetaToggle
-                  enabled={appSettings.settings.knowledgeBaseBetaEnabled}
+            {effectiveCategory === "browser" ? (
+              <SettingsSection title={t("settings.groupBrowser")}>
+                <BrowserSettings
+                  enabled={appSettings.settings.browserEnabled}
                   loading={appSettings.loading}
-                  onChange={appSettings.setKnowledgeBaseBetaEnabled}
+                  onEnabledChange={appSettings.setBrowserEnabled}
                 />
-              </SettingsItem>
-            </SettingsSection>
-          ) : null}
-        </div>
+              </SettingsSection>
+            ) : null}
+
+            {effectiveCategory === "notifications" ? (
+              <SettingsSection title={t("settings.categoryNotifications")}>
+                <NotificationSettings
+                  capability={attention.notificationCapability}
+                  loading={appSettings.loading}
+                  settings={appSettings.settings}
+                  onConditionChange={appSettings.setCompletionNotificationCondition}
+                  onSoundChange={appSettings.setNotificationSoundEnabled}
+                  onOpenSystemSettings={attention.openSystemNotificationSettings}
+                  onBadgeChange={appSettings.setUnreadBadgeEnabled}
+                  onTest={attention.testCompletionNotification}
+                />
+              </SettingsSection>
+            ) : null}
+
+            {effectiveCategory === "storage" ? (
+              <SettingsSection title={t("settings.categoryStorage")}>
+                <StorageSettings
+                  currentDirectory={appSettings.settings.dataDirectory}
+                  defaultDirectory={appSettings.settings.dataDirectoryDefault}
+                  loading={appSettings.loading}
+                  onChange={appSettings.setDataDirectory}
+                />
+              </SettingsSection>
+            ) : null}
+
+            {effectiveCategory === "usage" ? <UsageStatsSettings /> : null}
+
+            {effectiveCategory === "about" ? (
+              <SettingsSection title={t("settings.categoryAbout")}>
+                <AboutSettings update={update} />
+                <SettingsItem
+                  title={t("settings.updateChannel")}
+                  description={t("settings.channelHint")}
+                  icon={RefreshCwIcon}
+                >
+                  <UpdateChannelSettings update={update} />
+                </SettingsItem>
+              </SettingsSection>
+            ) : null}
+
+            {effectiveCategory === "beta" ? (
+              <SettingsSection title={t("settings.groupBetaFeatures")}>
+                <SettingsItem
+                  title={t("settings.knowledgeBeta")}
+                  description={t("settings.knowledgeBetaDescription")}
+                  icon={SparklesIcon}
+                >
+                  <KnowledgeBetaToggle
+                    enabled={appSettings.settings.knowledgeBaseBetaEnabled}
+                    loading={appSettings.loading}
+                    onChange={appSettings.setKnowledgeBaseBetaEnabled}
+                  />
+                </SettingsItem>
+              </SettingsSection>
+            ) : null}
+          </div>
+        </section>
       </div>
-    </PageRouteShell>
+    </div>
   )
 }
