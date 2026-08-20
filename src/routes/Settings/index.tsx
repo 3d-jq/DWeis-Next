@@ -95,7 +95,7 @@ export function SettingsRoute({
                   onClick={() => onNavigateCategory(cat.key)}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] transition-colors md:w-full",
+                    "flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] transition-colors md:w-full",
                     active ? "bg-primary/10 font-medium text-primary" : "text-muted-foreground hover:bg-muted",
                   )}
                 >

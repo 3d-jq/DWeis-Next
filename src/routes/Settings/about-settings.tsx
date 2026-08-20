@@ -28,7 +28,7 @@ export function AboutSettings({ update }: { update: UseAppUpdate }) {
 
   return (
     <section className="grid min-h-16 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-4 gap-y-3 border-b border-[var(--oo-divider)] px-4 py-3 max-[760px]:grid-cols-1">
-      <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-secondary text-muted-foreground">
+      <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
         <InfoIcon className="size-4" />
       </span>
       <div className="grid min-w-0 gap-1">

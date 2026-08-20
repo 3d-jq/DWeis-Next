@@ -38,7 +38,7 @@ function MemoryEditor({
   return (
     <section className="grid gap-2 border-b border-[var(--oo-divider)] px-4 py-3 last:border-b-0">
       <div className="flex items-start gap-3">
-        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-secondary text-muted-foreground">
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
           <Icon className="size-4" />
         </span>
         <div className="min-w-0">
