@@ -471,6 +471,11 @@ export default {
     perMachine: false,
     allowToChangeInstallationDirectory: true,
     deleteAppDataOnUninstall: false,
+    // NSIS 安装器头部的图标（welcome / license / finish 页面左上角）独立于 win.icon，
+    // 不设就会用默认 Electron 图标。路径不带 resources/ 前缀，
+    // electron-builder 按 directories.buildResources = "resources" 自动补上。
+    installerIcon: "branding/icon.ico",
+    uninstallerIcon: "branding/icon.ico",
   },
   linux: {
     icon: "branding/icon.png",
