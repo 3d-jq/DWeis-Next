@@ -2,7 +2,7 @@
 // 先弹一个与主窗口同尺寸的品牌画面遮挡加载；渲染层 UI 就绪后由调用方触发淡出销毁。
 //
 // 设计：
-//   - 始终深色（与 logo 自带黑底白角色调一致，避免浅色下 logo 矩形块喧宾夺主）。
+//   - 始终深蓝（与 logo 同款品牌色，让圆形猫头鹰图标自然融入背景）。
 //   - 径向渐变背景 + 中心品牌蓝辉光，logo 浮在光晕中央。
 //   - logo 缓慢呼吸 + 外环周期扩散，3 点错位弹跳替代单调进度条。
 import { app, BrowserWindow, nativeTheme } from "electron"
@@ -40,18 +40,18 @@ interface SplashPalette {
 }
 
 function splashPalette(): SplashPalette {
-  // 始终走深色：logo 自带黑底白角色，深色背景下轮廓自然融入、角色清晰；浅色背景下
-  // 黑圆角方块会过于抢眼，破坏整体调性。这里保留 nativeTheme 入参便于未来扩展。
+  // 始终走深色：logo 是深蓝底白角色，splash 调成同款深蓝让 logo 自然融入，
+  // 中心亮蓝径向渐变给"光源"，外圈更深一档增强纵深。这里保留 nativeTheme 入参便于未来扩展。
   void nativeTheme.shouldUseDarkColors
   return {
-    background: "#0a0a0c",
-    backgroundCenter: "rgba(34, 36, 42, 1)",
-    glow: "rgba(10, 132, 255, 0.22)",
+    background: "#0a1530",
+    backgroundCenter: "rgba(28, 48, 90, 1)",
+    glow: "rgba(80, 140, 255, 0.28)",
     foreground: "#f5f5f7",
     muted: "rgba(245, 245, 247, 0.55)",
     dot: "rgba(245, 245, 247, 0.28)",
-    dotActive: "#0a84ff",
-    ring: "rgba(10, 132, 255, 0.4)",
+    dotActive: "#5a8cff",
+    ring: "rgba(90, 140, 255, 0.45)",
   }
 }
 
