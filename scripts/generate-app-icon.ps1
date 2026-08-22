@@ -27,6 +27,36 @@ $srcW = $src.Width
 $srcH = $src.Height
 $srcBmp = [System.Drawing.Bitmap]$src
 
+# 把 alpha < 阈值的像素彻底置为透明（BGRA 字节直接操作，LockBits 加速）。
+# 用途：圆角裁切后，弧线边缘会有半透明暗色像素（混合了原图深色背景），
+# 在浅色/深色背景上都会呈现"四角阴影"。清理后边缘干净利落。
+function Clear-HaloPixels($bmp) {
+  $w = $bmp.Width
+  $h = $bmp.Height
+  $rect = New-Object System.Drawing.Rectangle 0, 0, $w, $h
+  $data = $bmp.LockBits($rect, [System.Drawing.Imaging.ImageLockMode]::ReadWrite, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+  try {
+    $stride = $data.Stride
+    $bytes = New-Object byte[] ($stride * $h)
+    [System.Runtime.InteropServices.Marshal]::Copy($data.Scan0, $bytes, 0, $bytes.Length)
+    for ($y = 0; $y -lt $h; $y++) {
+      $row = $y * $stride
+      for ($x = 0; $x -lt $w; $x++) {
+        $i = $row + $x * 4
+        if ($bytes[$i + 3] -lt 90) {
+          $bytes[$i] = 0
+          $bytes[$i + 1] = 0
+          $bytes[$i + 2] = 0
+          $bytes[$i + 3] = 0
+        }
+      }
+    }
+    [System.Runtime.InteropServices.Marshal]::Copy($bytes, 0, $data.Scan0, $bytes.Length)
+  } finally {
+    $bmp.UnlockBits($data)
+  }
+}
+
 function Render-PngBytes($canvasW, $canvasH) {
   $bmp = New-Object System.Drawing.Bitmap $canvasW, $canvasH, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
   $g = [System.Drawing.Graphics]::FromImage($bmp)
@@ -48,6 +78,8 @@ function Render-PngBytes($canvasW, $canvasH) {
       $path.Dispose()
     }
     $g.DrawImage($srcBmp, 0, 0, $canvasW, $canvasH)
+    # 清理裁切边缘的抗锯齿晕边：alpha 极低的像素彻底置为透明（保留 RGB=0，避免 dark halo）。
+    Clear-HaloPixels $bmp
     $ms = New-Object System.IO.MemoryStream
     $bmp.Save($ms, [System.Drawing.Imaging.ImageFormat]::Png)
     $bytes = $ms.ToArray()
