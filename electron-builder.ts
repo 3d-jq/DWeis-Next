@@ -355,6 +355,8 @@ export default {
     // build263 = owl 主题品牌 + 圆角与启动画面收尾（d5b2c12/49a301d/e06e306/5978a61/dbf5a6f）：品牌图标/色换
     //   owl 主题、图标 10% 圆角遮罩 + 22% iOS 风格圆角、NSIS 安装器用项目 logo、简化启动画面移除循环动画。
     // build264 = 启动画面跟随系统主题 + 弹窗毛玻璃 + Windows 自定义标题栏（4f44d21/8b84697/093b3bc）。
+    // build265 = 应用图标更换 + 圆角晕边清除 + titlebar 回退（62d12af/0f6bec9/eac829f）：22% iOS 圆角新图标、
+    //   清除四角阴影抗锯齿晕边、回退自定义标题栏。
     // build226 = 版本 1.8.0：①git 工具区补全——创建并检出新分支 + git log --graph 图谱（getGraph IPC）；
     //   ②权限/提问卡片借鉴 deepseek-harness——composer takeover（请求接管输入框位置）+「我想直接说」
     //   讨论第三操作 + tinted strip 彩色顶条。
@@ -362,7 +364,7 @@ export default {
     // build224 = Apple HIG 视觉对齐（c5242cc）：设置页全高侧栏 + 全行图标 + iOS 分段控件、
     //   工具配置改弹窗、用量热力图缩放跟随、权限/提问卡片外壳统一、推理滑块标签对齐、Work/Code
     //   切换 pill、技能页卡片升级；agent workspace 启动 ENOTEMPTY 退避重试（dc2bcd3）。
-    output: "release/build264",
+    output: "release/build265",
   },
   publish: {
     provider: "github",
