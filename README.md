@@ -2,7 +2,7 @@
 
 **English** · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [Español](README.es.md) · [한국어](README.ko.md)
 
-<img src="resources/branding/logo.png" width="112" alt="DWeis Next logo" />
+<img src="resources/branding/logo.png?v=2" width="112" alt="DWeis Next logo" />
 
 # DWeis Next
 
