@@ -297,18 +297,17 @@ function LiveStatusBar({
   return (
     <div className="rounded-md text-muted-foreground">
       <div className="flex min-h-6 items-center gap-2">
-        {/* 图标盒常驻（思考时显示脑图标）：相位切换时文字列固定在 28px，不再左右跳。 */}
+        {/* 图标盒常驻（思考时显示脑图标）：相位切换时文字列固定在 28px，不再左右跳。
+            思考内容未到达：不渲染"深度思考"强占位文字，仅流式光标表示进行中。 */}
         <span className="flex size-5 shrink-0 items-center justify-center">
           {isThinking ? <BrainIcon className="size-3.5 shrink-0" aria-hidden="true" /> : null}
         </span>
         {showContent ? (
-          <>
-            <LoadingShimmerText className="min-w-0 truncate text-xs font-medium">
-              {isThinking ? t("chat.reasoningToggle") : text}
-            </LoadingShimmerText>
-            {/* 思考/工具内容未到达：状态行尾随流式光标（代替强占位感），内容到达时状态行消失、光标随之消失。 */}
-            {isThinking ? <span className="oo-streaming-caret ml-1" aria-hidden="true" /> : null}
-          </>
+          isThinking ? (
+            <span className="oo-streaming-caret" aria-hidden="true" />
+          ) : (
+            <LoadingShimmerText className="min-w-0 truncate text-xs font-medium">{text}</LoadingShimmerText>
+          )
         ) : null}
       </div>
     </div>

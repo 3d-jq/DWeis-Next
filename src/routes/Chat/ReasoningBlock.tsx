@@ -31,8 +31,8 @@ export function ReasoningBlock({ part, live = false }: { part: ChatMessagePart; 
   const text = part.text?.trim() ?? ""
   const streaming = live && part.text !== undefined
   const running = streaming
-  const summaryRef = React.useRef<HTMLSpanElement>(null)
   const summary = streaming ? latestLine(text) : firstLine(text)
+  const summaryRef = React.useRef<HTMLSpanElement>(null)
 
   // 运行中摘要跟随最新一行：帧节流滚动到最右（完成态回到行首）——与 dsh 一致，
   // 避免流式中每帧同步设置 scrollLeft 造成的横向跳动。
@@ -46,6 +46,16 @@ export function ReasoningBlock({ part, live = false }: { part: ChatMessagePart; 
   React.useEffect(() => {
     scheduleSummaryScroll()
   }, [scheduleSummaryScroll, streaming, summary])
+
+  // 思考内容未到达（live 且空）：不渲染"深度思考"强占位行，仅一行流式光标表示进行中；
+  // 推理字节到达后同组件渲染为标题行+内容（React 不重挂载 → 无替换跳动）。
+  if (streaming && !text) {
+    return (
+      <div className="flex min-h-6 items-center rounded-md">
+        <span className="oo-streaming-caret" aria-hidden="true" />
+      </div>
+    )
+  }
 
   return (
     <div className="flex min-w-0 flex-col">

@@ -49,7 +49,9 @@ describe("ReasoningBlock", () => {
     expect(html).toContain('aria-expanded="false"')
   })
 
-  it("expands during thinking to reveal the live reasoning area", () => {
+  it("shows only the streaming caret while live thinking has no reasoning content yet", () => {
+    // 思考内容未到达（live 且空文本）：不渲染"深度思考"强占位行，只显示流式光标；
+    // 无 role=button（没内容可展开，推理字节到达后同组件切换为标题行+内容）。
     const host = document.createElement("div")
     document.body.append(host)
     const root = createRoot(host)
@@ -62,13 +64,9 @@ describe("ReasoningBlock", () => {
         ),
       )
     })
-    const trigger = host.querySelector('[role="button"]')
-    expect(trigger?.getAttribute("aria-expanded")).toBe("false")
-    act(() => {
-      trigger?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
-    })
-    expect(trigger?.getAttribute("aria-expanded")).toBe("true")
-    expect(host.textContent).toContain("深度思考")
+    expect(host.querySelector('[role="button"]')).toBeNull()
+    expect(host.textContent).not.toContain("深度思考")
+    expect(host.querySelector(".oo-streaming-caret")).not.toBeNull()
     act(() => root.unmount())
   })
 
