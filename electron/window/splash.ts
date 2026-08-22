@@ -25,11 +25,19 @@ interface SplashPalette {
 }
 
 function splashPalette(): SplashPalette {
-  void nativeTheme.shouldUseDarkColors
+  // 跟系统主题走：亮色模式用白底深字，暗色模式用深蓝底浅字。
+  // BrowserWindow 的 backgroundColor 直接复用 palette.background，无需单独感知主题。
+  if (nativeTheme.shouldUseDarkColors) {
+    return {
+      background: "#0a1530",
+      foreground: "#f5f5f7",
+      muted: "rgba(245, 245, 247, 0.55)",
+    }
+  }
   return {
-    background: "#0a1530",
-    foreground: "#f5f5f7",
-    muted: "rgba(245, 245, 247, 0.55)",
+    background: "#f5f5f7",
+    foreground: "#1d1d1f",
+    muted: "rgba(29, 29, 31, 0.55)",
   }
 }
 
