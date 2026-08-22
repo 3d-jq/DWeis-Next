@@ -352,6 +352,8 @@ export default {
     // build261 = 设置页对齐 LobsterAI 弹窗观感 + 控件视觉对齐（d3a9d02/dd3b38b）：居中圆角弹窗卡片、
     //   raised 圆角导航、surface 分层主色图标 Chip、按钮按压 active:scale、导航项 rounded-lg。
     // build262 = 启动画面视觉升级（d49a522）：深色径向渐变 + logo 呼吸 + 三点加载。
+    // build263 = owl 主题品牌 + 圆角与启动画面收尾（d5b2c12/49a301d/e06e306/5978a61/dbf5a6f）：品牌图标/色换
+    //   owl 主题、图标 10% 圆角遮罩 + 22% iOS 风格圆角、NSIS 安装器用项目 logo、简化启动画面移除循环动画。
     // build226 = 版本 1.8.0：①git 工具区补全——创建并检出新分支 + git log --graph 图谱（getGraph IPC）；
     //   ②权限/提问卡片借鉴 deepseek-harness——composer takeover（请求接管输入框位置）+「我想直接说」
     //   讨论第三操作 + tinted strip 彩色顶条。
@@ -359,7 +361,7 @@ export default {
     // build224 = Apple HIG 视觉对齐（c5242cc）：设置页全高侧栏 + 全行图标 + iOS 分段控件、
     //   工具配置改弹窗、用量热力图缩放跟随、权限/提问卡片外壳统一、推理滑块标签对齐、Work/Code
     //   切换 pill、技能页卡片升级；agent workspace 启动 ENOTEMPTY 退避重试（dc2bcd3）。
-    output: "release/build262",
+    output: "release/build263",
   },
   publish: {
     provider: "github",
