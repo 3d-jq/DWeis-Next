@@ -97,6 +97,7 @@ import { UpdateServiceImpl } from "./update/node.ts"
 import { buildApplicationMenuTemplate } from "./window/application-menu.ts"
 import { dismissSplashWindow, showSplashWindow, SPLASH_FALLBACK_MS, SPLASH_MIN_VISIBLE_MS } from "./window/splash.ts"
 import {
+  buildWindowsTitleBarOverlay,
   nativeWindowFrameForPlatform,
   nativeWindowMaterialForPlatform,
   resolveWindowsTitleBarTheme,
@@ -104,7 +105,6 @@ import {
 } from "./window/title-bar-overlay.ts"
 import { createHideOnCloseHandler, revealMainWindow } from "./window/window-close-behavior.ts"
 import { createWindowsTrayLifecycle } from "./window/windows-tray-lifecycle.ts"
-import { registerWindowControlIpc } from "./window/window-control.ts"
 
 declare const __APP_COMMIT__: string | undefined
 
@@ -525,7 +525,6 @@ registerAppLocaleHandler()
 registerRendererErrorHandler()
 registerUiReadyHandler()
 registerWindowBoundsHandlers()
-registerWindowControlIpc()
 
 if (isLocked) {
   server.start()
@@ -1135,17 +1134,20 @@ function createMainWindow(): void {
     icon: getBrandingResourcePath("icon.png"),
     backgroundColor,
     ...(nativeMaterial === "none" ? {} : { transparent: true }),
-    // macOS 用 hidden 标题栏 + traffic light 自定义位置；Windows/Linux 走自定义 react 标题栏
-    // （nativeWindowFrameForPlatform 在 Windows 返回 { frame: false, thickFrame: true }，
-    //  去掉 OS 三个按钮但保留 DWM 圆角 + resize 边框）。
-    ...(isMac ? { titleBarStyle: "hidden" as const } : {}),
+    titleBarStyle: "hidden",
     ...(isMac
       ? {
           trafficLightPosition: macTrafficLightPosition,
           vibrancy: "sidebar",
           visualEffectState: "followWindow",
         }
-      : nativeWindowFrameForPlatform(process.platform)),
+      : {}),
+    ...(isMac
+      ? {}
+      : {
+          ...nativeWindowFrameForPlatform(process.platform),
+          titleBarOverlay: buildWindowsTitleBarOverlay(titleBarTheme),
+        }),
     webPreferences: {
       preload: preloadPath,
       // 主窗口启用沙箱：preload 仅用 ipcRenderer / contextBridge / webUtils（以及 @oomol/connection

@@ -2,7 +2,7 @@ import type { BrowserWindowConstructorOptions, TitleBarOverlayOptions } from "el
 
 export type WindowsTitleBarTheme = "light" | "dark"
 export type NativeWindowMaterial = "macos-vibrancy" | "none"
-export type NativeWindowFrame = Pick<BrowserWindowConstructorOptions, "frame" | "thickFrame">
+export type NativeWindowFrame = Pick<BrowserWindowConstructorOptions, "frame">
 
 export const windowsTitleBarOverlayHeight = 47
 export const transparentWindowBackgroundColor = "#00000000"
@@ -42,15 +42,9 @@ export function nativeWindowMaterialForPlatform(platform: NodeJS.Platform): Nati
 }
 
 export function nativeWindowFrameForPlatform(platform: NodeJS.Platform): NativeWindowFrame {
-  if (platform === "darwin") {
-    // macOS 保留原生 frame：红黄绿按钮 + 系统动效（vibrancy）
+  if (platform === "darwin" || platform === "win32") {
+    // Windows 只隐藏标题栏并保留原生 frame，由 DWM 绘制 Windows 11 圆角、阴影和缩放边框。
     return {}
-  }
-  if (platform === "win32") {
-    // Windows 走自定义标题栏（react 层），frame: false 去掉 OS 三个按钮 + 标题栏；
-    // thickFrame: true 保留 DWM 渲染的 Windows 11 圆角、阴影和 resize 边框。
-    // Aero Snap（拖到边缘自动半屏）会丢失——这是 custom title bar 固有的代价。
-    return { frame: false, thickFrame: true }
   }
   return { frame: false }
 }
