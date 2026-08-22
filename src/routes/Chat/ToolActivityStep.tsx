@@ -455,6 +455,8 @@ export const ToolActivityStep = React.memo(function ToolActivityStep({
           </React.Fragment>
         ))}
       </span>
+      {/* 工具运行中（输出未到达）：行尾跟随流式光标，代替"强占位"感；完成即消失。 */}
+      {running ? <span className="oo-streaming-caret ml-1" aria-hidden="true" /> : null}
     </div>
   )
   return (

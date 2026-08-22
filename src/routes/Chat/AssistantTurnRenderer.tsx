@@ -302,9 +302,13 @@ function LiveStatusBar({
           {isThinking ? <BrainIcon className="size-3.5 shrink-0" aria-hidden="true" /> : null}
         </span>
         {showContent ? (
-          <LoadingShimmerText className="min-w-0 truncate text-xs font-medium">
-            {isThinking ? t("chat.reasoningToggle") : text}
-          </LoadingShimmerText>
+          <>
+            <LoadingShimmerText className="min-w-0 truncate text-xs font-medium">
+              {isThinking ? t("chat.reasoningToggle") : text}
+            </LoadingShimmerText>
+            {/* 思考/工具内容未到达：状态行尾随流式光标（代替强占位感），内容到达时状态行消失、光标随之消失。 */}
+            {isThinking ? <span className="oo-streaming-caret ml-1" aria-hidden="true" /> : null}
+          </>
         ) : null}
       </div>
     </div>

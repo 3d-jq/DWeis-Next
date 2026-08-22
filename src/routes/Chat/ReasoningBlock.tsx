@@ -82,6 +82,8 @@ export function ReasoningBlock({ part, live = false }: { part: ChatMessagePart; 
         <span className="shrink-0 text-sm leading-6 font-normal text-muted-foreground">
           {t("chat.reasoningToggle")}
         </span>
+        {/* 思考/推理内容未到达或流式写入中：行尾跟随流式光标（代替强占位，内容到达后自然消失）。 */}
+        {streaming ? <span className="oo-streaming-caret ml-1" aria-hidden="true" /> : null}
         {/* dsh keepContentWhenOpen=false：展开后行内摘要隐藏，只留标题；收起时恢复摘要。 */}
         {!open && summary ? (
           <>
