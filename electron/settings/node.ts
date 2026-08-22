@@ -345,7 +345,13 @@ export class SettingsServiceImpl
     const backgroundColor = windowBackgroundColorForMaterial(nextTheme, material)
     for (const window of windows) {
       window.setBackgroundColor(backgroundColor)
-      window.setTitleBarOverlay(overlay)
+      // 走自定义 react 标题栏的窗口（frame: false）没有 OS overlay；调 setTitleBarOverlay 会抛
+      // "Titlebar overlay is not enabled"。这里 try-catch 兜底，保证主题切换时其他窗口仍可更新。
+      try {
+        window.setTitleBarOverlay(overlay)
+      } catch {
+        // 该窗口未启用 titleBarOverlay，跳过。
+      }
     }
     this.lastAppliedWindowsTitleBarTheme = nextTheme
   }

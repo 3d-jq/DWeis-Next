@@ -45,8 +45,9 @@ describe("nativeWindowMaterialForPlatform", () => {
 })
 
 describe("nativeWindowFrameForPlatform", () => {
-  it("keeps the native Windows frame so DWM owns the window outline", () => {
-    expect(nativeWindowFrameForPlatform("win32")).toEqual({})
+  it("uses a custom title bar on Windows while keeping DWM rounded corners and resizing border", () => {
+    // 自定义 react 标题栏：frame: false 去掉 OS 三个按钮；thickFrame: true 保留 Windows 11 圆角 + resize 边框。
+    expect(nativeWindowFrameForPlatform("win32")).toEqual({ frame: false, thickFrame: true })
   })
 
   it("preserves the existing platform behavior elsewhere", () => {

@@ -7,6 +7,8 @@ import { EditableTitlebarTitle } from "./AppShellDialogs.tsx"
 import { SidebarTitlebarActions } from "./AppShellSidebar.tsx"
 import { AppUpdateTitlebarEntry } from "@/components/AppUpdateTitlebarEntry"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { TitlebarWindowControls } from "./TitlebarWindowControls.tsx"
+import { useTitlebarDoubleClickMaximize } from "@/hooks/useTitlebarDoubleClickMaximize"
 import { useT } from "@/i18n/i18n"
 import { cn } from "@/lib/utils"
 
@@ -116,8 +118,10 @@ export const AppShellMainTitlebar = React.memo(function AppShellMainTitlebar({
   titlebarTitle: string
 }) {
   const t = useT()
+  const containerRef = React.useRef<HTMLElement>(null)
+  useTitlebarDoubleClickMaximize(containerRef)
   return (
-    <header className="oo-titlebar oo-toolbar oo-main-titlebar oo-border-divider flex h-[var(--app-titlebar-height)] min-w-0 items-center overflow-hidden border-b [-webkit-app-region:drag]">
+    <header ref={containerRef} className="oo-titlebar oo-toolbar oo-main-titlebar oo-border-divider flex h-[var(--app-titlebar-height)] min-w-0 items-center overflow-hidden border-b [-webkit-app-region:drag]">
       <div className="oo-titlebar-collapsed-controls shrink-0 items-center gap-3">
         <div className="oo-titlebar-control-spacer shrink-0" />
         <SidebarTitlebarActions
@@ -178,6 +182,9 @@ export const AppShellMainTitlebar = React.memo(function AppShellMainTitlebar({
             <ListTodo className="size-4" />
           </button>
         ) : null}
+        {/* 窗口控制按钮（minimize / maximize / close）：始终在标题栏最右侧；
+            macOS 由 OS traffic light 渲染，本组件在 mac 上会被外层隐藏。 */}
+        <TitlebarWindowControls />
       </div>
     </header>
   )

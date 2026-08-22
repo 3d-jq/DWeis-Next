@@ -10,6 +10,7 @@ import { APP_COMMAND_CHANNEL, isAppCommand } from "./app-command.ts"
 import { APP_LOCALE_CHANNEL } from "./app-locale.ts"
 import { branding } from "./branding.ts"
 import { WRITE_CLIPBOARD_TEXT_CHANNEL } from "./clipboard-common.ts"
+import { windowControlChannels } from "./window/window-control.ts"
 
 declare const __APP_COMMIT__: string | undefined
 declare const __APP_VERSION__: string | undefined
@@ -40,6 +41,10 @@ export interface DWeisBridge {
   writeClipboardText(text: string): Promise<void>
   getWindowBounds(): Promise<{ x: number; y: number; width: number; height: number }>
   setWindowBounds(bounds: { x: number; y: number; width: number; height: number }): Promise<void>
+  minimizeWindow(): void
+  toggleMaximizeWindow(): void
+  closeWindow(): void
+  isWindowMaximized(): Promise<boolean>
 }
 
 declare global {
@@ -95,6 +100,11 @@ const dweis: DWeisBridge = {
     ipcRenderer.invoke("dweis:window:get-bounds") as Promise<{ x: number; y: number; width: number; height: number }>,
   setWindowBounds: (bounds: { x: number; y: number; width: number; height: number }) =>
     ipcRenderer.invoke("dweis:window:set-bounds", bounds) as Promise<void>,
+  minimizeWindow: () => ipcRenderer.send(windowControlChannels.minimize),
+  toggleMaximizeWindow: () => ipcRenderer.send(windowControlChannels.toggleMaximize),
+  closeWindow: () => ipcRenderer.send(windowControlChannels.close),
+  isWindowMaximized: () =>
+    ipcRenderer.invoke(windowControlChannels.isMaximized) as Promise<boolean>,
 }
 
 if (process.contextIsolated) {
