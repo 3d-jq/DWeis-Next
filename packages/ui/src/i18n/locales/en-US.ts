@@ -863,7 +863,8 @@ const enUS: Record<string, string> = {
   "welcome.loggingIn": "Logging in...",
   "welcome.loginFailed": "Login failed",
   "login.title": "Welcome to DWeis Next",
-  "login.description": "Connect your account to start using DWeis Next",
+  "login.description": "Configure your own model provider to get started — no account needed",
+  "login.configureProvider": "Configure model provider in Settings",
   "login.oauth.activeProviderHint":
     "Current active provider: {provider}. Signing in again replaces the current identity.",
   "login.oauth.loadingProviders": "Loading account providers...",

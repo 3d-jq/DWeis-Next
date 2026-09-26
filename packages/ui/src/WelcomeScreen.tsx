@@ -1,20 +1,16 @@
-/* oxlint-disable eslint(max-lines) */
 /**
- * WelcomeScreen —— OAuth / API Key 登录入口
+ * WelcomeScreen —— 自托管首次运行引导（无账号登录）
  *
- * 通过 useOAuth hook 驱动 OAuth 流程。
+ * 产品本地自管理：没有任何 OAuth 账号体系，此页只负责把用户引导到
+ * 设置页配置自己的模型供应商（API Key + Base URL）。
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Loader2Icon, LoaderIcon, TriangleAlertIcon } from "lucide-react";
+import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import {
   type OAuthProviderMeta,
-  BIGMODEL_PROVIDER_ID,
   TID_LOGIN_USE_API_KEY_BUTTON,
   TID_OAUTH_CANCEL,
   TID_OAUTH_ERROR,
-  TID_OAUTH_LOGIN_BUTTON,
-  ZAI_PROVIDER_ID,
-  testId,
 } from "@zcode/shared";
 import { Alert, AlertDescription } from "./components/ui/alert.js";
 import { Button } from "./components/ui/button.js";
@@ -22,9 +18,10 @@ import { ZCodeAboutLogo } from "@/components/ui/ZCodeAboutLogo.js";
 import { useOAuth } from "./hooks/useOAuth.js";
 import { useZCodeIntl } from "./i18n/IntlProvider.js";
 import { LoginApiKeyForm } from "./login/LoginApiKeyForm.js";
-import { renderOAuthProviderIcon } from "./lib/oauthProviderIcon.js";
+import { setPendingSettingsSectionIntent } from "@/lib/settingsNavigation.js";
 import { ThemeHeroVisual } from "./openWorkspacePageThemeHero.js";
 import { useZCodeStore } from "./store/StoreProvider.js";
+import { useTabStore } from "./store/TabStoreProvider.js";
 
 interface WelcomeScreenProps {
   onComplete: (reason: LoginCompleteReason) => void | Promise<void>;
@@ -77,13 +74,13 @@ function LoginPanel({ active, onComplete }: LoginPanelProps) {
     status,
     error,
     providers,
-    loadingProviders,
     pendingProvider,
     refreshProviders,
   } = useOAuth();
   const user = useZCodeStore((s) => s.user);
   const oauthError = useZCodeStore((s) => s.oauthError);
   const setOAuthError = useZCodeStore((s) => s.setOAuthError);
+  const openSettingsTab = useTabStore((state) => state.openSettingsTab);
   const oauthSuccessSeq = useZCodeStore((s) => s.oauthSuccessSeq);
   const lastOAuthSuccessProvider = useZCodeStore((s) => s.lastOAuthSuccessProvider);
   const loginEntryRequest = useZCodeStore((s) => s.loginEntryRequest);
@@ -143,7 +140,6 @@ function LoginPanel({ active, onComplete }: LoginPanelProps) {
   const pendingProviderName = pendingProvider
     ? (providerNameMap.get(pendingProvider) ?? pendingProvider)
     : null;
-  const visibleProviders = useMemo(() => resolveVisibleLoginProviders(providers), [providers]);
 
   useEffect(() => {
     if (active) {
@@ -293,64 +289,23 @@ function LoginPanel({ active, onComplete }: LoginPanelProps) {
             失败期间统一由下方失败块接管（重新登录/取消），渠道列表等错误清掉后再回来。 */}
         {status === "idle" && !oauthError && loginMode === "providers" && (
           <div className="space-y-4">
-            {loadingProviders ? (
-              <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-surface px-4 py-6 text-ui-base text-foreground-subtle">
-                <Loader2Icon className="size-4 animate-spin" />
-                {intl.formatMessage({ id: "login.oauth.loadingProviders" })}
-              </div>
-            ) : null}
-
-            {!loadingProviders && providers.length === 0 ? (
-              <Alert
-                variant="warning"
-                className="flex items-center justify-center gap-2 text-center"
-                data-testid={TID_OAUTH_ERROR}
+            {/* 自托管产品没有账号登录：这里不再渲染任何 OAuth 渠道，
+                统一引导用户去设置页配置自己的模型供应商（API Key + Base URL）。 */}
+            <div className="space-y-2">
+              <Button
+                variant="default"
+                className="h-10 w-full text-ui-base"
+                size="lg"
+                data-testid={TID_LOGIN_USE_API_KEY_BUTTON}
+                onClick={() => {
+                  setPendingSettingsSectionIntent("modelProvider");
+                  openSettingsTab();
+                  void onComplete("apiKey");
+                }}
               >
-                <TriangleAlertIcon className="size-4" />
-                <AlertDescription className="text-center">
-                  {intl.formatMessage({ id: "login.oauth.noProviders" })}
-                </AlertDescription>
-              </Alert>
-            ) : null}
-
-            {!loadingProviders ? (
-              <div className="space-y-2">
-                {visibleProviders.map((provider) => (
-                  <Button
-                    key={provider.id}
-                    variant="default"
-                    className="h-10 w-full text-ui-base"
-                    size="lg"
-                    data-testid={
-                      provider.id === BIGMODEL_PROVIDER_ID
-                        ? TID_OAUTH_LOGIN_BUTTON
-                        : testId(TID_OAUTH_LOGIN_BUTTON, provider.id)
-                    }
-                    onClick={() => void startTrackedLogin(provider.id)}
-                  >
-                    {renderOAuthProviderIcon(provider.id, "size-4")}
-                    <span className="min-w-0 truncate">
-                      {intl.formatMessage(
-                        { id: getLoginOAuthButtonMessageId(provider.id) },
-                        { provider: provider.displayName },
-                      )}
-                    </span>
-                    <LoginOAuthRegionTag providerId={provider.id} />
-                  </Button>
-                ))}
-                <Button
-                  variant="outline"
-                  className="h-10 w-full text-ui-base"
-                  size="lg"
-                  data-testid={TID_LOGIN_USE_API_KEY_BUTTON}
-                  onClick={() => {
-                    setLoginMode("apiKey");
-                  }}
-                >
-                  {intl.formatMessage({ id: "login.useApiKey" })}
-                </Button>
-              </div>
-            ) : null}
+                {intl.formatMessage({ id: "login.configureProvider" })}
+              </Button>
+            </div>
           </div>
         )}
 
@@ -485,64 +440,6 @@ function LoginPanelLogo() {
   );
 }
 
-function getLoginOAuthButtonMessageId(providerId: string): string {
-  switch (providerId) {
-    case ZAI_PROVIDER_ID:
-      return "login.oauth.button.zai";
-    case BIGMODEL_PROVIDER_ID:
-      return "login.oauth.button.bigmodel";
-    default:
-      return "login.oauth.button";
-  }
-}
-
-function getLoginOAuthRegionTagMessageId(providerId: string): string | null {
-  switch (providerId) {
-    case ZAI_PROVIDER_ID:
-      return "login.oauth.regionTag.zai";
-    case BIGMODEL_PROVIDER_ID:
-      return "login.oauth.regionTag.bigmodel";
-    default:
-      return null;
-  }
-}
-
-function LoginOAuthRegionTag({ providerId }: { providerId: string }) {
-  const { intl } = useZCodeIntl();
-  const messageId = getLoginOAuthRegionTagMessageId(providerId);
-
-  if (!messageId) {
-    return null;
-  }
-
-  return (
-    <span className="ml-1 inline-flex h-5 shrink-0 items-center rounded-full border border-primary-foreground/30 px-2 text-ui-xs font-medium leading-none text-primary-foreground/60">
-      {intl.formatMessage({ id: messageId })}
-    </span>
-  );
-}
-
-function getProviderPriority(provider: OAuthProviderMeta): number {
-  switch (provider.id) {
-    // Windows 登录入口里 z.ai 入口需要固定排在最上面，
-    // 之前把 BigModel 设成更高优先级后，用户首屏会先看到次要入口。
-    // 这里直接调整排序权重，只改展示顺序，不影响 OAuth provider 的真实配置来源。
-    case ZAI_PROVIDER_ID:
-      return 0;
-    case BIGMODEL_PROVIDER_ID:
-      return 1;
-    default:
-      return 10 + provider.order;
-  }
-}
-
-function resolveVisibleLoginProviders(providers: OAuthProviderMeta[]): OAuthProviderMeta[] {
-  // ZAI / BigModel 现在共享 App 登录事实源，未登录时登录入口必须同时展示两个入口。
-  // 不能临时隐藏 BigModel，否则用户无法主动选择 BigModel 作为 active provider。
-  return [...providers].sort((left, right) => {
-    return getProviderPriority(left) - getProviderPriority(right);
-  });
-}
 
 function resolveLoginRetryProvider({
   pendingProvider,
