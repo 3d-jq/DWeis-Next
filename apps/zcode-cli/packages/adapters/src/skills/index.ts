@@ -28,7 +28,7 @@ const SAFE_FRONTMATTER_KEYS = new Set([
 const DEFAULT_MAX_SKILL_BYTES = 100_000;
 const MAX_PLUGIN_MANIFEST_SEARCH_DEPTH = 5;
 const PLUGIN_MANIFEST_RELATIVE_PATHS = [
-  ".dweis-plugin/plugin.json",
+  ".zcode-plugin/plugin.json",
   ".claude-plugin/plugin.json",
   ".codex-plugin/plugin.json",
   ".cursor-plugin/plugin.json",
