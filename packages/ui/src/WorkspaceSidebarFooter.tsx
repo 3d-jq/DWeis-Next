@@ -17,15 +17,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.js";
-import {
-  PencilRuler,
-  Globe,
-  Maximize,
-  Palette,
-  Settings,
-  ZoomIn,
-  ZoomOut,
-} from "lucide-react";
+import { PencilRuler, Globe, Maximize, Palette, Settings, ZoomIn, ZoomOut } from "lucide-react";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useShortcutCommandLabel } from "@/shortcuts/useShortcutBindings.js";
@@ -80,10 +72,9 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
   const resetZoomShortcutLabel = useShortcutCommandLabel("resetZoom");
   const profileContent = (
     <>
-      {/* 自托管产品：footer 左侧固定展示品牌名，不再有账号头像/登录态。 */}
-      <span className="min-w-0 flex-1 truncate text-left text-ui-base font-semibold text-foreground">
-        DWeis Next
-      </span>
+      {/* 自托管产品：footer 左侧固定展示品牌名，不再有账号头像/登录态。
+          span 不设 flex-1，让按钮的 justify-center 把文字真正固定在 hover 胶囊中部。 */}
+      <span className="text-ui-base font-semibold text-foreground">DWeis Next</span>
     </>
   );
   const settingsButtonLabel =
