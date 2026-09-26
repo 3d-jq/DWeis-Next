@@ -14,6 +14,8 @@ import openAiLogo from "@/assets/provider-icons/model-provider-openai.png";
 import xAiLogo from "@/assets/provider-icons/model-provider-xai.png";
 import xiaomiMimoLogo from "@/assets/provider-icons/model-provider-xiaomi-mimo.png";
 import startPlanLogo from "@/assets/provider-icons/model-provider-start-plan.png";
+import stepfunLogo from "@/assets/provider-icons/model-provider-stepfun.png";
+import longcatLogo from "@/assets/provider-icons/model-provider-longcat.png";
 import zaiLogo from "@/assets/provider-icons/model-provider-zai-app.png";
 import openrouterLight from "@/assets/provider-icons/model-provider-openrouter-light.svg";
 import openrouterDark from "@/assets/provider-icons/model-provider-openrouter-dark.svg";
@@ -36,6 +38,8 @@ const BUILTIN_PROVIDER_LOGO_ASSETS: Readonly<Record<string, BuiltinProviderLogoA
   "moonshot-kimi": { light: moonshotKimiLogo },
   minimax: { light: miniMaxLogo },
   deepseek: { light: deepSeekLogo },
+  stepfun: { light: stepfunLogo },
+  longcat: { light: longcatLogo },
   "alibaba-model-studio": { light: alibabaModelStudioLogo },
   "xiaomi-mimo": { light: xiaomiMimoLogo },
   openai: { light: openAiLogo },

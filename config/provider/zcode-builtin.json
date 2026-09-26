@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "revision": 32,
+  "revision": 34,
   "config": {
     "providerConfigRules": {
       "templateRules": [
@@ -425,6 +425,59 @@
             "logo": {
               "type": "builtin",
               "key": "zai"
+            }
+          }
+        },
+        {
+          "templateId": "stepfun",
+          "templateNameMap": {
+            "zh-CN": "阶跃星辰 StepFun",
+            "en-US": "StepFun"
+          },
+          "config": {
+            "access": {
+              "type": "api-key",
+              "apiKeyManagementUrl": "https://platform.stepfun.com/"
+            },
+            "api": {
+              "type": "openai-chat-completions",
+              "baseUrl": "https://api.stepfun.com/v1"
+            },
+            "builtinModelIds": [
+              "step-5-preview",
+              "step-3.7-flash",
+              "step-3.5-flash"
+            ],
+            "logo": {
+              "type": "builtin",
+              "key": "stepfun"
+            }
+          }
+        },
+        {
+          "templateId": "longcat",
+          "templateNameMap": {
+            "zh-CN": "美团 LongCat",
+            "en-US": "LongCat"
+          },
+          "config": {
+            "access": {
+              "type": "api-key",
+              "apiKeyManagementUrl": "https://longcat.chat/platform/api_keys"
+            },
+            "api": {
+              "type": "openai-chat-completions",
+              "baseUrl": "https://api.longcat.chat/openai/v1"
+            },
+            "builtinModelIds": [
+              "LongCat-Flash-Thinking-2601",
+              "LongCat-Flash-Thinking",
+              "LongCat-Flash-Chat",
+              "LongCat-Flash-Lite"
+            ],
+            "logo": {
+              "type": "builtin",
+              "key": "longcat"
             }
           }
         }
@@ -2241,6 +2294,48 @@
               }
             }
           }
+        },
+        {
+          "modelMatch": ".*step-3\\.7-flash(?:[.\\-:/\\[].*)?",
+          "config": {
+            "optionSpecs": {
+              "reasoningLevel": {
+                "values": [
+                  "low",
+                  "medium",
+                  "high"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "modelMatch": ".*step-3\\.5-flash(?:-2603)?(?:[.\\-:/\\[].*)?",
+          "config": {
+            "optionSpecs": {
+              "reasoningLevel": {
+                "values": [
+                  "low",
+                  "medium",
+                  "high"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "modelMatch": ".*step-5-preview(?:[.\\-:/\\[].*)?",
+          "config": {
+            "optionSpecs": {
+              "reasoningLevel": {
+                "values": [
+                  "low",
+                  "medium",
+                  "high"
+                ]
+              }
+            }
+          }
         }
       ],
       "modelApiRules": [
@@ -3049,6 +3144,17 @@
             "optionSpecs": {
               "reasoningLevel": {
                 "map": "{\n  \"reasoning\": {\n    \"effort\": reasoningLevel\n  }\n}"
+              }
+            }
+          }
+        },
+        {
+          "modelMatch": ".*step(?:-3\\.[57]-flash|-5-preview)(?:[.\\-:/\\[].*)?",
+          "apiTypeMatch": "openai-chat-completions",
+          "config": {
+            "optionSpecs": {
+              "reasoningLevel": {
+                "map": "{\"reasoning_effort\": reasoningLevel}"
               }
             }
           }
@@ -5212,6 +5318,55 @@
           "templateId": "zai-standard-api",
           "config": {
             "enabled": false
+          }
+        },
+        {
+          "templateId": "stepfun",
+          "modelId": "step-3.7-flash",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "templateId": "stepfun",
+          "modelId": "step-3.5-flash",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "templateId": "longcat",
+          "modelId": "LongCat-Flash-Chat",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "templateId": "longcat",
+          "modelId": "LongCat-Flash-Thinking",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "templateId": "stepfun",
+          "modelId": "step-5-preview",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "templateId": "longcat",
+          "modelId": "LongCat-Flash-Thinking-2601",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "templateId": "longcat",
+          "modelId": "LongCat-Flash-Lite",
+          "config": {
+            "enabled": true
           }
         }
       ],
