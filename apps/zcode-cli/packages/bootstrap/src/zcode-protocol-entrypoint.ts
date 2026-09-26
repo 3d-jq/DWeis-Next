@@ -38,7 +38,7 @@ import {
 import {
   createOfficialMcpTrustedOriginRegistry,
   OFFICIAL_MCP_DEV_TRUSTED_ORIGINS_ENV,
-  ZCODE_WORKSPACE_IDENTITY_ENV,
+  dweis_workspace_IDENTITY_ENV,
   resolveRuntimeZCodeEndpointOrigin,
 } from "@zcode/shared";
 import { ZCodeProtocolAgentServer } from "./zcode-protocol/server.js";
@@ -196,7 +196,7 @@ export async function runZCodeProtocolAgent(
     // 与下面 trustedOrigins 的 resolveZCodeApiOrigin 必须是同一个表达式，否则两侧判定分叉。
     const resolveZCodeApiOrigin = (): string =>
       resolveRuntimeZCodeEndpointOrigin(options.env ?? process.env);
-    const workspaceIdentity = (options.env ?? process.env)[ZCODE_WORKSPACE_IDENTITY_ENV]?.trim();
+    const workspaceIdentity = (options.env ?? process.env)[dweis_workspace_IDENTITY_ENV]?.trim();
     const officialMcpAuth = {
       authHeadersPort: createOfficialMcpAuthHeadersPort({
         resolveContext: () => officialMcpAuthContext,

@@ -121,7 +121,7 @@ if (process.platform === "darwin" && existsSync(electronBinary)) {
   const electronAppPath = resolve(electronBinary, "../../..");
   const devBundle = await prepareDevElectronAppBundle({
     electronAppPath,
-    runtimeRoot: resolve(root, "../../.zcode-runtime/desktop-dev"),
+    runtimeRoot: resolve(root, "../../.dweis-runtime/desktop-dev"),
     electronVersion: electronPackage.version,
     arch: process.arch,
   });

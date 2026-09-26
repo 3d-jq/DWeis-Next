@@ -82,7 +82,7 @@ interface PluginAgentDiscovery {
 
 const BUILT_IN_AGENT_NAMES = new Set(["general-purpose", "Explore"]);
 const PLUGIN_MANIFEST_PATHS = [
-  join(".zcode-plugin", "plugin.json"),
+  join(".dweis-plugin", "plugin.json"),
   join(".claude-plugin", "plugin.json"),
   join(".codex-plugin", "plugin.json"),
 ] as const;
@@ -396,7 +396,7 @@ async function discoverPluginAgents(params: {
 
 async function readPluginConfig(options?: SubagentStorageOptions): Promise<PluginConfigSummary> {
   try {
-    const configPath = join(resolveUserHomeDir(options), ".zcode", "cli", "config.json");
+    const configPath = join(resolveUserHomeDir(options), ".dweis", "cli", "config.json");
     const raw = await readFile(configPath, "utf-8");
     const parsed = JSON.parse(raw) as unknown;
     if (!isRecord(parsed)) return { enabledPlugins: {}, suppressedBuiltins: [] };
