@@ -499,6 +499,15 @@ function V4ComposerModelControlsImpl({
     if (contextPlanConnection.kind !== "start") {
       return undefined;
     }
+    // 自托管产品没有账号套餐供应商：默认设置可能把连接解析到 start，
+    // 但 Settings View 里不存在对应 account provider 时不再渲染
+    // Start Plan 余额与「升级」入口。
+    const startPlanProviderExists = (providerSettingsView?.providers ?? []).some(
+      (provider) => provider.providerId === contextPlanConnection.providerId,
+    );
+    if (!startPlanProviderExists) {
+      return undefined;
+    }
     const entitlement = entitlements[contextPlanConnection.providerId];
     // Start Plan 只有具备独立 Account Access 时才挂载 hover 查询入口。
     const startPlanEntitlementEnabled = enabledStartPlanProviderIds.includes(
@@ -526,6 +535,7 @@ function V4ComposerModelControlsImpl({
     enabledStartPlanProviderIds,
     entitlements,
     handleOpenStartPlanUpgrade,
+    providerSettingsView,
     providerSourcesLoading,
     refreshCodingPlanEntitlements,
   ]);
