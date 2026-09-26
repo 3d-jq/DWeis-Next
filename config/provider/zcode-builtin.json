@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "revision": 35,
+  "revision": 36,
   "config": {
     "providerConfigRules": {
       "templateRules": [
@@ -178,8 +178,8 @@
               "baseUrl": "https://api.xiaomimimo.com/anthropic"
             },
             "builtinModelIds": [
-              "mimo-v2.5-pro",
-              "mimo-v2.5"
+              "mimo-v2.6-pro",
+              "mimo-v2.6-flash"
             ],
             "logo": {
               "type": "builtin",
@@ -2392,6 +2392,40 @@
               }
             }
           }
+        },
+        {
+          "modelMatch": ".*mimo-v2\\.6-pro(?:[.\\-:/\\[].*)?",
+          "config": {
+            "properties": {
+              "contextWindow": 1000000,
+              "inputFormat": {
+                "supportsImage": true,
+                "supportsVideo": false
+              }
+            },
+            "optionSpecs": {
+              "maxOutputTokens": {
+                "max": 128000
+              }
+            }
+          }
+        },
+        {
+          "modelMatch": ".*mimo-v2\\.6-flash(?:[.\\-:/\\[].*)?",
+          "config": {
+            "properties": {
+              "contextWindow": 1000000,
+              "inputFormat": {
+                "supportsImage": true,
+                "supportsVideo": false
+              }
+            },
+            "optionSpecs": {
+              "maxOutputTokens": {
+                "max": 128000
+              }
+            }
+          }
         }
       ],
       "modelApiRules": [
@@ -4544,20 +4578,6 @@
           }
         },
         {
-          "modelId": "mimo-v2.5-pro",
-          "templateId": "xiaomi-mimo",
-          "config": {
-            "enabled": true
-          }
-        },
-        {
-          "modelId": "mimo-v2.5",
-          "templateId": "xiaomi-mimo",
-          "config": {
-            "enabled": true
-          }
-        },
-        {
           "modelId": "gpt-5.6-sol",
           "templateId": "openai",
           "config": {
@@ -5407,6 +5427,20 @@
         {
           "templateId": "longcat",
           "modelId": "LongCat-2.0",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "templateId": "xiaomi-mimo",
+          "modelId": "mimo-v2.6-pro",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "templateId": "xiaomi-mimo",
+          "modelId": "mimo-v2.6-flash",
           "config": {
             "enabled": true
           }
