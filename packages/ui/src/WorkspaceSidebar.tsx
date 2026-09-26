@@ -167,21 +167,22 @@ function WorkspaceInterfaceModeSwitch() {
     <Tabs
       value={interfaceMode}
       onValueChange={(value) => setInterfaceMode(normalizeInterfaceMode(value))}
-      className="w-fit shrink-0"
+      className="w-full shrink-0"
       aria-label={intl.formatMessage({ id: "settings.interfaceMode" })}
     >
-      {/* 与任务区分组/项目两组 pill 同一套横向态规格，保证 sidebar 顶部视觉一致。 */}
-      <TabsList className="relative h-7 w-fit overflow-hidden rounded-full bg-surface p-0.5 group-data-horizontal/tabs:h-7">
+      {/* 通栏 pill：与侧边栏其他条目同宽（容器 px-2 内），两段均分；激活底色由 TabsTrigger 自带
+          的 data-active 态提供，不引入额外 indicator span。 */}
+      <TabsList className="relative h-7 w-full overflow-hidden rounded-full bg-surface p-0.5 group-data-horizontal/tabs:h-7">
         <TabsTrigger
           value="coding"
-          className="relative z-10 h-6 flex-none gap-1 rounded-full border-transparent bg-transparent py-0 pl-1.5 pr-2 text-ui-sm font-medium text-foreground-subtle transition-colors data-active:border-transparent data-active:bg-transparent data-active:text-foreground data-active:shadow-none dark:data-active:border-transparent dark:data-active:bg-transparent"
+          className="relative z-10 h-6 flex-1 gap-1 rounded-full border-transparent bg-transparent py-0 pl-1.5 pr-2 text-ui-sm font-medium text-foreground-subtle transition-colors data-active:bg-background data-active:text-foreground data-active:shadow-none dark:data-active:border-transparent dark:data-active:bg-background"
         >
           <Code2 aria-hidden="true" className="size-3 shrink-0" />
           <span>{intl.formatMessage({ id: "settings.interfaceMode.coding" })}</span>
         </TabsTrigger>
         <TabsTrigger
           value="office"
-          className="relative z-10 h-6 flex-none gap-1 rounded-full border-transparent bg-transparent py-0 pl-1.5 pr-2 text-ui-sm font-medium text-foreground-subtle transition-colors data-active:border-transparent data-active:bg-transparent data-active:text-foreground data-active:shadow-none dark:data-active:border-transparent dark:data-active:bg-transparent"
+          className="relative z-10 h-6 flex-1 gap-1 rounded-full border-transparent bg-transparent py-0 pl-1.5 pr-2 text-ui-sm font-medium text-foreground-subtle transition-colors data-active:bg-background data-active:text-foreground data-active:shadow-none dark:data-active:border-transparent dark:data-active:bg-background"
         >
           <PanelsTopLeft aria-hidden="true" className="size-3 shrink-0" />
           <span>{intl.formatMessage({ id: "settings.interfaceMode.office" })}</span>
