@@ -34,6 +34,7 @@
 - `apps/zcode-cli`：Agent CLI 与运行时。
 - `CONTEXT.md`：插件商店领域词汇；修改相关 UI 前阅读。
 - `DESIGN.md`：UI 设计规范；修改 UI 前阅读。
+- `docs/dweis-next-plan.md`：DWeis Next 计划中的改造项（摘除遥测、清理 Z.ai 云依赖、只留桌面端等），开工前先读。
 
 ## 实现与验证
 
