@@ -32,7 +32,7 @@ import type { IPlatformService, RemoteTarget, ServerRemoteInfo } from "@zcode/sh
 import { WEB_DEFAULT_THEME, resolveWebInitialTheme } from "./webThemeSeed.js";
 
 function resolveWebThemePreference(defaultTheme: Theme = WEB_DEFAULT_THEME): Theme {
-  const saved = localStorage.getItem("zcode-theme");
+  const saved = localStorage.getItem("dweis-theme");
   return resolveWebInitialTheme({ storedTheme: saved, defaultTheme });
 }
 

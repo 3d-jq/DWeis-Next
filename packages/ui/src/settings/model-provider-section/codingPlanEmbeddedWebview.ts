@@ -207,7 +207,7 @@ export function createCodingPlanAuthInjectionScript({
   document.documentElement.classList.toggle("dark", zcodeTheme === "zai-dark");
   document.documentElement.classList.toggle("theme-zai-light", zcodeTheme === "zai-light");
   document.documentElement.classList.toggle("theme-zai-dark", zcodeTheme === "zai-dark");
-  localStorage.setItem("zcode-theme", zcodeTheme);
+  localStorage.setItem("dweis-theme", zcodeTheme);
   localStorage.setItem("zcode:coding-plan:embedded", "app");
   // 写入当前 App locale，供官网 zcodeBridge.getLang() 读取。
   // 注意：这是注入 webview 执行的原始 JS，不能用 TS 语法（如 as any）。

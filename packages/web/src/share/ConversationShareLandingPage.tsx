@@ -709,7 +709,7 @@ export function ConversationShareLandingLoader({
   const [state, setState] = useState<ConversationShareLandingState>({ kind: "loading" });
   const [activeTheme, setActiveTheme] = useState<Theme>(theme ?? "zai-light");
   const handleThemeChange = useCallback((nextTheme: Theme) => {
-    localStorage.setItem("zcode-theme", nextTheme);
+    localStorage.setItem("dweis-theme", nextTheme);
     setActiveTheme(nextTheme);
     applyTheme(nextTheme);
   }, []);
