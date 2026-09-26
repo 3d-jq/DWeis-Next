@@ -173,13 +173,21 @@ export function useV4SessionQuotaBanner(params: {
   }, [dismissKey, dismissed, params.sessionId]);
 
   const upgradeProviderId = resolveQuotaBannerUpgradeProviderId(activeProviderId);
+  // 自托管产品没有账号套餐供应商：解析出的升级供应商若不在 Settings View 中
+  // （例如默认设置把 zai-api 映射到 account:zai-*），不提供任何升级入口，
+  // 同时省掉一次无意义的 entitlement 请求。
+  const settingsView = settings.state.status === "ready" ? settings.state.view : null;
+  const upgradeProviderExists =
+    upgradeProviderId !== null &&
+    (settingsView?.providers ?? []).some((provider) => provider.providerId === upgradeProviderId);
   const shouldCheckTerminalPlan =
     state.visible &&
     upgradeProviderId !== null &&
     // 不提供升级入口的提示（如 MCP 今日额度用完）无需判断是否已是顶配套餐，
     // 省掉一次 refreshOnMount 的 entitlement 请求。
     shouldOfferQuotaBannerUpgrade(state.kind) &&
-    !isStartPlanModelProviderId(upgradeProviderId);
+    !isStartPlanModelProviderId(upgradeProviderId) &&
+    upgradeProviderExists;
   const upgradeEntitlement = useUsageEntitlementWithService(params.usageStatsService, {
     enabled: shouldCheckTerminalPlan,
     includeSubscription: true,
@@ -272,7 +280,9 @@ export function useV4SessionQuotaBanner(params: {
     markShown,
     takesOverError,
     upgradeProviderId:
-      terminalPlan || !shouldOfferQuotaBannerUpgrade(state.kind) ? null : upgradeProviderId,
+      terminalPlan || !shouldOfferQuotaBannerUpgrade(state.kind) || !upgradeProviderExists
+        ? null
+        : upgradeProviderId,
     upgradeActionLabelId: maxPlan ? "chat.quota.action.renew" : "chat.quota.action.upgrade",
   } as const;
 }
