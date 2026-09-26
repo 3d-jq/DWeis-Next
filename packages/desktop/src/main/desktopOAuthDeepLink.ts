@@ -144,16 +144,16 @@ export function resolveExternalWorkspaceOpenDialogCopy(
   if (locale === "zh-CN") {
     return {
       buttons: ["打开文件夹", "取消"],
-      title: "打开外部 ZCode 链接？",
-      message: "是否在 ZCode 中打开此文件夹？",
+      title: "打开外部 DWeis Next 链接？",
+      message: "是否在 DWeis Next 中打开此文件夹？",
       detail: (path) => `${path}\n\n只打开你信任来源的文件夹。项目设置可能影响 agent runtime。`,
     };
   }
 
   return {
     buttons: ["Open folder", "Cancel"],
-    title: "Open external ZCode link?",
-    message: "Open this folder in ZCode?",
+    title: "Open external DWeis Next link?",
+    message: "Open this folder in DWeis Next?",
     detail: (path) =>
       `${path}\n\nOnly open folders from sources you trust. Project settings may affect the agent runtime.`,
   };
@@ -402,7 +402,7 @@ export function registerDeepLinkProtocol(
   },
   options: { iconPath?: string } = {},
 ) {
-  const scheme = "zcode";
+  const scheme = "dweis";
 
   if (process.defaultApp && process.argv.length >= 2) {
     const entry = resolve(process.argv[1]!);

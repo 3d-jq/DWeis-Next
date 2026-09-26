@@ -17,6 +17,7 @@ import {
   CalendarClock,
   Clock3,
   Cloud,
+  Code2,
   Folder,
   FolderOpen,
   Hash,
@@ -25,6 +26,7 @@ import {
   MessageCircleCheck,
   MessageCirclePlus,
   Minimize2,
+  PanelsTopLeft,
   Plus,
   Search,
   X,
@@ -71,6 +73,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { normalizeInterfaceMode } from "@/lib/interfaceMode.js";
 import { logger } from "@/logger.js";
 import { NewTaskButtonGroup } from "@/NewTaskButtonGroup.js";
 import { selectWorkspaceZCodeState, useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
@@ -154,6 +157,39 @@ function WorkspaceNewTaskTooltip({
 }
 export { applyWorkspaceTriggerSelection } from "@/WorkspaceSidebar/workspaceSidebarSelection.js";
 export { WorkspaceSidebarCollapsedRail } from "@/WorkspaceSidebar/WorkspaceSidebarCollapsedRail.js";
+
+function WorkspaceInterfaceModeSwitch() {
+  const { intl } = useZCodeIntl();
+  const interfaceMode = useZCodeStore((state) => state.interfaceMode);
+  const setInterfaceMode = useZCodeStore((state) => state.setInterfaceMode);
+
+  return (
+    <Tabs
+      value={interfaceMode}
+      onValueChange={(value) => setInterfaceMode(normalizeInterfaceMode(value))}
+      className="w-fit shrink-0"
+      aria-label={intl.formatMessage({ id: "settings.interfaceMode" })}
+    >
+      {/* 与任务区分组/项目两组 pill 同一套横向态规格，保证 sidebar 顶部视觉一致。 */}
+      <TabsList className="relative h-7 w-fit overflow-hidden rounded-full bg-surface p-0.5 group-data-horizontal/tabs:h-7">
+        <TabsTrigger
+          value="coding"
+          className="relative z-10 h-6 flex-none gap-1 rounded-full border-transparent bg-transparent py-0 pl-1.5 pr-2 text-ui-sm font-medium text-foreground-subtle transition-colors data-active:border-transparent data-active:bg-transparent data-active:text-foreground data-active:shadow-none dark:data-active:border-transparent dark:data-active:bg-transparent"
+        >
+          <Code2 aria-hidden="true" className="size-3 shrink-0" />
+          <span>{intl.formatMessage({ id: "settings.interfaceMode.coding" })}</span>
+        </TabsTrigger>
+        <TabsTrigger
+          value="office"
+          className="relative z-10 h-6 flex-none gap-1 rounded-full border-transparent bg-transparent py-0 pl-1.5 pr-2 text-ui-sm font-medium text-foreground-subtle transition-colors data-active:border-transparent data-active:bg-transparent data-active:text-foreground data-active:shadow-none dark:data-active:border-transparent dark:data-active:bg-transparent"
+        >
+          <PanelsTopLeft aria-hidden="true" className="size-3 shrink-0" />
+          <span>{intl.formatMessage({ id: "settings.interfaceMode.office" })}</span>
+        </TabsTrigger>
+      </TabsList>
+    </Tabs>
+  );
+}
 
 type TaskOrganizeBy = SidebarTaskOrganizeBy;
 type TaskSortBy = SidebarTaskSortBy;
@@ -1264,6 +1300,9 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
           aria-hidden={isFileTreeOpen}
         >
           <div className={cn("flex flex-col gap-1 px-2", isWindowsDesktop ? "py-2" : "py-3")}>
+            {/* 办公/编程模式常驻主界面顶部：与 DWeis 原版一致，点按即切换，不再藏在
+                头像菜单与设置页里；切换写入 interfaceMode store 并由其负责持久化与多窗广播。 */}
+            <WorkspaceInterfaceModeSwitch />
             <WorkspaceNewTaskTooltip disabledReason={workspaceReadOnlyReason}>
               <NewTaskButtonGroup
                 disabled={workspaceReadOnly}

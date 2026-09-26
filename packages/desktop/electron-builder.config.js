@@ -167,7 +167,7 @@ const PACMAN_RUNTIME_DEPENDENCIES = [
   "xdg-utils",
 ];
 
-const WINDOWS_INSTALL_MANIFEST_NAME = ".zcode-install-manifest";
+const WINDOWS_INSTALL_MANIFEST_NAME = ".dweis-install-manifest";
 
 async function writeWindowsInstallManifest(context) {
   if (context.electronPlatformName !== "win32") return;
@@ -217,7 +217,7 @@ if (
   !macSigningIdentity
 ) {
   throw new Error(
-    "ZCode Preview macOS packaging requires APPLE_SIGNING_IDENTITY or CSC_NAME when ZCODE_ENABLE_MAC_SIGN=1",
+    "DWeis Next Preview macOS packaging requires APPLE_SIGNING_IDENTITY or CSC_NAME when ZCODE_ENABLE_MAC_SIGN=1",
   );
 }
 
@@ -281,7 +281,7 @@ async function runTimedAsync(label, fn) {
 
 function resolveAppAsarPath(context) {
   if (context.electronPlatformName === "darwin") {
-    const appName = `${context.packager?.appInfo?.productFilename ?? "ZCode"}.app`;
+    const appName = `${context.packager?.appInfo?.productFilename ?? "DWeis Next"}.app`;
     return resolve(context.appOutDir, appName, "Contents", "Resources", "app.asar");
   }
 
@@ -290,7 +290,7 @@ function resolveAppAsarPath(context) {
 
 function resolvePackagedResourcesDir(context) {
   if (context.electronPlatformName === "darwin") {
-    const appName = `${context.packager?.appInfo?.productFilename ?? "ZCode"}.app`;
+    const appName = `${context.packager?.appInfo?.productFilename ?? "DWeis Next"}.app`;
     return resolve(context.appOutDir, appName, "Contents", "Resources");
   }
 
@@ -361,7 +361,7 @@ async function injectHoistedRuntimeModulesIntoAsar(context) {
   // CI 会把 TMPDIR 指到项目内 .tmp，GitLab get_sources/clean 可能在脚本启动前清掉该目录。
   // afterPack 里重写 app.asar 同样依赖 mkdtempSync，必须自己兜底创建父目录，避免后续签名阶段只看到 .app 消失。
   mkdirSync(tmpdir(), { recursive: true });
-  const stagingDir = mkdtempSync(resolve(tmpdir(), "zcode-app-asar-"));
+  const stagingDir = mkdtempSync(resolve(tmpdir(), "dweis-app-asar-"));
   try {
     runTimedSync("afterPack:asar-extract", () =>
       runAsarCommand(["extract", appAsarPath, stagingDir]),
@@ -459,10 +459,10 @@ export default {
   extraMetadata: {
     version: buildMetadata.appVersion,
     zcodeProductFlavor: desktopProductIdentity.flavor,
-    homepage: "https://zcode.z.ai",
+    homepage: "https://dweis.ai/",
     author: {
-      name: "ZCode",
-      email: "dev@zcode.z.ai",
+      name: "DWeis",
+      email: "dev@dweis.ai",
     },
   },
   // macOS 签名阶段会对 Electron Framework 下每个语言包逐个 codesign。
@@ -652,9 +652,9 @@ export default {
   protocols: [
     {
       // 协议处理器的展示名之前使用小写 scheme，打包产物里的协议描述无法体现产品名。
-      // 展示名跟随安装包身份；scheme 仍保持 zcode，因此两个应用中最后注册者会成为默认 handler。
+      // 展示名跟随安装包身份；scheme 为 dweis，与 ZCode 官方包互不抢占默认 handler。
       name: desktopProductIdentity.productName,
-      schemes: ["zcode"],
+      schemes: ["dweis"],
     },
   ],
   mac: {
@@ -703,7 +703,7 @@ export default {
     // 与 /usr/share/icons/hicolor/*/apps/zcode.png 保持一致。
     executableName: desktopProductIdentity.linuxExecutableName,
     category: "Development",
-    maintainer: "ZCode <dev@zcode.z.ai>",
+    maintainer: "DWeis <dev@dweis.ai>",
   },
   deb: {
     // 生产版与 Preview 必须是两个 dpkg package；只改可执行名仍会让安装器把另一版本当成升级替换。
