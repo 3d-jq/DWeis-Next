@@ -34,17 +34,12 @@ export function ProviderTemplatePicker({
   const { intl, locale } = useZCodeIntl();
   const { dismissFeedback, showFeedback } = useProviderDetailFeedback();
   const customLabel = intl.formatMessage({ id: "settings.modelProvider.newProviderName" });
-  const zhipuIds = ["bigmodel-api", "zai-api", "bigmodel-standard-api", "zai-standard-api"];
+  // 自托管产品没有智谱预设：供应商选择器只保留一组（原「其他」），
+  // 分组标题经 i18n settings.modelProvider.templateGroup.other 展示为「供应商」。
   const groups = [
     {
-      id: "zhipu",
-      templates: zhipuIds.flatMap((id) =>
-        templates.filter((template) => template.templateId === id),
-      ),
-    },
-    {
       id: "other",
-      templates: templates.filter((template) => !zhipuIds.includes(template.templateId)),
+      templates,
     },
   ] as const;
   const createWithFeedback = async (create: () => Promise<void>) => {

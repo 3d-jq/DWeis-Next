@@ -3,7 +3,6 @@ import type { Locale, UserInfo } from "@zcode/shared";
 import { memo, useCallback, useEffect, useState } from "react";
 import { DesktopCommandIds, TID_LOGIN_TRIGGER, TID_TASK_SETTINGS_BUTTON } from "@zcode/shared";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
-import dweisLogoUrl from "@/assets/provider-icons/logo-dweis.svg";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
 import {
@@ -81,13 +80,7 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
   const resetZoomShortcutLabel = useShortcutCommandLabel("resetZoom");
   const profileContent = (
     <>
-      {/* 自托管产品：footer 左侧固定展示品牌图标与品牌名，不再有账号头像/登录态。 */}
-      <img
-        src={dweisLogoUrl}
-        alt="DWeis Next"
-        draggable={false}
-        className="size-8 shrink-0 select-none rounded-lg"
-      />
+      {/* 自托管产品：footer 左侧固定展示品牌名，不再有账号头像/登录态。 */}
       <span className="min-w-0 flex-1 truncate text-left text-ui-base font-semibold text-foreground">
         DWeis Next
       </span>

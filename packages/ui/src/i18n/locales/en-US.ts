@@ -2756,7 +2756,7 @@ const enUS: Record<string, string> = {
   "settings.modelProvider.addProviderAction": "Add provider",
   "settings.modelProvider.templatePickerTitle": "Add provider",
   "settings.modelProvider.templateGroup.zhipu": "Zhipu",
-  "settings.modelProvider.templateGroup.other": "Other",
+  "settings.modelProvider.templateGroup.other": "Providers",
   "settings.modelProvider.templatePickerBack": "Back to provider details",
   "settings.modelProvider.addProviderModelReminder":
     "Add at least one model before adding the provider.",
@@ -3687,6 +3687,8 @@ const enUS: Record<string, string> = {
   "settings.modelProvider.reorderProvider": "Drag to reorder provider",
   "settings.modelProvider.reorderModel": "Drag to reorder model",
   "settings.modelProvider.empty": "No custom model providers yet",
+  "settings.modelProvider.emptyHint":
+    "Click “Add provider” in the top-right to pick an API-key provider or create a custom one.",
   "settings.modelProvider.deleteConfirm": 'Delete "{name}"?',
   "settings.modelProvider.deleteConfirmTitle": 'Delete provider "{name}"?',
   "settings.modelProvider.deleteConfirmDescription":

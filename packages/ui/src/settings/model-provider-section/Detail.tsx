@@ -391,6 +391,25 @@ export function ModelProviderSectionDetail({
   }, [selectedItemKey]);
 
   if (!selectedNavItem) {
+    // 自托管后「没有任何已配置供应商」是正常空态而不是加载中：
+    // 之前这里一律返回 loading 卡片，全新安装会永远显示“加载中”。
+    // 仅当 Settings View 尚未就绪时才展示 loading。
+    if (providerSettingsView) {
+      return (
+        <div
+          className="flex min-h-64 flex-col items-center justify-center gap-2 text-center"
+          data-testid="model-provider-empty"
+        >
+          <p className="text-ui-base font-medium text-foreground">
+            {intl.formatMessage({ id: "settings.modelProvider.empty" })}
+          </p>
+          <p className="text-ui-base text-foreground-subtle">
+            {intl.formatMessage({ id: "settings.modelProvider.emptyHint" })}
+          </p>
+        </div>
+      );
+    }
+
     return <ModelProviderLoadingCard loadingLabel={loadingLabel} />;
   }
 
