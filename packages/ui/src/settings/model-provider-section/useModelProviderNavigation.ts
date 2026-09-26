@@ -64,7 +64,8 @@ interface UseModelProviderNavigationOptions {
 }
 
 export function useModelProviderNavigation({
-  presetProviders,
+  // presetProviders 为历史账号体系遗留：自托管后 preset 组已移除，保留入参避免调用方编译失败。
+  presetProviders: _presetProviders,
   modelProviders,
   entitledAccountProviderIds = new Set(),
   modelProvidersLoading = false,
@@ -178,38 +179,9 @@ export function useModelProviderNavigation({
   );
 
   const navigationGroups = useMemo<ModelProviderNavGroup[]>(() => {
+    // 自托管产品没有账号/Coding Plan 体系：不再渲染智谱预设组，
+    // 模型供应商统一走「添加供应商」（custom 组）。
     const groups: ModelProviderNavGroup[] = [
-      {
-        id: "preset",
-        title: intl.formatMessage({ id: "settings.modelProvider.presetTitle" }),
-        items: [
-          ...presetProviders.map(({ id, displayName, provider }) => {
-            const statusProvider = resolvePresetFamilyStatusProvider({
-              presetId: id,
-              provider,
-              connectionModeItems: connectionModeCodingPlanItems,
-              connectionSelections,
-              modelProviders,
-            });
-            return {
-              key: createPresetProviderNodeKey(id),
-              type: "preset" as const,
-              presetId: id,
-              label: displayName,
-              logo: modelProviders.find(
-                (candidate) =>
-                  candidate.providerId ===
-                  resolveModelProviderFamilySpecByProviderId(id)?.individualCodingPlanProviderId,
-              )?.config.logo,
-              provider,
-              displayName,
-              statusProvider,
-              statusActive: statusProvider?.executable === true,
-            };
-          }),
-          ...codingPlanItems.filter((item) => isStartPlanModelProviderId(item.presetId)),
-        ],
-      },
       {
         id: "custom",
         title: intl.formatMessage({ id: "settings.modelProvider.customTitle" }),
@@ -226,15 +198,9 @@ export function useModelProviderNavigation({
     return groups;
   }, [
     customProviders,
-    codingPlanItems,
-    connectionModeCodingPlanItems,
     // 左侧导航分组标题在这个 memo 内格式化。
     // 语言切换时 provider/权益引用可能不变，必须依赖 intl 才能刷新旧 locale 的文案。
     intl,
-    connectionSelections,
-    pendingConnectionSelections,
-    presetProviders,
-    modelProviders,
   ]);
 
   const navigationItems = useMemo(() => {
@@ -336,38 +302,6 @@ function shouldShowCodingPlanForProviderFamilyDomain(
     return true;
   }
   return resolveProviderFamilyDomainFromOAuthProvider(oauthProviderId) === providerFamilyDomain;
-}
-
-function resolvePresetFamilyStatusProvider({
-  presetId,
-  provider,
-  connectionModeItems,
-  connectionSelections,
-  modelProviders,
-}: {
-  presetId: PresetProviderSpec["id"];
-  provider: ProviderSettingsFormProvider | null;
-  connectionModeItems: ModelProviderNavGroup["items"];
-  connectionSelections: ProviderFamilyConnectionSelectionSettings;
-  modelProviders: ProviderSettingsFormProvider[];
-}): ProviderSettingsFormProvider | null {
-  const familySpec = resolveModelProviderFamilySpecByProviderId(presetId);
-  if (!familySpec) {
-    return provider;
-  }
-  const connectionItem = pickFamilyModeNavigationItem(
-    connectionModeItems.filter((item) => item.type !== "codingPlanLoading"),
-    familySpec.id,
-    connectionSelections,
-  );
-  if (!connectionItem || !isPlanConnectionNavigationItem(connectionItem)) {
-    return null;
-  }
-  // 菜单 Team 项可能从个人项派生，携带的 provider 不是团队执行身份。
-  // 必须按具体套餐 ID 回到 Settings View，不能用菜单权益或继承的 provider 点灯。
-  return (
-    modelProviders.find((candidate) => candidate.providerId === connectionItem.presetId) ?? null
-  );
 }
 
 function resolveFallbackModelProviderNodeKey({
@@ -500,7 +434,12 @@ function pickInitialConnectionNavigationItem(
   if (planItems[0]) {
     return planItems[0];
   }
-  return selectableNavigationItems.find((item) => item.type === "preset") ?? null;
+  // 自托管后 preset 组已移除：兜底取任意可选条目（自定义供应商），没有则空。
+  return (
+    selectableNavigationItems.find((item) => item.type === "preset") ??
+    selectableNavigationItems[0] ??
+    null
+  );
 }
 
 function pickFamilyModeNavigationItem(

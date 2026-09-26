@@ -25,16 +25,14 @@ export function RootStartupLoading({ label, children, busy = true }: RootStartup
   );
 }
 
-/** 初始化与引导共用品牌图标，保持底色、描边、圆角一致。 */
+/** 初始化与引导共用品牌图标：owl 源图自带圆角与透明边缘，直接呈现，不套深色壳。 */
 export function DWeisStartupLogoBadge() {
   return (
-    <div className="relative flex size-24 items-center justify-center rounded-3xl bg-[linear-gradient(180deg,#000000_0%,#151718_100%)] text-[#ffffff] shadow-xl/20 before:pointer-events-none before:absolute before:inset-0 before:rounded-[inherit] before:border before:border-[rgba(255,255,255,0.1)] before:content-['']">
-      <img
-        src={dweisLogoUrl}
-        alt="DWeis Next"
-        draggable={false}
-        className={cn("h-auto w-14 shrink-0 select-none")}
-      />
-    </div>
+    <img
+      src={dweisLogoUrl}
+      alt="DWeis Next"
+      draggable={false}
+      className={cn("size-24 shrink-0 select-none rounded-3xl")}
+    />
   );
 }

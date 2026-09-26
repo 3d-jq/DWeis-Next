@@ -1,6 +1,6 @@
 import { ArrowRightIcon } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
-import { ZCodeAboutLogo } from "@/components/ui/ZCodeAboutLogo.js";
+import dweisLogoUrl from "@/assets/provider-icons/logo-dweis.svg";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { OnboardingWelcomeAsciiVisual } from "@/onboarding/OnboardingWelcomeAsciiVisual.js";
 
@@ -16,14 +16,13 @@ export function OnboardingWelcomeView(props: { onStart: () => void; onOpenMigrat
           </div>
 
           <div className="space-y-2">
-            {/* 欢迎 logo 壳是固定深色底，边框不能跟随浅色主题 token，否则浅色主题下边框过重。*/}
-            <div
-              className="relative flex size-14 items-center justify-center rounded-xl bg-[linear-gradient(180deg,#000000_0%,#151718_100%)] text-[#ffffff] shadow-lg/20 before:pointer-events-none before:absolute before:inset-0 before:rounded-xl before:border before:border-[rgba(255,255,255,0.1)]"
-              aria-label="DWeis Next"
-              role="img"
-            >
-              <ZCodeAboutLogo className="h-auto w-8" />
-            </div>
+            {/* 品牌图直接呈现：owl 源图自带圆角与透明边缘，套深色底壳会露一圈黑。 */}
+            <img
+              src={dweisLogoUrl}
+              alt="DWeis Next"
+              draggable={false}
+              className="size-14 shrink-0 select-none rounded-xl"
+            />
             <div className="text-4xl font-bold tracking-tight text-foreground">
               {intl.formatMessage({ id: "onboarding.welcome.title" })}
             </div>

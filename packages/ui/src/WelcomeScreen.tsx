@@ -14,7 +14,7 @@ import {
 } from "@zcode/shared";
 import { Alert, AlertDescription } from "./components/ui/alert.js";
 import { Button } from "./components/ui/button.js";
-import { ZCodeAboutLogo } from "@/components/ui/ZCodeAboutLogo.js";
+import dweisLogoUrl from "@/assets/provider-icons/logo-dweis.svg";
 import { useOAuth } from "./hooks/useOAuth.js";
 import { useZCodeIntl } from "./i18n/IntlProvider.js";
 import { LoginApiKeyForm } from "./login/LoginApiKeyForm.js";
@@ -428,15 +428,14 @@ function LoginPanelHeader({
 }
 
 function LoginPanelLogo() {
+  // 品牌图直接呈现：owl 源图自带圆角与透明边缘，套深色底壳会露一圈黑。
   return (
-    // 登录 logo 壳是固定深色底，边框不能跟随浅色主题 token，否则浅色主题下边框过重。
-    <div
-      className="relative mb-1 flex size-16 items-center justify-center rounded-2xl bg-[linear-gradient(180deg,#000000_0%,#151718_100%)] text-[#ffffff] shadow-lg/20 before:pointer-events-none before:absolute before:inset-0 before:rounded-2xl before:border before:border-[rgba(255,255,255,0.1)]"
-      aria-label="DWeis Next"
-      role="img"
-    >
-      <ZCodeAboutLogo className="h-auto w-10" />
-    </div>
+    <img
+      src={dweisLogoUrl}
+      alt="DWeis Next"
+      draggable={false}
+      className="mb-1 size-16 shrink-0 select-none rounded-2xl"
+    />
   );
 }
 
