@@ -1,6 +1,19 @@
 /* eslint-disable max-lines -- Electron Builder config keeps related packaging hooks together so build order stays explicit. */
-import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
-import { readdir, writeFile } from "node:fs/promises";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+} from "node:fs";
+import {
+  copyFile as copyFileAsync,
+  cp as cpAsync,
+  readdir,
+  realpath as realpathAsync,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { createRequire } from "node:module";
@@ -341,6 +354,85 @@ function resolveMissingRuntimeModules(appAsarPath) {
   });
 }
 
+// 实测结论（Windows / Node 24）：对 asar extract 出来的 node_modules 目录，
+// fs.cpSync 无论传什么参数都必定 EIO "Access is denied"，而 fs.promises.cp 同目录 21ms 成功。
+// 这里用异步 cp 为主路径，失败再退回逐文件拷贝，避免最后一步被 Node 同步 cp 的实现坑掉。
+const RETRYABLE_COPY_ERROR_CODES = new Set(["EIO", "EPERM", "EACCES", "EBUSY"]);
+
+function ensureWritableTargetDir(dirPath) {
+  mkdirSync(dirPath, { recursive: true });
+  try {
+    chmodSync(dirPath, 0o777);
+  } catch {
+    // 清不掉就交给复制过程自己报错。
+  }
+}
+
+async function copyDirectoryContentsManually(sourcePath, targetPath) {
+  mkdirSync(targetPath, { recursive: true });
+  for (const entry of readdirSync(sourcePath, { withFileTypes: true })) {
+    const from = join(sourcePath, entry.name);
+    const to = join(targetPath, entry.name);
+    if (entry.isDirectory()) {
+      await copyDirectoryContentsManually(from, to);
+    } else if (entry.isSymbolicLink()) {
+      // pnpm 布局下链接指向的真实内容也要拷进去，不能把链接本身留在 asar 里。
+      await copyDirectoryContents(await realpathAsync(from), to);
+    } else {
+      await copyFileAsync(from, to);
+    }
+  }
+}
+
+async function copyDirectoryContents(sourcePath, targetPath) {
+  try {
+    // dereference:true 让 pnpm 符号链接指向的真实内容被复制进 app.asar，
+    // 否则 asar 里会留一个在用户机上必然断掉的链接。
+    await cpAsync(sourcePath, targetPath, { recursive: true, dereference: true });
+    return;
+  } catch (error) {
+    if (!RETRYABLE_COPY_ERROR_CODES.has(error?.code)) {
+      throw error;
+    }
+  }
+  await copyDirectoryContentsManually(sourcePath, targetPath);
+}
+
+function removeTargetModulePath(targetModulePath) {
+  rmSync(targetModulePath, {
+    force: true,
+    recursive: true,
+    maxRetries: 3,
+    retryDelay: 200,
+  });
+}
+
+function sleepSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+async function copyRuntimeModuleIntoTarget({ moduleName, sourceModulePath, targetModulePath }) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= 4; attempt += 1) {
+    try {
+      removeTargetModulePath(targetModulePath);
+      ensureWritableTargetDir(dirname(targetModulePath));
+      await copyDirectoryContents(sourceModulePath, targetModulePath);
+      return;
+    } catch (error) {
+      lastError = error;
+      removeTargetModulePath(targetModulePath);
+      if (attempt < 4) {
+        sleepSync(attempt * 250);
+      }
+    }
+  }
+  throw new Error(
+    `运行时依赖注入失败 ${moduleName}（已重试）: ${lastError?.code ?? "unknown"} ${lastError?.message ?? ""}`,
+    { cause: lastError },
+  );
+}
+
 async function injectHoistedRuntimeModulesIntoAsar(context) {
   const appAsarPath = resolveAppAsarPath(context);
   if (!existsSync(appAsarPath)) {
@@ -370,7 +462,7 @@ async function injectHoistedRuntimeModulesIntoAsar(context) {
     const stagingNodeModulesDir = resolve(stagingDir, "node_modules");
     mkdirSync(stagingNodeModulesDir, { recursive: true });
 
-    runTimedSync("afterPack:copy-runtime-modules", () => {
+    await runTimedAsync("afterPack:copy-runtime-modules", async () => {
       for (const runtimeModule of missingRuntimeModules) {
         const { moduleName, sourceModulePath } = runtimeModule;
         const targetModulePath = resolve(stagingNodeModulesDir, moduleName);
@@ -390,9 +482,7 @@ async function injectHoistedRuntimeModulesIntoAsar(context) {
         // 这里按 package.json 递归补齐依赖闭包，避免每次只补一个缺失包、上线后再暴露下一个子依赖。
         // 只靠 package.json 显式依赖、本包 node_modules 镜像、files include 都没让它稳定进 asar，
         // 所以在 afterPack 阶段直接重写 app.asar，先把这些运行时包补进去，再交给后续签名和出包。
-        mkdirSync(dirname(targetModulePath), { recursive: true });
-        rmSync(targetModulePath, { force: true, recursive: true });
-        cpSync(sourceModulePath, targetModulePath, { recursive: true });
+        await copyRuntimeModuleIntoTarget({ moduleName, sourceModulePath, targetModulePath });
       }
     });
 
