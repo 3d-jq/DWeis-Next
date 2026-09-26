@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "revision": 34,
+  "revision": 35,
   "config": {
     "providerConfigRules": {
       "templateRules": [
@@ -470,10 +470,8 @@
               "baseUrl": "https://api.longcat.chat/openai/v1"
             },
             "builtinModelIds": [
-              "LongCat-Flash-Thinking-2601",
-              "LongCat-Flash-Thinking",
-              "LongCat-Flash-Chat",
-              "LongCat-Flash-Lite"
+              "LongCat-2.5-Preview",
+              "LongCat-2.0"
             ],
             "logo": {
               "type": "builtin",
@@ -2306,6 +2304,13 @@
                   "high"
                 ]
               }
+            },
+            "properties": {
+              "contextWindow": 256000,
+              "inputFormat": {
+                "supportsImage": true,
+                "supportsVideo": true
+              }
             }
           }
         },
@@ -2320,6 +2325,13 @@
                   "high"
                 ]
               }
+            },
+            "properties": {
+              "contextWindow": 256000,
+              "inputFormat": {
+                "supportsImage": false,
+                "supportsVideo": false
+              }
             }
           }
         },
@@ -2333,6 +2345,50 @@
                   "medium",
                   "high"
                 ]
+              },
+              "maxOutputTokens": {
+                "max": 64000
+              }
+            },
+            "properties": {
+              "contextWindow": 1000000,
+              "inputFormat": {
+                "supportsImage": true,
+                "supportsVideo": true
+              }
+            }
+          }
+        },
+        {
+          "modelMatch": ".*LongCat-2\\.5-Preview(?:[.\\-:/\\[].*)?",
+          "config": {
+            "properties": {
+              "contextWindow": 1000000,
+              "inputFormat": {
+                "supportsImage": false,
+                "supportsVideo": false
+              }
+            },
+            "optionSpecs": {
+              "maxOutputTokens": {
+                "max": 128000
+              }
+            }
+          }
+        },
+        {
+          "modelMatch": ".*LongCat-2\\.0(?:[.\\-:/\\[].*)?",
+          "config": {
+            "properties": {
+              "contextWindow": 1000000,
+              "inputFormat": {
+                "supportsImage": false,
+                "supportsVideo": false
+              }
+            },
+            "optionSpecs": {
+              "maxOutputTokens": {
+                "max": 128000
               }
             }
           }
@@ -5335,20 +5391,6 @@
           }
         },
         {
-          "templateId": "longcat",
-          "modelId": "LongCat-Flash-Chat",
-          "config": {
-            "enabled": true
-          }
-        },
-        {
-          "templateId": "longcat",
-          "modelId": "LongCat-Flash-Thinking",
-          "config": {
-            "enabled": true
-          }
-        },
-        {
           "templateId": "stepfun",
           "modelId": "step-5-preview",
           "config": {
@@ -5357,14 +5399,14 @@
         },
         {
           "templateId": "longcat",
-          "modelId": "LongCat-Flash-Thinking-2601",
+          "modelId": "LongCat-2.5-Preview",
           "config": {
             "enabled": true
           }
         },
         {
           "templateId": "longcat",
-          "modelId": "LongCat-Flash-Lite",
+          "modelId": "LongCat-2.0",
           "config": {
             "enabled": true
           }
