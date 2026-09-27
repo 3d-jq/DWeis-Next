@@ -39,10 +39,55 @@
 
 ## 2. Z.ai 云依赖清理
 
-- `packages/provider-node/src/*zcode-builtin*`：内置 provider 配置的远端源（`cdn-zcode.z.ai` 默认源需改为本地 `config/provider/zcode-builtin.json`）。
-- OAuth / 账号登录相关配置与 UI（`packages/ui` 中 account / codingPlan / share 相关）。
-- 插件市场默认源 `zcode-plugins-official`（保留 marketplace id 不变，只改默认下载源）。
-- 文档/帮助链接中的 z.ai URL。
+> 清单为 2026-09-27 的静态核查结果，动手前以实际 grep 为准。
+
+### 先分清：这两个不是云依赖，别删
+
+`config/provider/zcode-builtin.json` 里的 `zai-api` / `zai-standard-api` 模板是**普通 API-key 供应商**（填 key 直连 api.z.ai 调 GLM），无账号、无回传。用户明确要求保留，删了会少两个可用供应商。同理 `assets/provider-icons/` 下各供应商 logo 属自包含资源，不用动。
+
+### 删除清单
+
+| 分类 | 文件 | 删除后的影响 |
+| --- | --- | --- |
+| OAuth / 账号登录 | `packages/services/src/oauth/providers/zaiProviderConfig.ts`、`zaiProviderAdapter.ts`、`bigmodelProviderConfig.ts`；`packages/web/src/auth/webZaiOAuthConfig.ts`；`packages/shared/src/model-provider-family.ts` 中 `zai` family 条目（`rootDomain: "z.ai"` + `oauthProviderId` + 三个 codingPlan providerId + `teamCodingPlanManageUrl`） | 设置页不再出现"Z.ai 账号登录"入口。无登录产品，本来就用不了 |
+| CodingPlan / 会员额度 | `packages/services/src/coding-plan-subscription/zaiCodingPlanSubscriptionProvider.ts`、`bigmodelCodingPlanSubscriptionProvider.ts`；`packages/services/src/usage-stats/providers/bigmodelUsageQuotaProvider.ts`；`apps/zcode-cli/packages/adapters/src/model/official-coding-plan-gateway.ts`、`auth/coding-plan-api-key.ts` | 会员额度查询与续费入口消失。UI 侧"升级"按钮此前已按"设置中是否存在账号类供应商"门控，自托管下已不显示 |
+| 对话分享 | `packages/services/src/conversation-share/conversationShareService.ts`；`packages/web/src/share/ConversationShareLandingPage.tsx` | 不能再把对话生成分享链接（原本上传到 Z.ai 服务）。自托管场景下本就不该有 |
+| 远端 provider 配置同步 | `packages/provider-node/src/` 下 7 个 `*zcode-builtin*` 文件（`endpoint-scoped-...-source`、`-cache-paths`、`-download`、`-provider-config-materializer`、`-provider-config-source`、`-release`、`-remote-synchronizer`） | 内置供应商/模型列表改为**纯本地** `config/provider/zcode-builtin.json`。新增模型、新供应商模板不再自动更新，需手改 json；换来的是离线可用、配置不会被远程改动（这原本是一条"你的模型配置可被远端修改"的通道，砍掉对自托管是收益） |
+| 远端 CDN / 远程资源 | `packages/desktop/src/main/remoteCdn.ts`；`packages/desktop/src/main/desktopMainIpcRemote.ts` | 远程 workspace agent、官方插件、node 运行时的远端下载失效。与"只留桌面端"是同一批改动，合并处理 |
+| 默认端点与文档 URL | `packages/shared/src/zcodeEndpoint.ts`（`https://zcode.z.ai`、`https://chat.z.ai`、`https://api.z.ai`、`DEFAULT_ZAI_OAUTH_CLIENT_ID`）；`packages/ui/src/lib/productDocs.ts`（`https://zcode.z.ai/docs`） | 帮助菜单不再跳 Z.ai 文档站；默认端点常量不再误导。自托管后改成自己的地址或去掉 |
+| 自动更新源 | `packages/desktop/src/main/autoUpdater.ts`：更新源默认取 `DEFAULT_ZCODE_ENDPOINT_ORIGIN`，可被 `ZCODE_UPDATE_FEED_URL` 覆盖 | 自托管需显式关掉自动更新或指向自有源。注意 `latest.yml` / `.blockmap` 是 electron-updater 标准产物，打包产出本身没问题，只是没有 feed |
+| 待确认 | `packages/desktop/src/main/desktopWindowChrome.ts`、`browserView/browserPlaywrightLocatorExecutor.ts`、`packages/ui/src/lib/appTelemetry.ts` | 动手时 grep 引用确认用途再决定去留（appTelemetry 那个 "z.ai" 文案随遥测摘除一并处理） |
+
+### ⚠️ 插件市场默认源：只改 source，不能删市场
+
+`packages/shared/src/plugin-marketplaces.ts:37`：
+
+```ts
+source: "https://cdn-zcode.z.ai/zcode/official-plugin/marketplace.json",
+```
+
+代码注释说明"本地 seed 分片与 CDN 分片在 Agent storage 内合并"——打包时 `prepare-prebuilds.mjs` 会生成本地 mock CDN（`packages/desktop/mock-cdn/releases/<version>/`，内含 `browser-use-plugin` 与 `node-repl-host` 两个官方插件的 `.zcode-plugin/plugin.json`）。
+
+**正确做法**：保留 `ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID`（值 `zcode-plugins-official`）这个 id 与 name 不变，只把远端 `source` 置空或指向本地，让官方插件走本地 seed。
+
+**错误做法**：直接删掉整个市场条目 → 插件市场页面变空白。
+
+### 相关：标识符不要顺手改
+
+清理过程中会看到一堆 `zcode` 字样的字符串，以下**不是** Z.ai 云依赖，改了会连带出问题（依据见 agent memory「monorepo 大范围产品改名」条目）：
+
+- `.zcode-plugin`：git 跟踪的真实目录名，代码引用必须与磁盘一致
+- `zcode-plugins-official` / `ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID`：marketplace 标识符，官方插件缓存目录名依赖它
+- `config/provider/zcode-builtin.json` 及 `packages/provider-node/src/zcode-builtin-*` 文件名
+- 协议命名空间 `com.zcode/*`、`_meta.zcode`、`window.zcode` 桥、`vnd.zcode` content type
+
+### 验收
+
+- 全局 grep `z\.ai` 仅剩 `zai-api` / `zai-standard-api` 两个 API 模板内的地址。
+- 不配置任何 Z.ai 端点变量的干净环境下启动，无账号登录入口、无分享入口、无升级入口。
+- 插件市场能列出内置的两个官方插件（走本地 seed）。
+- `pnpm typecheck`、`pnpm lint` 通过。
+
 
 ## 3. 只留桌面端
 
