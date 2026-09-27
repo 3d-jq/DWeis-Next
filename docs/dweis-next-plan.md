@@ -45,6 +45,28 @@ stream client id 复用（非遥测用途）。逐点删除会大面积破坏功
 
 > 清单为 2026-09-27 的静态核查结果，动手前以实际 grep 为准。
 
+### 进展（2026-09-27）：OAuth / 账号登录摘除 —— 已完成
+
+**策略**：「关出口 + 保留契约」。与 CodingPlan 网络层同款——删真实出口，保留跨包
+类型与渲染契约，让 UI 侧 ~20 个账号状态文件无需连带重构即可安全空转。
+
+- **服务层（登录能力归零）**：删除 `oauth/providers/` 下 zai/bigmodel 的
+  config + adapter 四个文件；`createOAuthRuntimeConfig` 恒返回空 provider 列表、
+  `createOAuthProviderAdapters` 恒返回空数组——OAuthService 没有任何可用登录方式，
+  authorize/token/userinfo 全链路不可达，登录尝试快速失败。`oauthUnauthorizedRequest`
+  移除业务 token 的 userinfo 401 识别分支（无登录来源），保留 ZCode JWT 路径。
+- **UI 层（入口消失）**：`settings/model-provider-section/constants.ts` 的
+  `PRESET_PROVIDER_SPECS`（Z.ai/BigModel 预设卡）与 `CODING_PLAN_PROVIDER_SPECS`
+  （套餐导航/状态卡静态源）置空；升级对话框按「账号类供应商存在」门控自然不可达。
+  账号状态渲染代码（StatusCards / Detail / navigation 等）保留但不再产生条目。
+- **shared 层**：删除 `ModelProviderFamilySpec.rootDomain` 字段与
+  `resolveModelProviderFamilyIdByBaseURL`（grep 证实无任何消费方）。`oauthProviderId`、
+  三个 codingPlan providerId、`teamCodingPlanManageUrl` 暂留：它们有 11 个 UI 文件消费
+  （正式摘除随 UI 账号区整体清理做），且已无登录出口可达，属惰性元数据。
+- **web 侧**：`webZaiOAuthConfig.ts` 暂不单独摘除——web 登录与分享回调
+  （`shareRedirectUri`）、`webAuthService`、`WebCallbackPage` 相互耦合，而 `packages/web`
+  整包属「只留桌面端」阶段，届时随包删除，避免重复劳动。
+
 ### 进展（2026-09-27）：CodingPlan 网络层摘除 —— 已完成
 
 **策略**：「关出口 + 保留契约」（与遥测阶段同款）。`ICodingPlanSubscriptionService`、
@@ -83,7 +105,7 @@ scheduler 1 / host 0（与基线一致）；`apps/zcode-cli` turbo typecheck 27/
 
 | 分类 | 文件 | 删除后的影响 |
 | --- | --- | --- |
-| OAuth / 账号登录 | ⏳ 待做：`packages/services/src/oauth/providers/zaiProviderConfig.ts`、`zaiProviderAdapter.ts`、`bigmodelProviderConfig.ts`；`packages/web/src/auth/webZaiOAuthConfig.ts`；`packages/shared/src/model-provider-family.ts` 中 `zai` family 条目（`rootDomain: "z.ai"` + `oauthProviderId` + 三个 codingPlan providerId + `teamCodingPlanManageUrl`） | 设置页不再出现"Z.ai 账号登录"入口。无登录产品，本来就用不了 |
+| OAuth / 账号登录 | ✅ 已完成（2026-09-27，见下方「进展」）：`oauth/providers/` 的 `zaiProviderConfig.ts`、`zaiProviderAdapter.ts`、`bigmodelProviderConfig.ts`、`bigmodelProviderAdapter.ts` 已删；`packages/web/src/auth/webZaiOAuthConfig.ts` 随「只留桌面端」一并删除（web 登录/分享回调与其耦合，单独摘除会做无用功）；`model-provider-family.ts` 的 `rootDomain` 字段与 `resolveModelProviderFamilyIdByBaseURL` 死代码已删，其余字段按「保留契约」暂留（见下方说明） | OAuth 运行时配置恒空、adapter 恒空，任何登录尝试快速失败；设置页预设区/Coding Plan 导航的静态 spec 源置空，无账号登录入口 |
 | CodingPlan / 会员额度 | ✅ 已完成（2026-09-27，见上方「进展」）：`packages/services/src/coding-plan-subscription/` 两 provider、`usage-stats/providers/` 集群已删；`apps/zcode-cli/packages/adapters` 的 `official-coding-plan-gateway.ts` 已于 cb4757f 停用，`auth/coding-plan-api-key.ts` 待 OAuth 行一并处理 | 会员额度查询与续费入口消失，网络层不再出网。UI 侧"升级"按钮此前已按"设置中是否存在账号类供应商"门控，自托管下已不显示 |
 | 对话分享 | `packages/services/src/conversation-share/conversationShareService.ts`；`packages/web/src/share/ConversationShareLandingPage.tsx` | 不能再把对话生成分享链接（原本上传到 Z.ai 服务）。自托管场景下本就不该有 |
 | 远端 provider 配置同步 | `packages/provider-node/src/` 下 7 个 `*zcode-builtin*` 文件（`endpoint-scoped-...-source`、`-cache-paths`、`-download`、`-provider-config-materializer`、`-provider-config-source`、`-release`、`-remote-synchronizer`） | 内置供应商/模型列表改为**纯本地** `config/provider/zcode-builtin.json`。新增模型、新供应商模板不再自动更新，需手改 json；换来的是离线可用、配置不会被远程改动（这原本是一条"你的模型配置可被远端修改"的通道，砍掉对自托管是收益） |

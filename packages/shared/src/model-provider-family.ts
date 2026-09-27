@@ -9,7 +9,6 @@ export type ProviderFamilyDomain = ModelProviderFamilyId;
 export interface ModelProviderFamilySpec {
   id: ModelProviderFamilyId;
   label: string;
-  rootDomain: string;
   oauthProviderId: typeof ZAI_PROVIDER_ID | typeof BIGMODEL_PROVIDER_ID;
   startPlanProviderId:
     | typeof BUILTIN_MODEL_PROVIDER_IDS.zaiStartPlan
@@ -27,7 +26,6 @@ export const MODEL_PROVIDER_FAMILY_SPECS = [
   {
     id: "zai",
     label: "Z.ai",
-    rootDomain: "z.ai",
     oauthProviderId: ZAI_PROVIDER_ID,
     startPlanProviderId: BUILTIN_MODEL_PROVIDER_IDS.zaiStartPlan,
     individualCodingPlanProviderId: BUILTIN_MODEL_PROVIDER_IDS.zaiIndividualCodingPlan,
@@ -37,7 +35,6 @@ export const MODEL_PROVIDER_FAMILY_SPECS = [
   {
     id: "bigmodel",
     label: "BigModel",
-    rootDomain: "bigmodel.cn",
     oauthProviderId: BIGMODEL_PROVIDER_ID,
     startPlanProviderId: BUILTIN_MODEL_PROVIDER_IDS.bigmodelStartPlan,
     individualCodingPlanProviderId: BUILTIN_MODEL_PROVIDER_IDS.bigmodelIndividualCodingPlan,
@@ -73,27 +70,6 @@ export function resolveModelProviderFamilyIdByProviderId(
   providerId: string,
 ): ModelProviderFamilyId | null {
   return MODEL_PROVIDER_FAMILY_ID_BY_PROVIDER_ID.get(providerId as BuiltinModelProviderId) ?? null;
-}
-
-export function resolveModelProviderFamilyIdByBaseURL(
-  baseURL: string | null | undefined,
-): ModelProviderFamilyId | null {
-  const trimmed = baseURL?.trim();
-  if (!trimmed) {
-    return null;
-  }
-  let hostname: string;
-  try {
-    hostname = new URL(trimmed).hostname.toLowerCase();
-  } catch {
-    return null;
-  }
-  for (const spec of MODEL_PROVIDER_FAMILY_SPECS) {
-    if (hostname === spec.rootDomain || hostname.endsWith(`.${spec.rootDomain}`)) {
-      return spec.id;
-    }
-  }
-  return null;
 }
 
 export function resolveModelProviderFamilySpecByProviderId(
