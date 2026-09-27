@@ -149,23 +149,9 @@ function SettingsUsageProviderTabs({
       id: "app" as const,
       label: intl.formatMessage({ id: "settings.usage.tab.appUsage" }),
     },
-    ...codingPlanSources.map((source, index) => ({
-      id: createSettingsUsageCodingPlanTabId(source.id),
-      label: resolveSettingsUsageCodingPlanTabLabel({
-        defaultLabel: intl.formatMessage({
-          id: "settings.usage.tab.codingPlan",
-        }),
-        hasMultiplePersonalSources:
-          codingPlanSources.filter((item) => !isTeamCodingPlanUsageSource(item)).length > 1,
-        index,
-        source,
-      }),
-    })),
   ];
-  const visibleActiveTab =
-    activeTab === "codingPlan" && codingPlanSources[0]
-      ? createSettingsUsageCodingPlanTabId(codingPlanSources[0].id)
-      : activeTab;
+  // DWeis Next 无 CodingPlan，tab 恒为当前 activeTab，不再重定向。
+  const visibleActiveTab = activeTab;
 
   return (
     <div className="flex items-center gap-1.5">
@@ -186,13 +172,6 @@ function isTeamCodingPlanUsageSource(source: CodingPlanUsageSource): boolean {
   return "planKind" in source.accountAccess && source.accountAccess.planKind === "team-coding-plan";
 }
 
-function createSettingsUsageCodingPlanTabId(sourceId: string): UsageStatsSectionTab {
-  return `codingPlan:${sourceId}`;
-}
-
-function resolveSettingsUsageCodingPlanSourceId(tab: UsageStatsSectionTab): string | null {
-  return tab.startsWith("codingPlan:") ? tab.slice("codingPlan:".length) : null;
-}
 
 function resolveSettingsUsageCodingPlanTabLabel({
   defaultLabel,
@@ -447,10 +426,6 @@ export function SettingsPage({
       usageZaiEnterpriseProducts.snapshot?.productList,
     ],
   );
-  const [usageActiveTab, setUsageActiveTab] = useState<UsageStatsSectionTab>(() => {
-    const pendingTab = consumePendingSettingsUsageTab();
-    return pendingTab === "codingPlan" ? "codingPlan" : (pendingTab ?? "app");
-  });
   const usagePersonalCodingPlanSources = useMemo(() => {
     const sources: CodingPlanUsageSource[] = [];
     if (
@@ -523,37 +498,15 @@ export function SettingsPage({
       }),
     [usageProviderSettingsView, usageSubscribedTeamProducts],
   );
-  const usageCodingPlanSources = useMemo(
-    () => [...usagePersonalCodingPlanSources, ...usageTeamCodingPlanSources],
-    [usagePersonalCodingPlanSources, usageTeamCodingPlanSources],
-  );
-  const selectedUsageCodingPlanSourceId =
-    usageActiveTab === "codingPlan"
-      ? (usageCodingPlanSources[0]?.id ?? null)
-      : resolveSettingsUsageCodingPlanSourceId(usageActiveTab);
-  const selectedUsageCodingPlanSource =
-    usageCodingPlanSources.find((source) => source.id === selectedUsageCodingPlanSourceId) ?? null;
-  const showUsageCodingPlanTab = usageCodingPlanSources.length > 0;
-  const checkingUsageZaiCodingPlanTab = Boolean(
-    usageZaiProviderFingerprint &&
-    (usageZaiEntitlement.loading || (!usageZaiEntitlement.snapshot && !usageZaiEntitlement.error)),
-  );
-  const checkingUsageBigmodelCodingPlanTab = Boolean(
-    usageBigmodelProviderFingerprint &&
-    (usageBigmodelEntitlement.loading ||
-      (!usageBigmodelEntitlement.snapshot && !usageBigmodelEntitlement.error)),
-  );
-  const checkingUsageCodingPlanTab =
-    usageProviderSettingsLoading ||
-    checkingUsageZaiCodingPlanTab ||
-    checkingUsageBigmodelCodingPlanTab ||
-    usageBigmodelEnterpriseProducts.loading ||
-    usageZaiEnterpriseProducts.loading;
-  const [initialModelProviderTarget] = useState(() => consumePendingSettingsModelProviderTarget());
+  // DWeis Next 无账号体系：CodingPlan 用量来源恒为空，
+  // 因此设置页不会出现 CodingPlan tab，只保留本地 App 用量。
+  const usageCodingPlanSources = useMemo<CodingPlanUsageSource[]>(() => [], []);
   const { openCodingPlanUpgrade } = useCodingPlanUpgradeDialog();
+  // DWeis Next 用量统计只有一个本地 App 用量 tab。
+  const [usageActiveTab, setUsageActiveTab] = useState<UsageStatsSectionTab>("app");
   const [pendingModelProviderTarget, setPendingModelProviderTarget] = useState<
     SettingsModelProviderTarget | undefined
-  >(() => initialModelProviderTarget);
+  >(() => consumePendingSettingsModelProviderTarget());
   const handleUsageTabSelect = useCallback((tab: UsageStatsSectionTab) => {
     setUsageActiveTab(tab);
   }, []);
@@ -563,32 +516,6 @@ export function SettingsPage({
    * 剩余额度「更多」等入口会先写入来源偏好（当前 coding plan 类型/团队项目），
    * 解析时优先选中该来源，缺失或已不可用时回退第一份真实来源。
    */
-  useEffect(() => {
-    if (usageActiveTab !== "codingPlan" || !usageCodingPlanSources[0]) {
-      return;
-    }
-    const preferredSourceId = readSidebarUsageCodingPlanSourcePreference();
-    const preferredSource = preferredSourceId
-      ? usageCodingPlanSources.find((source) => source.id === preferredSourceId)
-      : undefined;
-    setUsageActiveTab(
-      createSettingsUsageCodingPlanTabId((preferredSource ?? usageCodingPlanSources[0]).id),
-    );
-  }, [usageActiveTab, usageCodingPlanSources]);
-  useEffect(() => {
-    if (
-      usageActiveTab === "app" ||
-      usageActiveTab === "codingPlan" ||
-      selectedUsageCodingPlanSource
-    ) {
-      return;
-    }
-    setUsageActiveTab(
-      usageCodingPlanSources[0]
-        ? createSettingsUsageCodingPlanTabId(usageCodingPlanSources[0].id)
-        : "app",
-    );
-  }, [selectedUsageCodingPlanSource, usageActiveTab, usageCodingPlanSources]);
   const setNewUserOnboardingOpen = useZCodeStore((state) => state.setNewUserOnboardingOpen);
   const requestOnboardingDialog = () => setNewUserOnboardingOpen(true);
   const setActiveSettingsSection = useCallback(
@@ -718,10 +645,10 @@ export function SettingsPage({
   useEffect(() => {
     if (
       !shouldFallbackSettingsUsageTabToApp({
-        activeTab: usageActiveTab === "app" ? "app" : "codingPlan",
-        checkingCodingPlanTab: checkingUsageCodingPlanTab,
+        activeTab: "app",
+        checkingCodingPlanTab: false,
         loadingModelProviders: usageProviderSettingsLoading,
-        showCodingPlanTab: showUsageCodingPlanTab,
+        showCodingPlanTab: false,
       })
     ) {
       return;
@@ -732,8 +659,6 @@ export function SettingsPage({
     // 这里等数据确认没有套餐后再回退，避免空入口误导用户。
     setUsageActiveTab("app");
   }, [
-    checkingUsageCodingPlanTab,
-    showUsageCodingPlanTab,
     usageSubscribedTeamProducts.length,
     usageActiveTab,
     usageProviderSettingsLoading,
@@ -748,9 +673,6 @@ export function SettingsPage({
         setActiveSettingsSection(section, activeSection);
         // 设置入口是一级路由边界。即使仍落在同一 section，也必须销毁旧的 New/Edit/Detail 子状态。
         setSettingsSectionNavigationVersion((version) => version + 1);
-        if (section === "usage" && detail?.usageTab) {
-          setUsageActiveTab(detail.usageTab);
-        }
         if (resolveSettingsSection(section) === "plugin" && detail?.pluginTab) {
           setPluginTab(detail.pluginTab);
           setPluginNavigationOrigin(detail.pluginOrigin);
@@ -1883,13 +1805,7 @@ export function SettingsPage({
                             isDesktop={isDesktop}
                           />
                         ) : activeSection === "usage" ? (
-                          <UsageStatsSection
-                            activeTab={usageActiveTab}
-                            providerSourcesLoading={usageProviderSettingsLoading}
-                            selectedCodingPlanSource={selectedUsageCodingPlanSource}
-                            workspaceIdentity={activeWorkspaceIdentity}
-                            workspacePath={activeWorkspacePath ?? undefined}
-                          />
+                          <UsageStatsSection activeTab={usageActiveTab} />
                         ) : activeSection === "subagents" ? (
                           <SubagentsSection
                             onManageModels={handleOpenModelProviderSettings}
