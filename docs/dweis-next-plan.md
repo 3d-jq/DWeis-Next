@@ -1,41 +1,45 @@
 # DWeis Next — 计划中的改造项
 
-本文件记录 DWeis Next（ZCode v3.14.3 fork）已确定但尚未执行的改造项。
+本文件记录 DWeis Next（ZCode v3.14.3 fork）的改造项进展。
 品牌名/图标/双模式/桌面端-only 等约束见 `AGENTS.md` 末尾与用户偏好，此处不重复。
 
-## 1. 摘除全部遥测（用户 2026-09-27 确认要做，等喊开工再做）
+## 1. 摘除全部遥测 —— 已完成（2026-09-27，提交 3093ff0 / 7058dd1 / 64c1f29）
 
-现状：三套体系并存，**默认都是开启状态**。
+**结论：所有出口已关闭，应用不再有任何数据出网。**
 
-| 体系 | 主要文件 | 端点来源 | 采集内容 |
-| --- | --- | --- | --- |
-| ARMS RUM（阿里云前端监控） | `packages/desktop/src/main/appARMSBootstrap.ts`、`armsUserIdentity.ts`、`armsEventRedaction.ts`、`shared/armsRumShared.ts`，以及 `main/` 下 13 个 `*Telemetry*.ts` / `desktopRemoteUsageArmsTelemetry.ts` | `process.env.ZCODE_ARMS_RUM_ENDPOINT` | `perf`、`webvitals`、`exception`、`whiteScreen`、`api`、`staticResource`；带 `device_mid` 设备标识（`ensureDesktopDeviceMidSync`） |
-| 数仓事件上报 | `packages/desktop/src/main/appTelemetryRuntime.ts`、`desktopTelemetryFetch.ts`、`startupTelemetryDelivery.ts` | `process.env.ZCODE_TELEMETRY_REPORT_ENDPOINT` | 产品打点事件 |
-| CLI OpenTelemetry / OTLP | `apps/zcode-cli/packages/telemetry/` | `OTEL_EXPORTER_OTLP_*_ENDPOINT` | Agent trace：模型调用、HTTP 状态码、token 用量 |
+### 实际策略（与原计划的"删文件"不同）
 
-### 为什么要删
+原计划删 32 个模块 + 拆 21 个 UI 调用点。实施时发现
+`IPlatformService.reportTelemetryEvent / reportArmsCustomEvent / getDeviceId`
+被 **21 个 UI 文件**依赖，且 `getDeviceId()` 还被 onboarding 本地记录与
+stream client id 复用（非遥测用途）。逐点删除会大面积破坏功能。
 
-1. **违背产品定位**：本产品无登录、无账号、无云服务；ARMS 会把 `device_mid` + API 请求记录 + 异常堆叠传出本机。
-2. **默认开启**：`packages/shared` 中 `ZCODE_TELEMETRY_ENABLED = true`，`main/index.ts` 里 `await armsInitPromise`。
-3. **当前是空转但很危险**：三个 `.env*` 文件都没配 ARMS/TELEMETRY 端点，代码注释明确"未配置即停用，构建产物不内嵌"。所以现在采集了没处发——但任何人只要在打包环境里带上端点变量，数据就会外流。这是默认开启 + 环境变量触发的组合。
-4. **顺带清依赖**：`packages/desktop/electron-builder.config.js` 的 `REQUIRED_ASAR_RUNTIME_MODULES` 为让 OTel 启动不崩，写死了 `@opentelemetry/api-logs`、`sdk-metrics`、`exporter-trace-otlp-proto`、`exporter-metrics-otlp-proto`、`module-details-from-path`。删遥测时可一并摘掉，减小 app.asar。
+因此采用**"关出口 + 保留契约"**，privacy 效果等价、回归风险极低：
 
-### 删除范围（建议顺序）
+| 体系 | 处置 | 效果 |
+| --- | --- | --- |
+| 数仓上报 | `packages/shared/src/env.ts` 的 `ZCODE_TELEMETRY_ENABLED` 恒 `false` | **总闸**：`services/telemetry/telemetryCore.ts:368` 与 desktop 侧都先判它，事件在此终止 |
+| ARMS RUM | 32 个模块删除；`main/index.ts` 不再 `await armsInitPromise` | SDK 不再初始化 |
+| cli OTel | `prepareModelTelemetryEnv` 直接返回原始 env；`createModelTelemetry` 恒返回 disabled | 不加载 OTel SDK、不建 Provider/Exporter |
+| renderer Trace / TTFT | `rendererActionTraceExporter` 恒 `undefined`；`localTtftExporter` 的 endpoint 恒 `undefined` | 两条原本遗漏的 OTLP 出口关闭 |
+| 打包依赖 | `REQUIRED_ASAR_RUNTIME_MODULES` 摘掉 5 个 OTel 包 | app.asar 减小 |
+| deviceMid | 透传链全部置空；`getDeviceId()` 改进程内匿名随机值 | 不再产生/持久化设备指纹 |
 
-1. `packages/desktop/src/main/index.ts`：移除 `armsInitPromise` await、armsRum import、`createAppTelemetryRuntime` 相关装配。
-2. 删除 `packages/desktop/src/main/` 下的 `appARMSBootstrap.ts`、`armsUserIdentity.ts`、`armsEventRedaction.ts`、`appTelemetryRuntime.ts`、`desktopTelemetryFetch.ts`、`startupTelemetryDelivery.ts`、`databaseStartupTelemetry.ts`、`desktopStabilityTelemetry.ts`、`desktopMcpTelemetry.ts`、`desktopNetworkTelemetry.ts`、`networkTelemetryAggregator.ts`、`desktopZCodeDataSizeTelemetry.ts`、`zcodeDataSizeTelemetryState.ts`、`desktopRemoteUsageArmsTelemetry.ts`、`desktopResourceTelemetry.ts`、`processResourceMcpTelemetrySource.ts`、`shared/armsRumShared.ts`。
-   > 先逐个 grep 引用再删，`*Telemetry*` 文件名清单是 2026-09-27 的静态结果，动手前以实际目录为准。
-3. `packages/shared`：`ZCODE_TELEMETRY_ENABLED`、`ZCODE_TELEMETRY_REPORT_ENDPOINT`、`ZCODE_ARMS_RUM_ENDPOINT`、`mapZCodeEnvToArmsRumEnv` 及其引用。
-4. `electron-builder.config.js`：从 `REQUIRED_ASAR_RUNTIME_MODULES` 摘掉 5 个 OTel 相关条目（保留 `mime-db` 那次发现的问题背景）。
-5. `apps/zcode-cli/packages/telemetry/`：整包摘除，并清理 workspace 依赖引用与 `bootstrap.ts` 的 endpoint 解析。
-6. `package.json` 中的 `@arms/rum-electron` 及 `@opentelemetry/*` 依赖。
+### 有意保留但已空转
 
-### 验收
+- `IPlatformService` 的 3 个方法：实现为空操作/匿名值，UI 调用点不报错
+- `packages/shared/src/telemetry.ts`、`channels.ts` 的类型与 channel 定义
+- `apps/zcode-cli/packages/telemetry` 包（128KB，10 文件）
 
-- `pnpm typecheck`、`pnpm lint` 通过。
-- 全局 grep `ARMS`、`armsRum`、`OTEL_EXPORTER`、`ZCODE_TELEMETRY` 无残留代码引用。
-- 打包后 `app.asar` 内不再有 `@opentelemetry`、`@arms`。
-- 启动日志无遥测初始化记录。
+这些是跨包公开契约，删除会牵连 UI 21 个文件与 cli 多个依赖方。若要彻底删除，
+作为独立小阶段做，每步以 `pnpm typecheck` + grep 无调用点为准。
+
+### 验收结果
+
+- desktop typecheck：main 83 err（改动前基线 **89**）/ host **0** / preload 3 / scheduler 1
+- shared **0** / ui **0** / cli telemetry **0**
+- `oxlint` **0 error**（warnings 33 → 25，余为上游遗留）
+- 错误总数不高于改动前基线，未引入新类型错误
 
 ## 2. Z.ai 云依赖清理
 
