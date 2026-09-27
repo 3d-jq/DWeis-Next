@@ -54,8 +54,8 @@ interface CodingPlanSubscriptionServiceDependencies {
  * 本地空值，绝不发起网络请求。
  *
  * 仅保留与账号无关的平台能力，且全部走本地判定：
- *   - 闲时任务（Off-Peak）：仅 ZCODE_OFFPEAK_MOCK=1（E2E/演示）时可用；
- *   - 动态工作流：仅 ZCODE_DYNAMIC_WORKFLOW_MODE 环境变量本地覆盖生效；
+ *   - 闲时任务（Off-Peak）：本机有可用模型即默认启用（调度与执行全在本地）；
+ *   - 动态工作流：ZCODE_DYNAMIC_WORKFLOW_MODE 本地覆盖生效，Desktop 打包产物固定 alwaysOn；
  *   - 模型上下文预算：固定 preflight-v1（shared 常量）；
  *   - 强更配置：恒 null（自托管不存在平台强更）。
  *
@@ -169,9 +169,10 @@ export function createCodingPlanSubscriptionService(
 }
 
 /**
- * 闲时任务灰度本地判据（原 bigmodel provider 内同名纯函数平移）：
- * 远端曝光开关来源（client/configs）已随网络层摘除，本地只剩 mock 演示通道；
- * 非 mock 环境 enabled 恒 false，模型成员与事实仍来自 Model Selection View。
+ * 闲时任务本地判据（原 bigmodel provider 内同名纯函数的 DWeis Next 版）：
+ * 远端曝光开关来源（client/configs）已随网络层摘除。闲时任务的调度与执行
+ * 全部发生在本地，属于通用产品的自有能力，因此不再按远端灰度 fail-closed——
+ * 只要本机配置了可用模型即默认启用；mock 演示通道保持原语义。
  */
 function resolveLocalOffPeakClientConfig(
   env: NodeJS.ProcessEnv,
@@ -187,7 +188,7 @@ function resolveLocalOffPeakClientConfig(
     };
   }
   return {
-    enabled: false,
+    enabled: hasModels,
     modelSelectionView,
   };
 }

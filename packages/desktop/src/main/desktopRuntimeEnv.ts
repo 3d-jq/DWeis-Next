@@ -443,12 +443,13 @@ function resolveWindowsAppInstallDirForDataBaseDirGuard(
 }
 
 /**
- * Dynamic Workflow 灰度的本地覆盖按构建档位分三层
+ * Dynamic Workflow 模式按构建档位分三层（DWeis Next：无远端灰度，模式完全本地决定）
  *
  *   - 未打包 dev：透传 shell 里的合法取值，方便手工切档；非法值直接丢弃而不是转发给 Host，
  *     Host 因此不必再判一次来源；
  *   - 打包 preview：固定写入 `alwaysOn`，忽略 shell，preview 用户始终拥有该功能；
- *   - 打包 production：不写入，且继承值必须被删除，否则本机环境变量就能自行打开灰度。
+ *   - 打包 production：固定写入 `alwaysOn`——DWeis Next 是无云绑定的通用产品，
+ *     动态工作流不再按远端灰度放量，打包产物始终拥有该功能。
  * Main 是唯一决策者：对这个键只有「写」和「删」两种动作，绝不原样透传，
  * Host 端的 resolveDynamicWorkflowClientConfig 才能无条件相信读到的值。
  */
@@ -461,10 +462,7 @@ function resolveDynamicWorkflowModeHostEnv(options: {
     const mode = normalizeDynamicWorkflowMode(options.inheritedValue);
     return mode ? { [ZCODE_DYNAMIC_WORKFLOW_MODE_ENV]: mode } : {};
   }
-  if (options.isPreview) {
-    return { [ZCODE_DYNAMIC_WORKFLOW_MODE_ENV]: "alwaysOn" };
-  }
-  return {};
+  return { [ZCODE_DYNAMIC_WORKFLOW_MODE_ENV]: "alwaysOn" };
 }
 
 export function buildHostProcessEnv(hostProcessLocalEnv: Record<string, string>) {

@@ -97,9 +97,10 @@ ui store/hooks 依赖），方法签名保持不变，只把实现替换为本�
   （两个 provider 的登录态请求头平移到 `codingPlanAuthHeaders.ts`，供
   availability 校验与 Team Plan runtime key 继续引用）。
 - `codingPlanSubscriptionService.ts`：账号/套餐/购买/支付/企业订单全部恒返回
-  「未连接」语义空值；平台级配置改为纯本地判定——闲时任务仅 `ZCODE_OFFPEAK_MOCK=1`
-  可用、动态工作流仅 `ZCODE_DYNAMIC_WORKFLOW_MODE` 本地覆盖生效、预算固定
-  preflight-v1、强更恒 null（原 client/configs 出网通道随 provider 一并消失）。
+  「未连接」语义空值；平台级配置改为纯本地判定——闲时任务本机有可用模型即默认启用
+  （后续修正：初版误按 fail-closed 关闭，属通用产品自有能力）、动态工作流打包产物
+  固定 alwaysOn（desktopRuntimeEnv）/其余场景走 `ZCODE_DYNAMIC_WORKFLOW_MODE` 本地覆盖、
+  预算固定 preflight-v1、强更恒 null（原 client/configs 出网通道随 provider 一并消失）。
 - 删除 `usage-stats/providers/` 整个集群（`bigmodelUsageQuotaProvider`、
   `bigmodelSubscriptionProvider`、`bigmodelUsageMonitorMapper`、`bigmodelUsageMonitorRange`、
   `bigmodelUsageQuotaMapper`、`zcodeMcpQuotaProvider`）；`usageStatsService.ts` 只保留
