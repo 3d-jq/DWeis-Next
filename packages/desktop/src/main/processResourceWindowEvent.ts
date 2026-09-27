@@ -10,7 +10,7 @@ import type {
 export const PERF_PROCESS_WINDOW_EVENT_NAME = PROCESS_RESOURCE_EVENT_NAMES.processWindow;
 
 export interface ProcessResourceReportContext {
-  deviceMid: string;
+  deviceMid?: string;
   appVersion: string;
   armsEnv: ArmsRumEnv;
   /** 桌面机硬件；样本自带 hardware 时（远端 CLI / MCP）覆盖这里的默认值。 */
@@ -44,8 +44,7 @@ export function buildProcessWindowEventProperties(
   return {
     platform: normalizeOsCategory(hardware.platform),
     app_version: context.appVersion,
-    arms_env: context.armsEnv,
-    device_mid: context.deviceMid,
+    // DWeis Next 不做遥测：arms_env / device_mid 维度已移除。
     process_role: report.role,
     runtime_surface: report.runtimeSurface,
     arch: hardware.arch,

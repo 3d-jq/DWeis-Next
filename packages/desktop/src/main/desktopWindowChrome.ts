@@ -589,7 +589,7 @@ export function createBrowserWindow(options: {
       // 和 GPU。窗口保持默认节流；截图期只临时唤醒 owner renderer 与当前目标 guest。
       zoomFactor: initialDesktopZoomFactor,
       // 将 deviceMid 透传给 preload，供 renderer 在 React 渲染前同步读取
-      additionalArguments: [`--device-id=${options.deviceMid ?? ""}`],
+      additionalArguments: [`--device-id=`],
     },
   });
 

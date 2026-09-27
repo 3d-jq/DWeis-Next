@@ -10,7 +10,10 @@ export function createDesktopHelpConfigReader(options: {
   resolveEndpointOrigin: () => Promise<string>;
   appVersion: string;
 }) {
-  const read = createHelpAppConfigReader({ fetchImpl: (input, init) => net.fetch(input, init) });
+  const read = createHelpAppConfigReader({
+    // 契约只承诺 string | Request；这里只可能收到 string（调用点已 String() 归一）。
+    fetchImpl: (input, init) => net.fetch(String(input), init),
+  });
   return async () => {
     const endpointOrigin = await options.resolveEndpointOrigin();
     return read(

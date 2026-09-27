@@ -209,7 +209,7 @@ export class ManifestUpdateProvider extends Provider<UpdateInfo> {
       endpointOrigin,
       manifestUrl: this.options.manifestUrl,
       platform: this.releasePlatform,
-      deviceMid: this.options.deviceMid,
+      deviceMid: "",
       channel: releaseChannel,
     });
     this.resolveBaseUrl = new URL("/", manifestUrl);

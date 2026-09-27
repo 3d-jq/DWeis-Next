@@ -759,7 +759,7 @@ function applyManifestUpdateProvider(options: InitAutoUpdaterOptions): void {
     endpointOrigin: DEFAULT_ZCODE_ENDPOINT_ORIGIN,
     ...(manifestUrl ? { manifestUrl } : {}),
     releasePlatform: getElectronReleasePlatform(),
-    deviceMid: options.deviceMid,
+    deviceMid: "",
     resolveEndpointOrigin:
       options.resolveEndpointOrigin ?? (() => resolveRuntimeZCodeEndpointOrigin(process.env)),
     resolveReleaseChannel: async () => {

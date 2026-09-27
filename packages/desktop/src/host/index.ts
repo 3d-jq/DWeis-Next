@@ -2785,7 +2785,7 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
               authorizeLocalMediaPreviewPath,
               runtimeProcessEnvPatch: msg.runtimeProcessEnvPatch,
               agentRuntimeContext: {
-                getDeviceMid: () => msg.deviceMid,
+                getDeviceMid: () => msg.deviceMid: "",
                 runtimeSurface: "desktop_local_host",
               },
               serviceAuthorityMode: "desktop-local",
@@ -2794,7 +2794,7 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
               processLifecycleReporter: runtimeProcessLifecycleReporter,
               taskRuntimeReporter: runtimeTaskReporter,
               feedback: {
-                getDeviceMid: () => msg.deviceMid,
+                getDeviceMid: () => msg.deviceMid: "",
                 apiBaseUrl: msg.feedbackApiBase,
                 createFullLogArchive: createFullFeedbackLogArchiveViaMain,
               },

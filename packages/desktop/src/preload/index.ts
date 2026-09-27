@@ -622,28 +622,16 @@ contextBridge.exposeInMainWorld("zcode", {
   },
   /** 通知 main process renderer 已就绪 */
   notifyRendererReady: () => ipcRenderer.send(PlatformChannels.RendererReady),
-  /** 同步 renderer telemetry 上下文到 main process */
-  syncTelemetryContext: (context: TelemetryRendererContext) =>
-    ipcRenderer.send(PlatformChannels.SyncTelemetryContext, context),
-  /** 通过 main process 统一上报业务 telemetry 事件 */
-  reportTelemetryEvent: (payload: {
-    context: TelemetryRendererContext;
-    elementName: string;
-    eventRegion: string;
-    eventType: string;
-    eventText?: string;
-    eventExtraDetail: Record<string, string>;
-    userId?: string;
-    talkId?: string;
-    messageId?: string;
-  }) => ipcRenderer.invoke(PlatformChannels.ReportTelemetryEvent, payload),
-  /** 通过 main process 统一上报 ARMS 自定义事件 */
-  reportArmsCustomEvent: (payload: {
-    name: string;
-    group: string;
-    value?: number;
-    properties?: Record<string, string | number | boolean | undefined>;
-  }) => ipcRenderer.invoke(PlatformChannels.ReportArmsCustomEvent, payload),
+  /** DWeis Next 不做遥测：renderer telemetry 上下文同步已移除 */
+  syncTelemetryContext: () => {
+    // no-op
+  },
+  /** DWeis Next 不做遥测：业务事件上报已移除 */
+  reportTelemetryEvent: async () => {
+    // no-op
+  },
+  /** DWeis Next 不做遥测：ARMS 自定义事件上报已移除 */
+  reportArmsCustomEvent: () => Promise.resolve(),
   /** 读取 Renderer 用户操作 Trace 灰度配置。 */
   getRendererActionTraceConfig: (): Promise<RendererActionTraceConfigV1> =>
     ipcRenderer.invoke(PlatformChannels.GetRendererActionTraceConfig),
@@ -814,7 +802,12 @@ contextBridge.exposeInMainWorld("zcode", {
   setTitleBarTheme: (theme: DesktopTitleBarTheme) =>
     ipcRenderer.invoke(PlatformChannels.SetTitleBarTheme, theme),
   /** 获取桌面端设备标识符（deviceMid） */
-  getDeviceId: () => ipcRenderer.invoke(PlatformChannels.GetDeviceId),
+  getDeviceId: () => {
+      // DWeis Next 不做遥测：不再返回持久化设备指纹。
+      // stream client id / onboarding 本地记录只需要「同一会话内稳定、跨实例不撞」，
+      // 进程内随机值即可满足，且不构成可追踪标识。
+      return `anon-${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
+    },
 });
 
 /**

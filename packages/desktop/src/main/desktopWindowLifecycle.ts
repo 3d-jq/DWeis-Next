@@ -3,7 +3,6 @@ import { randomUUID } from "node:crypto";
 import { app, BrowserWindow, Menu, MessageChannelMain } from "electron";
 import type { UtilityProcess as ElectronUtilityProcess } from "electron";
 import { HostMessageTypes, InternalChannels, PlatformChannels, type Locale } from "@zcode/shared";
-import { scheduleArmsBrowserPerfLoadNudge } from "./armsBrowserPerfLoadNudge.js";
 import { createBrowserWindow } from "./desktopWindowChrome.js";
 import type { HostInitMessage, WindowBootstrapOptions } from "./desktopHostProcess.js";
 import type { StartupWorkspaceWarmupTarget } from "./startupWorkspace.js";
@@ -46,7 +45,7 @@ export function createWindow(options: {
   bootstrap?: WindowBootstrapOptions;
   agentWarmupTargets?: readonly StartupWorkspaceWarmupTarget[];
   agentSpawnFallbackCwd: string;
-  deviceMid: string;
+  deviceMid?: string;
   initialDesktopZoomLevel?: number;
   initialWindowSize?: DesktopWindowSize;
   currentApplicationLocale?: () => Locale;
@@ -80,7 +79,6 @@ export function createWindow(options: {
       unavailableWorkspacePath: options.bootstrap?.unavailableWorkspacePath,
     },
     logger: options.logger,
-    deviceMid: options.deviceMid,
     initialDesktopZoomLevel: options.initialDesktopZoomLevel,
     initialWindowSize: options.initialWindowSize,
     currentApplicationLocale: options.currentApplicationLocale,
@@ -121,7 +119,6 @@ export function createWindow(options: {
   registerMainApplicationWindow(wcId);
   let domReadyGeneration = 0;
   let cancelRuntimeProcessEnvWait: (() => void) | null = null;
-  scheduleArmsBrowserPerfLoadNudge(win.webContents);
   win.webContents.on("dom-ready", async () => {
     cancelRuntimeProcessEnvWait?.();
     cancelRuntimeProcessEnvWait = null;
@@ -192,7 +189,6 @@ export function createWindow(options: {
       const primaryWarmupTarget = options.agentWarmupTargets?.[0];
       const child = options.spawnHostProcess(win, label, {
         type: HostMessageTypes.InitLocal,
-        deviceMid: options.deviceMid,
         workspacePath: primaryWarmupTarget?.workspacePath,
         workspaceIdentity: primaryWarmupTarget?.workspaceIdentity,
         ...(options.agentWarmupTargets && options.agentWarmupTargets.length > 0

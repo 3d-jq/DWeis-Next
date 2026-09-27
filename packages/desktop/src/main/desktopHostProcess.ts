@@ -67,7 +67,6 @@ export interface HostInitMessage {
   hostId?: string;
   databaseStartupId?: string;
   deliveryKind?: TaskRealtimeHostDeliveryKind;
-  deviceMid?: string;
   feedbackApiBase?: string;
   workspacePath?: string;
   workspaceIdentity?: string;

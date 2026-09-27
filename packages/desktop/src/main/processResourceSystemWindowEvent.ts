@@ -18,8 +18,7 @@ export function buildSystemWindowEventProperties(
   return {
     platform: normalizeOsCategory(hardware.platform),
     app_version: context.appVersion,
-    arms_env: context.armsEnv,
-    device_mid: context.deviceMid,
+    // DWeis Next 不做遥测：arms_env / device_mid 维度已移除。
     arch: hardware.arch,
     logical_cpu_count: hardware.logicalCpuCount,
     total_memory_gb: hardware.totalMemoryGb,
