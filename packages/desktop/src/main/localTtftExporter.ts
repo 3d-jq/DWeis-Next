@@ -1,295 +1,51 @@
-import { createLocalTtftSpans } from "./localTtftSpans.js";
-import { LocalTtftExportDedupe } from "./localTtftExportDedupe.js";
-import { resourceFromAttributes } from "@opentelemetry/resources";
-import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-proto";
-import {
-  AggregationTemporality,
-  AggregationType,
-  InstrumentType,
-  MeterProvider,
-  PeriodicExportingMetricReader,
-} from "@opentelemetry/sdk-metrics";
-import type { ReadableSpan, SpanExporter } from "@opentelemetry/sdk-trace-base";
-import { LOCAL_TTFT_BUCKETS_MS, localTtftBatchSchema, type LocalTtftBatch } from "@zcode/shared";
-import {
-  createRendererActionTraceExporter,
-  parseRendererActionTraceHeaders,
-  validHttpUrl,
-} from "./rendererActionTraceExporter.js";
+// DWeis Next 不做遥测：TTFT / renderer Trace 链路已整体退化为 no-op。
+//
+// 这三个文件历史上构成一条本地可观测链路：
+//   renderer 上报 batch → localTtftExporter 折算 span → OTLP 导出
+//   renderer 用户操作 → rendererActionTraceBroker → rendererActionTraceExporter → OTLP
+// 现在导出端点恒不可用，且 @opentelemetry/* 依赖已从 package.json 摘除，
+// 因此这里只保留调用方需要的接口形状，不再引用任何 OTel 类型或实现。
 
-const MAX_QUEUE = 32;
-const EXPORT_TIMEOUT_MS = 3000;
+/** 历史上由 OTel MeterProvider 提供的 instrument surface。 */
+type NoopInstrument = {
+  record(..._args: unknown[]): void;
+  add(..._args: unknown[]): void;
+};
 
-/** 只接收已冻结的观测事实；Main 不参与 session/command 状态裁决。 */
-export function createLocalTtftExporter(options: {
+type NoopMeter = {
+  createHistogram(_name: string, _init?: unknown): NoopInstrument;
+  createCounter(_name: string, _init?: unknown): NoopInstrument;
+};
+
+export interface LocalTtftExporter {
+  enqueue(input: unknown): void;
+  shutdown(): Promise<void>;
+}
+
+/**
+ * TTFT 导出器。DWeis Next 不做遥测：
+ * - 不再构造 MeterProvider / OTLP exporter / Resource；
+ * - enqueue 直接返回，本地队列与 span 构造逻辑一并移除。
+ */
+export function createLocalTtftExporter(_options: {
   env: Record<string, string | undefined>;
   now?: () => number;
   version: string;
   logger: { warn(...args: unknown[]): void };
-}) {
-  const exporter = createRendererActionTraceExporter(options.env);
-  // DWeis Next 不做遥测：TTFT 指标/trace 不再导出到 OTLP。
-  // endpoint 恒为 undefined 时下面 MeterProvider 不挂任何 reader，
-  // 且 enqueue 首行 `!endpoint` 直接短路，本地链路完全静默。
-  const endpoint = undefined as string | undefined;
-  const resource = resourceFromAttributes({
-    "service.name": "zcode-local-ttft",
-    "service.version": options.version,
-    "os.type": process.platform,
-    "zcode.telemetry.schema_version": 1,
-  });
-  const meterProvider = new MeterProvider({
-    resource,
-    readers: endpoint
-      ? [
-          new PeriodicExportingMetricReader({
-            exporter: new OTLPMetricExporter({
-              url: endpoint,
-              headers: parseRendererActionTraceHeaders(
-                options.env.OTEL_EXPORTER_OTLP_METRICS_HEADERS ??
-                  options.env.OTEL_EXPORTER_OTLP_HEADERS,
-              ),
-              temporalityPreference: AggregationTemporality.DELTA,
-              timeoutMillis: EXPORT_TIMEOUT_MS,
-            }),
-            exportIntervalMillis: 5000,
-            exportTimeoutMillis: EXPORT_TIMEOUT_MS,
-          }),
-        ]
-      : [],
-    views: [
-      {
-        instrumentName: "zcode.local_ttft.*",
-        aggregation: {
-          type: AggregationType.EXPLICIT_BUCKET_HISTOGRAM,
-          options: { boundaries: LOCAL_TTFT_BUCKETS_MS },
-        },
-        instrumentType: InstrumentType.HISTOGRAM,
-        aggregationCardinalityLimit: 256,
-      },
-      {
-        instrumentName: "zcode.local_ttft.*",
-        instrumentType: InstrumentType.COUNTER,
-        aggregationCardinalityLimit: 256,
-      },
-    ],
-  });
-  const meter = meterProvider.getMeter("@zcode/local-ttft", "1");
-  const duration = meter.createHistogram("zcode.local_ttft.duration", { unit: "ms" });
-  const stageDuration = meter.createHistogram("zcode.local_ttft.stage.duration", { unit: "ms" });
-  const stageObservation = meter.createHistogram("zcode.local_ttft.stage.observation.duration", {
-    unit: "ms",
-  });
-  const preparationObservation = meter.createHistogram(
-    "zcode.local_ttft.preparation.observation.duration",
-    { unit: "ms" },
-  );
-  const systemDuration = meter.createHistogram("zcode.local_ttft.system.duration", { unit: "ms" });
-  const preparationDuration = meter.createHistogram("zcode.local_ttft.preparation.duration", {
-    unit: "ms",
-  });
-  const attemptDuration = meter.createHistogram("zcode.local_ttft.attempt.duration", {
-    unit: "ms",
-  });
-  const executionDuration = meter.createHistogram("zcode.local_ttft.execution.duration", {
-    unit: "ms",
-  });
-  const failureWait = meter.createHistogram("zcode.local_ttft.no_output.wait", { unit: "ms" });
-  const textDuration = meter.createHistogram("zcode.local_ttft.first_text.duration", {
-    unit: "ms",
-  });
-  const outcomes = meter.createCounter("zcode.local_ttft.records");
-  const drops = meter.createCounter("zcode.local_ttft.dropped");
-  const queue: LocalTtftBatch[] = [];
-  const dedupe = new LocalTtftExportDedupe(options.now);
-  const modelLabels = new Set<string>();
-  let draining: Promise<void> | undefined;
-  let closed = false;
-  const consume = async () => {
-    while (queue.length && !closed) {
-      const batch = queue.shift()!;
-      drops.add(batch.dropped, { reason: "renderer_capacity" });
-      const spans: ReadableSpan[] = [];
-      for (const record of batch.records) {
-        const remember = dedupe.admit(batch.rendererInstanceId, record.observationId, record.start);
-        if (!remember) {
-          drops.add(1, { reason: "dedupe_window_or_capacity" });
-          continue;
-        }
-        const key = record.observationId;
-        const pair = `${record.provider ?? "unknown"}/${record.model ?? "unknown"}`;
-        if (modelLabels.size < 16 && /^[a-zA-Z0-9._:/-]{1,128}$/.test(pair)) modelLabels.add(pair);
-        const labels = {
-          provider: modelLabels.has(pair) ? (record.provider ?? "unknown") : "other",
-          model: modelLabels.has(pair) ? (record.model ?? "unknown") : "other",
-          quality: record.quality,
-          visibility: record.visibility ?? "foreground",
-          send_mode: record.sendMode ?? "idle",
-          app_version: options.version,
-          os: process.platform,
-        };
-        const firstRecord = remember(`${key}:${record.kind}:${record.checkpointId ?? ""}`);
-        if (firstRecord) {
-          outcomes.add(1, {
-            kind: record.kind,
-            outcome: record.outcome,
-            quality: record.quality,
-            send_mode: labels.send_mode,
-            visibility: labels.visibility,
-          });
-          if (record.truncated) drops.add(1, { reason: "detail_truncated" });
-          if (
-            record.kind === "first_output" &&
-            record.outcome === "success" &&
-            record.timingReliable !== false &&
-            record.sendMode !== "guided"
-          ) {
-            duration.record(record.end - record.start, labels);
-            if ((record.userWaitMs ?? 0) <= record.end - record.start)
-              systemDuration.record(record.end - record.start - (record.userWaitMs ?? 0), labels);
-            if (record.executionMs !== undefined)
-              executionDuration.record(record.executionMs, labels);
-          }
-          if (
-            record.kind === "first_text" &&
-            record.outcome === "success" &&
-            record.timingReliable !== false
-          )
-            textDuration.record(record.end - record.start, labels);
-          if (
-            record.kind === "excluded" &&
-            ["failed", "cancelled", "rejected", "interrupted"].includes(record.outcome) &&
-            record.timingReliable !== false
-          )
-            failureWait.record(record.end - record.start, { ...labels, outcome: record.outcome });
-        }
-        const intervals = record.intervals.filter((interval) =>
-          remember(`${key}:stage:${interval.stage}`),
-        );
-        for (const interval of intervals) {
-          const reliable =
-            interval.source === "cli"
-              ? record.cliTimingReliable !== false
-              : interval.source === "renderer"
-                ? record.timingReliable !== false
-                : record.quality !== "clock_invalid";
-          if (reliable)
-            stageObservation.record(interval.end - interval.start, {
-              ...labels,
-              stage: interval.stage,
-              clock_source: interval.source,
-            });
-        }
-        const details = (record.details ?? []).filter((detail) =>
-          remember(`${key}:detail:${detail.id}:${detail.end === undefined ? "open" : "closed"}`),
-        );
-        for (const detail of details) {
-          if (
-            detail.end === undefined ||
-            (detail.source === "cli"
-              ? record.cliTimingReliable === false
-              : record.timingReliable === false)
-          )
-            continue;
-          const histogram = detail.stage === "attempt" ? attemptDuration : preparationObservation;
-          histogram.record(detail.end - detail.start, {
-            ...labels,
-            stage: detail.stage,
-            role: detail.role ?? "preparation",
-            outcome: detail.outcome ?? "completed",
-          });
-        }
-        // 默认体验分布在 Renderer 已确定整条输入的前后台与时钟质量后落样；
-        // 累计阶段观察另用 observation instrument，避免先报前台再切后台污染默认分布。
-        if (
-          (record.kind === "first_output" || record.firstOutputKind) &&
-          record.outcome === "success"
-        ) {
-          for (const interval of record.intervals) {
-            if (record.quality === "complete" && remember(`${key}:success-stage:${interval.stage}`))
-              stageDuration.record(interval.end - interval.start, {
-                ...labels,
-                stage: interval.stage,
-              });
-          }
-          for (const detail of record.details ?? []) {
-            if (
-              detail.stage !== "attempt" &&
-              detail.end !== undefined &&
-              record.quality === "complete" &&
-              remember(`${key}:success-detail:${detail.id}`)
-            )
-              preparationDuration.record(detail.end - detail.start, {
-                ...labels,
-                stage: detail.stage,
-              });
-          }
-        }
-        spans.push(
-          ...createLocalTtftSpans({ ...record, intervals, details }, resource, firstRecord, record),
-        );
-      }
-      if (exporter && spans.length && !(await exportWithin(exporter, spans))) {
-        drops.add(spans.length, { reason: "trace_export" });
-        options.logger.warn("[local-ttft] trace export failed or timed out", {
-          spans: spans.length,
-        });
-      }
-    }
+}): LocalTtftExporter {
+  const instrument: NoopInstrument = { record() {}, add() {} };
+  const meter: NoopMeter = {
+    createHistogram: () => instrument,
+    createCounter: () => instrument,
   };
+  // 保留 instrument/meter 的构造（供将来本地诊断使用），但不挂任何 reader、不导出。
+  void meter;
   return {
-    enqueue(input: unknown): void {
-      if (closed || !exporter || !endpoint) return;
-      let size: number;
-      try {
-        size = Buffer.byteLength(JSON.stringify(input));
-      } catch {
-        return;
-      }
-      if (size > 256 * 1024) {
-        drops.add(1, { reason: "oversized" });
-        return;
-      }
-      const parsed = localTtftBatchSchema.safeParse(input);
-      if (!parsed.success) {
-        drops.add(1, { reason: "invalid" });
-        options.logger.warn("[local-ttft] rejected invalid batch", { issues: parsed.error.issues });
-        return;
-      }
-      if (queue.length >= MAX_QUEUE) {
-        drops.add(parsed.data.records.length, { reason: "queue_full" });
-        return;
-      }
-      queue.push(parsed.data);
-      draining ??= Promise.resolve()
-        .then(consume)
-        .catch(() => {
-          drops.add(1, { reason: "export_error" });
-        })
-        .finally(() => {
-          draining = undefined;
-        });
+    enqueue(_input: unknown): void {
+      // no-op：TTFT 样本仅用于历史 OTLP 上报。
     },
     async shutdown(): Promise<void> {
-      closed = true;
-      queue.length = 0;
-      await Promise.allSettled([meterProvider.shutdown(), exporter?.shutdown()]);
+      // no-op
     },
   };
-}
-
-function exportWithin(exporter: SpanExporter, spans: ReadableSpan[]): Promise<boolean> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(false), EXPORT_TIMEOUT_MS);
-    timer.unref();
-    try {
-      exporter.export(spans, (result) => {
-        clearTimeout(timer);
-        resolve(result.code === 0);
-      });
-    } catch {
-      clearTimeout(timer);
-      resolve(false);
-    }
-  });
 }

@@ -1,6 +1,13 @@
-import type { SpanExporter } from "@opentelemetry/sdk-trace-base";
 
 type EnvRecord = Record<string, string | undefined>;
+
+/**
+ * SpanExporter 形状（DWeis Next 不再依赖 @opentelemetry/sdk-trace-base）。
+ */
+type SpanExporterLike = {
+  export(spans: unknown[], callback?: (result: { code?: number }) => void): void;
+  shutdown(): Promise<void>;
+};
 
 export function parseRendererActionTraceHeaders(
   value: string | undefined,
@@ -21,7 +28,7 @@ export function parseRendererActionTraceHeaders(
  * DWeis Next 不做遥测：renderer 用户操作 Trace 不再导出到 OTLP。
  * 恒返回 undefined（即"未配置 exporter"），调用方会把 Trace 只留在本地链路。
  */
-export function createRendererActionTraceExporter(_env: EnvRecord): SpanExporter | undefined {
+export function createRendererActionTraceExporter(_env: EnvRecord): SpanExporterLike | undefined {
   return undefined;
 }
 
