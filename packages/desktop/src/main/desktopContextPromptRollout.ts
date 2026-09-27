@@ -79,7 +79,6 @@ export function createDesktopContextPromptRollout(options: {
 
 export function createElectronDesktopContextPromptConfigFetcher(options: {
   appVersion: string;
-  deviceMid: string;
   resolveEndpointOrigin: () => Promise<string>;
 }): (signal: AbortSignal) => Promise<unknown> {
   return async (signal) => {
@@ -113,7 +112,8 @@ export function createElectronDesktopContextPromptConfigFetcher(options: {
       const sourceHeaders = buildZCodeSourceHeadersFromContext({
         appVersion: options.appVersion,
         arch: process.arch,
-        deviceMid: options.deviceMid,
+        // DWeis Next 不做遥测：不再发送设备指纹（device_mid）。
+        deviceMid: "",
         endpointOrigin,
         platform: process.platform,
         releaseChannel: ZCODE_ENV,

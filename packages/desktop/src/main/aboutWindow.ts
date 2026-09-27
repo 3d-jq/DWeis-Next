@@ -1,4 +1,4 @@
-import { DWEIS_BRAND_LOGO_DATA_URI } from "../shared/brandLogo.js";
+import { DWEIS_BRAND_LOGO_DATA_URI } from "./brandLogo.js";
 
 interface CustomAboutDialogHtmlInput {
   applicationName: string;
