@@ -1466,6 +1466,9 @@ export async function initAutoUpdater(options: InitAutoUpdaterOptions = {}): Pro
       clearInterval(autoUpdatePollTimer);
       autoUpdatePollTimer = null;
     }
+    // 把菜单状态置为不可用：「检查更新」入口保持可见但置灰，
+    // 避免用户点击后走到 fail-closed 分支却看不到任何反馈。
+    setAutoUpdaterMenuState({ kind: "idle", enabled: false });
     logger.info("[auto-update] disabled for this desktop product flavor");
     return;
   }

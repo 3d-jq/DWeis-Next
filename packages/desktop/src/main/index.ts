@@ -1887,10 +1887,17 @@ app.whenReady().then(async () => {
   logWindowsBundledRuntimeIntegrityDiagnostic();
 
   // 启动自动更新检查（后台执行，不阻塞主界面）
-  // Preview 身份无论连接哪个后端都不自动更新：stable feed 上只分发正式 ZCode 安装包，
-  // 不向 Preview 渠道提供更新。
+  // DWeis Next：默认没有官方更新服务器，自动更新默认关闭——否则会打到上游
+  // zcode.z.ai 的 feed，把 fork 更新回上游 ZCode。自托管分发需要更新能力时，
+  // 用 ZCODE_UPDATE_FEED_URL / --zcode-update-feed-url 指向自有 feed 后 updater
+  // 才会启用（打包产物按既有安全策略忽略该覆盖，需要在构建期决定 feed）。
+  // 未启用时「检查更新」菜单保持可见但置灰，不再向任何远端发起版本检查。
+  const dweisUpdateFeedSource = resolveUpdateFeedSourceFromStartupConfig({
+    argv: process.argv,
+    env: process.env,
+  });
   void initAutoUpdater({
-    enabled: ZCODE_PRODUCT_FLAVOR === "production",
+    enabled: ZCODE_PRODUCT_FLAVOR === "production" && dweisUpdateFeedSource !== undefined,
     onBeforeQuitAndInstall: async () => {
       await prepareAppQuit("auto-update quitAndInstall", "update-install");
       if (process.platform === "win32") {
@@ -1900,10 +1907,7 @@ app.whenReady().then(async () => {
     settingService: mainSettingService,
     locale: currentApplicationLocale,
     resolveEndpointOrigin: resolveCurrentZCodeEndpointOrigin,
-    updateFeedSource: resolveUpdateFeedSourceFromStartupConfig({
-      argv: process.argv,
-      env: process.env,
-    }),
+    updateFeedSource: dweisUpdateFeedSource,
   });
 
   if (process.platform === "darwin" || process.platform === "win32") {
