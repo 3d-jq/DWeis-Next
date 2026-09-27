@@ -1,5 +1,4 @@
 import type {
-  ApiClient,
   AppUsageRequest,
   AppUsageSnapshot,
   CodingPlanUsageRequest,
@@ -15,114 +14,90 @@ import type {
   UsageStatsRequest,
   UsageStatsSnapshot,
 } from "@zcode/shared";
-import { isCodingPlanModelProviderId } from "@zcode/shared";
-import type { ICredentialService } from "../credential/credential.js";
-import type { IAccountRequestAuthService } from "../model-provider/accountRequestAuthService.js";
 import type { IZCodeAgentService } from "../zcode-agent/zcodeAgent.js";
 import type { IUsageStatsService } from "./usageStats.js";
-import {
-  BigModelUsageQuotaProvider,
-  type UsageApiAuthorizationRequest,
-  type UsageApiAuthorization,
-} from "./providers/bigmodelUsageQuotaProvider.js";
-import type { OfficialMcpCredentialSource } from "./providers/zcodeMcpQuotaProvider.js";
 
 interface UsageStatsServiceDependencies {
-  apiClient: ApiClient;
-  accountRequestAuthService: Pick<
-    IAccountRequestAuthService,
-    "resolveAccessCurrent" | "resolveCurrent" | "assertCurrent"
-  >;
-  resolveApiAuthorization?: (
-    request: UsageApiAuthorizationRequest,
-  ) => Promise<UsageApiAuthorization | null>;
-  credentialService?: Pick<ICredentialService, "load">;
-  env?: NodeJS.ProcessEnv;
   /** App Usage 经 ZCode Protocol 读取 agent 数据库真实统计。 */
   zcodeAgentService: Pick<IZCodeAgentService, "getAppUsageStats">;
-  /**
-   * 官方 Server MCP 额度的凭证来源（与 server MCP 调用同一套 5 个身份头）。
-   * 缺省时 entitlement 快照不含 MCP 额度。
-   */
-  officialMcpCredentialSource?: OfficialMcpCredentialSource;
 }
 
-function isCodingPlanProviderId(providerId: string | undefined): boolean {
-  return Boolean(providerId && isCodingPlanModelProviderId(providerId));
-}
-
+/**
+ * DWeis Next：会员额度（Coding Plan usage/quota/reset）网络链路摘除后的本地实现。
+ *
+ * DWeis Next 是无账号、无云绑定的自托管产品（见 docs/dweis-next-plan.md）：
+ * BigModelUsageQuotaProvider 及其 monitor/mapper/订阅摘要、官方 MCP 额度查询全部
+ * 依赖 Z.ai / BigModel 平台账号，已随网络层一并删除。用量统计只保留本地
+ * App Usage（agent 数据库真实统计），其余方法按「关出口 + 保留契约」返回
+ * 「未配置账号」语义的本地空值或稳定错误码，绝不发起网络请求。
+ *
+ * IUsageStatsService 是跨包公开契约（client/remoteServiceAccess、desktop host 装配、
+ * ui hooks 都依赖），方法签名保持不变，只替换实现。
+ */
 export function createUsageStatsService(
   dependencies: UsageStatsServiceDependencies,
 ): IUsageStatsService {
-  const quotaProvider = new BigModelUsageQuotaProvider({
-    apiClient: dependencies.apiClient,
-    accountRequestAuthService: dependencies.accountRequestAuthService,
-    resolveApiAuthorization: dependencies.resolveApiAuthorization,
-    credentialService: dependencies.credentialService,
-    env: dependencies.env,
-    ...(dependencies.officialMcpCredentialSource
-      ? { officialMcpCredentialSource: dependencies.officialMcpCredentialSource }
-      : {}),
-  });
-
   return {
     async getAppUsageSnapshot(request: AppUsageRequest): Promise<AppUsageSnapshot> {
-      // App Usage 现读取 agent 数据库真实统计（model_usage/turn_usage/tool_usage），
-      // 经 ZCode Protocol usage/stats 取回。不再读本地 session JSON 估算。
+      // App Usage 读取 agent 数据库真实统计（model_usage/turn_usage/tool_usage），
+      // 经 ZCode Protocol usage/stats 取回。这是 DWeis Next 唯一保留的用量面。
       return dependencies.zcodeAgentService.getAppUsageStats({
         range: request.range,
         timeZone: request.timeZone,
       });
     },
     async getCodingPlanUsageSnapshot(
-      request: CodingPlanUsageRequest,
+      _request: CodingPlanUsageRequest,
     ): Promise<CodingPlanUsageSnapshot> {
-      if (!isCodingPlanProviderId(request.preferredProviderId)) {
-        // Coding Plan 页面只允许预置的 Z.AI/BigModel Coding Plan 账号。
-        // 普通 provider id 不能进入 monitor 链路，避免误读 API Key 或环境变量。
-        throw new Error("no_bigmodel_api_key");
-      }
-      return quotaProvider.getCodingPlanUsageSnapshot(request);
+      // Coding Plan 用量监控依赖平台账号；入口（设置页用量 tab）已随 UI 清理移除，
+      // 保留契约但以稳定错误码快速失败，不发起网络请求。
+      throw new Error("coding_plan_unavailable");
     },
     async getCodingPlanResetStatus(
-      request: CodingPlanResetScopeRequest,
+      _request: CodingPlanResetScopeRequest,
     ): Promise<CodingPlanResetStatusSnapshot> {
-      if (!isCodingPlanProviderId(request.preferredProviderId)) {
-        throw new Error("no_bigmodel_api_key");
-      }
-      return quotaProvider.getCodingPlanResetStatus(request);
+      return {
+        availableFiveHourResets: [],
+        availableWeekResets: [],
+        latestFiveHourResetHistory: null,
+        latestWeekResetHistory: null,
+        hasUnreadHistory: false,
+      };
     },
     async requestCodingPlanResetOpportunity(
-      request: CodingPlanResetOpportunityRequest,
+      _request: CodingPlanResetOpportunityRequest,
     ): Promise<CodingPlanResetOpportunityResult> {
-      if (!isCodingPlanProviderId(request.preferredProviderId)) {
-        throw new Error("no_bigmodel_api_key");
-      }
-      return quotaProvider.requestCodingPlanResetOpportunity(request);
+      // 无账号即无可领取的重置机会。
+      return { granted: false, nextTryAt: null };
     },
     async useCodingPlanReset(
-      request: CodingPlanResetUseRequest,
+      _request: CodingPlanResetUseRequest,
     ): Promise<CodingPlanResetUseResult> {
-      if (!isCodingPlanProviderId(request.preferredProviderId)) {
-        throw new Error("no_bigmodel_api_key");
-      }
-      return quotaProvider.useCodingPlanReset(request);
+      // 无账号即无重置可消耗；契约字面量类型要求 used: true。
+      return { used: true };
     },
-    async markCodingPlanResetHistoryRead(request: CodingPlanResetScopeRequest): Promise<void> {
-      if (!isCodingPlanProviderId(request.preferredProviderId)) {
-        throw new Error("no_bigmodel_api_key");
-      }
-      await quotaProvider.markCodingPlanResetHistoryRead(request);
+    async markCodingPlanResetHistoryRead(_request: CodingPlanResetScopeRequest): Promise<void> {
+      // 本地无历史记录，空操作。
     },
-    async getSnapshot(request: UsageStatsRequest): Promise<UsageStatsSnapshot> {
-      // App Usage 已迁移到 getAppUsageSnapshot（agent 数据库）。getSnapshot 仅服务 Coding Plan monitor 链路。
-      // 任何 monitor 失败都不能回退本地数据，保持数据源隔离。
-      return quotaProvider.getUsageStatsSnapshot(request);
+    async getSnapshot(_request: UsageStatsRequest): Promise<UsageStatsSnapshot> {
+      // getSnapshot 仅服务 Coding Plan monitor 链路；网络层摘除后以稳定错误码快速失败。
+      throw new Error("coding_plan_unavailable");
     },
     async getEntitlementSnapshot(
-      request: UsageEntitlementRequest = {},
+      _request: UsageEntitlementRequest = {},
     ): Promise<UsageEntitlementSnapshot> {
-      return quotaProvider.getSnapshotForRequest(request);
+      // 无账号体系：恒为「未配置」态。provider/remaining/subscription/quota 全空，
+      // UI（设置页状态卡、连接判定）据此呈现未连接，不会触发任何出网。
+      return {
+        generatedAt: Date.now(),
+        authenticated: false,
+        unavailableReason: "not_configured",
+        provider: null,
+        remaining: null,
+        subscription: null,
+        quota: null,
+        mcpQuota: null,
+      };
     },
-  };
+  } satisfies IUsageStatsService;
 }

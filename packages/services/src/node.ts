@@ -448,7 +448,6 @@ import {
 } from "./session/offPeakRuntimeModel.js";
 import {
   createOfficialMcpAuthHeadersResolver,
-  resolveOfficialMcpCredentials,
 } from "./official-mcp/officialMcpCredentials.js";
 import {
   createOfficialMcpTrustedOriginRegistry,
@@ -1643,18 +1642,9 @@ export function createLocalServices(options: {
     accountProviderCredentialStore,
     refreshAccountProviders: (reason: string) => accountProviderConfigSource.refresh(reason),
   });
-  // 官方 Server MCP 的凭证解析源。MCP 调用的身份头与 MCP 额度查询（/api/v1/mcp/usage）
-  // 必须共用这一份实现，否则两处对"当前选中的 Coding Plan 连接"的判定会分叉。
-  // 额度侧注入的是凭证解析而非 resolveHeaders：归属校验需要 providerFamily，
-  // 而身份头里没有 family；身份头仍由同一个 buildOfficialMcpAuthHeaders 构造。
-  const officialMcpCredentialSource = {
-    resolve: () =>
-      resolveOfficialMcpCredentials({
-        accountRequestAuthService,
-        credentialService,
-        modelSelectionService: providerRuntime.modelSelection,
-      }),
-  };
+  // DWeis Next：会员额度查询已随 CodingPlan 网络层摘除，官方 MCP 额度不再需要
+  // 凭证注入源；MCP 调用身份头仍由 buildOfficialMcpAuthHeaders / resolveOfficialMcpCredentials
+  // 在调用链内独立构造，两处判定不再共享，见 usageStatsService 文件头说明。
   // mcpSync/hooks 里引用 zcodeAgentService 的闭包是惰性调用，声明顺序不影响初始化。
   const skillsService = createSkillsService({ isDesktopRuntime: true });
   const mcpSyncService = createMcpSyncService({
@@ -2064,8 +2054,6 @@ export function createLocalServices(options: {
     },
   };
   const codingPlanSubscriptionService = createCodingPlanSubscriptionService({
-    apiClient,
-    credentialService,
     resolveOffPeakModelSelectionView: async () => {
       await providerRuntime.start();
       return buildOffPeakModelSelectionView(providerRuntime.registryService.getView());
@@ -2467,11 +2455,7 @@ export function createLocalServices(options: {
     .register(
       IUsageStatsService,
       createUsageStatsService({
-        apiClient,
-        accountRequestAuthService,
-        credentialService,
         zcodeAgentService,
-        officialMcpCredentialSource,
       }),
     )
     .register(ICodingPlanSubscriptionService, codingPlanSubscriptionService)

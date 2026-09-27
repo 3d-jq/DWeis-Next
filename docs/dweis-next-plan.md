@@ -45,6 +45,36 @@ stream client id 复用（非遥测用途）。逐点删除会大面积破坏功
 
 > 清单为 2026-09-27 的静态核查结果，动手前以实际 grep 为准。
 
+### 进展（2026-09-27）：CodingPlan 网络层摘除 —— 已完成
+
+**策略**：「关出口 + 保留契约」（与遥测阶段同款）。`ICodingPlanSubscriptionService`、
+`IUsageStatsService` 是跨包公开契约（client/remoteServiceAccess、desktop host 装配、
+ui store/hooks 依赖），方法签名保持不变，只把实现替换为本地空值/本地判定，
+所有 CodingPlan 网络请求从此不再出网。
+
+- 删除 `bigmodelCodingPlanSubscriptionProvider.ts`、`zaiCodingPlanSubscriptionProvider.ts`
+  （两个 provider 的登录态请求头平移到 `codingPlanAuthHeaders.ts`，供
+  availability 校验与 Team Plan runtime key 继续引用）。
+- `codingPlanSubscriptionService.ts`：账号/套餐/购买/支付/企业订单全部恒返回
+  「未连接」语义空值；平台级配置改为纯本地判定——闲时任务仅 `ZCODE_OFFPEAK_MOCK=1`
+  可用、动态工作流仅 `ZCODE_DYNAMIC_WORKFLOW_MODE` 本地覆盖生效、预算固定
+  preflight-v1、强更恒 null（原 client/configs 出网通道随 provider 一并消失）。
+- 删除 `usage-stats/providers/` 整个集群（`bigmodelUsageQuotaProvider`、
+  `bigmodelSubscriptionProvider`、`bigmodelUsageMonitorMapper`、`bigmodelUsageMonitorRange`、
+  `bigmodelUsageQuotaMapper`、`zcodeMcpQuotaProvider`）；`usageStatsService.ts` 只保留
+  本地 App Usage（agent 数据库统计），entitlement 恒 `not_configured`，重置通道恒空，
+  Coding Plan monitor 链路以稳定错误码 `coding_plan_unavailable` 快速失败。
+- `apps/zcode-cli/packages/telemetry`：删除 `otlp-exporter.ts` 及 bootstrap 内死代码
+  （`createPreparedOwner` / deviceMid 状态文件链），修复依赖摘除后遗留的 7 个类型错误。
+- CLI `official-coding-plan-gateway.ts` 维持 cb4757f 的停用状态（恒直连、无出网）；
+  `coding-plan-api-key.ts` 属 OAuth 登录链路，随「OAuth / 账号登录」行一并处理。
+- `officialMcpCredentialSource` 凭证注入源随额度查询摘除；MCP 调用身份头不受影响。
+
+**验收**：根 `pnpm typecheck` 0 错误；desktop typecheck main 82 / preload 3 /
+scheduler 1 / host 0（与基线一致）；`apps/zcode-cli` turbo typecheck 27/27 通过；
+`pnpm lint` 0 error（改动文件 0 warning）；`pnpm architecture:check --changed` 0 违规；
+`registry:check` 通过。全仓库 grep 已删模块名无代码残留（仅历史注释提及）。
+
 ### 先分清：这两个不是云依赖，别删
 
 `config/provider/zcode-builtin.json` 里的 `zai-api` / `zai-standard-api` 模板是**普通 API-key 供应商**（填 key 直连 api.z.ai 调 GLM），无账号、无回传。用户明确要求保留，删了会少两个可用供应商。同理 `assets/provider-icons/` 下各供应商 logo 属自包含资源，不用动。
@@ -53,8 +83,8 @@ stream client id 复用（非遥测用途）。逐点删除会大面积破坏功
 
 | 分类 | 文件 | 删除后的影响 |
 | --- | --- | --- |
-| OAuth / 账号登录 | `packages/services/src/oauth/providers/zaiProviderConfig.ts`、`zaiProviderAdapter.ts`、`bigmodelProviderConfig.ts`；`packages/web/src/auth/webZaiOAuthConfig.ts`；`packages/shared/src/model-provider-family.ts` 中 `zai` family 条目（`rootDomain: "z.ai"` + `oauthProviderId` + 三个 codingPlan providerId + `teamCodingPlanManageUrl`） | 设置页不再出现"Z.ai 账号登录"入口。无登录产品，本来就用不了 |
-| CodingPlan / 会员额度 | `packages/services/src/coding-plan-subscription/zaiCodingPlanSubscriptionProvider.ts`、`bigmodelCodingPlanSubscriptionProvider.ts`；`packages/services/src/usage-stats/providers/bigmodelUsageQuotaProvider.ts`；`apps/zcode-cli/packages/adapters/src/model/official-coding-plan-gateway.ts`、`auth/coding-plan-api-key.ts` | 会员额度查询与续费入口消失。UI 侧"升级"按钮此前已按"设置中是否存在账号类供应商"门控，自托管下已不显示 |
+| OAuth / 账号登录 | ⏳ 待做：`packages/services/src/oauth/providers/zaiProviderConfig.ts`、`zaiProviderAdapter.ts`、`bigmodelProviderConfig.ts`；`packages/web/src/auth/webZaiOAuthConfig.ts`；`packages/shared/src/model-provider-family.ts` 中 `zai` family 条目（`rootDomain: "z.ai"` + `oauthProviderId` + 三个 codingPlan providerId + `teamCodingPlanManageUrl`） | 设置页不再出现"Z.ai 账号登录"入口。无登录产品，本来就用不了 |
+| CodingPlan / 会员额度 | ✅ 已完成（2026-09-27，见上方「进展」）：`packages/services/src/coding-plan-subscription/` 两 provider、`usage-stats/providers/` 集群已删；`apps/zcode-cli/packages/adapters` 的 `official-coding-plan-gateway.ts` 已于 cb4757f 停用，`auth/coding-plan-api-key.ts` 待 OAuth 行一并处理 | 会员额度查询与续费入口消失，网络层不再出网。UI 侧"升级"按钮此前已按"设置中是否存在账号类供应商"门控，自托管下已不显示 |
 | 对话分享 | `packages/services/src/conversation-share/conversationShareService.ts`；`packages/web/src/share/ConversationShareLandingPage.tsx` | 不能再把对话生成分享链接（原本上传到 Z.ai 服务）。自托管场景下本就不该有 |
 | 远端 provider 配置同步 | `packages/provider-node/src/` 下 7 个 `*zcode-builtin*` 文件（`endpoint-scoped-...-source`、`-cache-paths`、`-download`、`-provider-config-materializer`、`-provider-config-source`、`-release`、`-remote-synchronizer`） | 内置供应商/模型列表改为**纯本地** `config/provider/zcode-builtin.json`。新增模型、新供应商模板不再自动更新，需手改 json；换来的是离线可用、配置不会被远程改动（这原本是一条"你的模型配置可被远端修改"的通道，砍掉对自托管是收益） |
 | 远端 CDN / 远程资源 | `packages/desktop/src/main/remoteCdn.ts`；`packages/desktop/src/main/desktopMainIpcRemote.ts` | 远程 workspace agent、官方插件、node 运行时的远端下载失效。与"只留桌面端"是同一批改动，合并处理 |

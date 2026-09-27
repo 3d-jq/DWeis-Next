@@ -263,7 +263,7 @@ function markHistoryReadOnce(params: {
   scope: CodingPlanResetScopeRequest;
   usedAt: number;
 }): Promise<void> {
-  // 契约（bigmodelUsageQuotaProvider）：
+  // 契约（原 bigmodelUsageQuotaProvider，已随网络层摘除；现由 usageStatsService 本地实现承接）：
   // history/read 是用户全 scope 共享游标，请求不带 target scope；任一入口上报后
   // 服务端同时清除所有 scope 的 unread。因此 key 只按 usedAt——同 service 相同
   // usedAt 只发一次是符合契约的去重，按 scope 拆分反而造成重复 POST。

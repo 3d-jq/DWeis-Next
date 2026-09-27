@@ -28,7 +28,7 @@ import {
 import {
   createBigModelLoginAuthHeaders,
   createZaiLoginAuthHeaders,
-} from "../coding-plan-subscription/bigmodelCodingPlanSubscriptionProvider.js";
+} from "../coding-plan-subscription/codingPlanAuthHeaders.js";
 
 const REQUEST_TIMEOUT_MS = 15_000;
 const log = createServiceLogger("coding-plan-availability");

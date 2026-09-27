@@ -36,7 +36,7 @@ const ACTIVE_OAUTH_PROVIDER_KEY = "oauth:active_provider";
  *
  * 必须按 provider family 精确选择、**禁止跨 family 回退**：拿 ZAI 的业务 JWT 去打 BigModel 的
  * Coding Plan 只会得到一次注定失败的请求，而且失败原因会指向"没有套餐"这种误导结论。
- * 这几行与 bigmodelUsageQuotaProvider 的 reset 通道逻辑等价但独立（见文件头说明）。
+ * 这几行的凭证键规则与已摘除的 CodingPlan 额度查询通道曾保持一致（网络层摘除后仅存于此）。
  */
 function maasJwtCredentialKey(providerFamily: "zai" | "bigmodel"): string {
   return `oauth:${getModelProviderFamilySpec(providerFamily).oauthProviderId}:access_token`;
