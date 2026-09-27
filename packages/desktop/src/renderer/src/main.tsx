@@ -21,7 +21,6 @@ import {
   InternalChannels,
   databaseStartupStateSchema,
   type DatabaseStartupControl,
-  collectTelemetryRendererContext,
   parseLaunchMarks,
   LAUNCH_MARKS_QUERY_KEY,
   type LaunchMarks,
@@ -29,7 +28,6 @@ import {
 } from "@zcode/shared";
 import type { Locale } from "@zcode/shared";
 import type { IServiceAccessor } from "@zcode/services";
-import { syncAppTelemetryContext } from "../appTelemetryBridge.js";
 import { createDesktopPlatform } from "./desktopPlatform.js";
 import { startPerformanceTimelineCleanup } from "./performanceTimelineCleanup.js";
 import { initializeDesktopUserActionTrace } from "./userActionTraceBootstrap.js";
@@ -308,12 +306,7 @@ function initializeBusinessRoot(port: MessagePort): void {
   flushPendingRemoteWorkspaceServicePorts();
   const settingService = supportsSettings ? services.settingService : undefined;
 
-  syncAppTelemetryContext({
-    bridge: {
-      syncTelemetryContext: (context) => window.zcode.syncTelemetryContext(context),
-    },
-    createRendererContext: collectTelemetryRendererContext,
-  });
+  // DWeis Next 不做遥测：renderer telemetry 上下文同步已移除。
 
   // 初始化稳定的设备 ID，确保所有 hook 在首次渲染前就使用正确的值
   setStreamClientId(desktopPlatform.getDeviceId());

@@ -1,3 +1,23 @@
+# DWeis Next — 基于 ZCode 的修改版
+
+**DWeis Next 是 [zai-org/ZCode](https://github.com/zai-org/ZCode)（Apache License 2.0）的修改版本。**
+
+依据 Apache License 2.0 第 4 条 (b) 的要求，特此声明：本仓库相对于上游 ZCode 进行了修改，
+主要改动方向包括：
+
+- **品牌替换**：产品名、图标、窗口标题、协议 scheme（`zcode://` → `dweis://`）、
+  数据根目录（`.zcode` → `.dweis`）等已替换为 DWeis 自有品牌。
+- **移除全部遥测**：上游的 ARMS RUM、数仓事件上报与 CLI OpenTelemetry 导出链已被移除，
+  应用不再产生或发送任何埋点数据，也不再持久化设备指纹（device_mid）。
+- **裁剪运行形态**：仅保留桌面端；Web / Server 打包入口及 SSH-WSL 远程链路按计划移除中。
+- **模型供应商**：移除 Z.ai 账号登录、CodingPlan 会员体系与对话分享等云服务依赖，
+  模型通过用户自行配置的 API Key 供应商接入。
+
+完整的许可条款见仓库根目录的 `LICENSE` 文件。本节为 DWeis Next 追加的声明，
+**下方为上游 ZCode 原有的 NOTICE 内容，原样保留**。
+
+---
+
 # ZCode 相关功能说明与第三方组件声明
 
 本声明适用于本仓库公开的源码及其构建产物。各运行形态的功能、权限、存储位置和网络行为不同，不能将其中一种形态的默认设置理解为整个项目的统一设置。
