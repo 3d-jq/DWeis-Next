@@ -9,7 +9,8 @@
   数据根目录（`.zcode` → `.dweis`）等已替换为 DWeis 自有品牌。
 - **移除全部遥测**：上游的 ARMS RUM、数仓事件上报与 CLI OpenTelemetry 导出链已被移除，
   应用不再产生或发送任何埋点数据，也不再持久化设备指纹（device_mid）。
-- **裁剪运行形态**：仅保留桌面端；Web / Server 打包入口及 SSH-WSL 远程链路按计划移除中。
+- **裁剪运行形态**：仅保留桌面端；Web / Server 打包入口与 SSH-WSL/Docker 远程工作区
+  链路已整体移除。
 - **模型供应商**：移除 Z.ai 账号登录、CodingPlan 会员体系与对话分享等云服务依赖，
   模型通过用户自行配置的 API Key 供应商接入。
 
