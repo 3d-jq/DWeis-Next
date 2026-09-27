@@ -13,6 +13,8 @@ packages/desktop/bundled-agents/
 packages/desktop/bundled-tools/
 packages/desktop/mock-cdn/
 *.tsbuildinfo
+# tsc -b 会在跟踪的 .d.ts 旁重新生成 sourcemap；按字节比较的部分产物不应随 git add -A 入库。
+*.d.ts.map
 .DS_Store
 coverage/
 .env.local
