@@ -181,13 +181,6 @@ export function buildBigModelApiUrl(
   return `${resolveBigModelApiOrigin(env)}${normalizedPath}`;
 }
 
-export function buildBigModelCodingPlanPersonalManageUrl(
-  env: RuntimeBigModelApiEnv = readProductEndpointEnv(),
-): string {
-  // 管理页与业务 API 共用显式 origin，避免把已登录账号带到另一个部署。
-  return buildBigModelApiUrl(env, "/coding-plan/personal/overview");
-}
-
 export function buildBigModelCodingPlanTeamManageUrl(
   env: RuntimeBigModelApiEnv = readProductEndpointEnv(),
 ): string {
@@ -218,18 +211,6 @@ export function resolveZaiOAuthClientId(
     readRuntimeEnvValue(env, "ZAI_OAUTH_APP_ID") ??
     DEFAULT_ZAI_OAUTH_CLIENT_ID
   );
-}
-
-export function buildZaiOAuthUrl(origin: string, path: string): string {
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return `${normalizeZCodeEndpointOrigin(origin)}${normalizedPath}`;
-}
-
-export function buildRuntimeZaiOAuthUrl(
-  env: RuntimeZaiEndpointEnv = readProductEndpointEnv(),
-  path: string,
-): string {
-  return buildZaiOAuthUrl(resolveZaiOAuthOrigin(env), path);
 }
 
 export function buildRuntimeZaiBusinessUrl(

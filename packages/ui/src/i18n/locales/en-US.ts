@@ -503,7 +503,6 @@ const enUS: Record<string, string> = {
   "quickPick.command.feedback": "Feedback",
   "quickPick.command.myTickets": "My feedback",
   "quickPick.command.community": "Community",
-  "quickPick.command.productDocs": "Product docs",
   "quickPick.command.login": "Connect",
   "quickPick.command.logout": "Disconnect",
   "commandCenter.placeholder": "Search actions, tasks, or files",

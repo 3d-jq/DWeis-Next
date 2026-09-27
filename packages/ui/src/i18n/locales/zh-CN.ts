@@ -456,7 +456,6 @@ const zhCN: Record<string, string> = {
   "quickPick.command.feedback": "问题上报",
   "quickPick.command.myTickets": "我的反馈",
   "quickPick.command.community": "用户社群",
-  "quickPick.command.productDocs": "产品文档",
   "quickPick.command.login": "连接",
   "quickPick.command.logout": "断开连接",
   "commandCenter.placeholder": "搜索操作、任务或文件",
