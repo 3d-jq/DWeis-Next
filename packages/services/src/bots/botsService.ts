@@ -2258,7 +2258,7 @@ export function createBotsService(
     for (const entry of settings?.lastWorkspaceSession ?? []) {
       const workspace = createWorkspaceRef(
         entry.workspacePath,
-        entry.kind === "remote" ? entry.workspaceIdentity : undefined,
+        undefined,
       );
       workspaceByKey.set(
         getWorkspaceKey(workspace.workspacePath, workspace.workspaceIdentity),

@@ -60,7 +60,7 @@ import {
   SettingsResourceList,
 } from "@/settings/SettingsResourceGroup.js";
 import { McpServersImportDialog } from "@/settings/ExternalAgentImportDialog.js";
-import { RemoteSyncDialogs, shouldShowRemoteSyncActions } from "@/settings/RemoteSyncActions.js";
+// DWeis Next 无云绑定：远程 MCP 同步入口（RemoteSyncActions）已随远程工作区摘除。
 import { useMcpStore } from "@/store/mcpStore.js";
 import { usePluginManagementStore } from "@/store/pluginManagementStore.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
@@ -70,7 +70,6 @@ import type { WorkspaceTabState } from "@/store/tabStore.js";
 import { getPluginWorkspaceKey } from "@/settings/PluginScopeMenu.js";
 import { ExternalLink, Import, Plus, UploadCloud } from "lucide-react";
 import { SettingsSegmentedTabs } from "@/settings/SettingsSegmentedTabs.js";
-import { formatRemoteSkillSyncTarget } from "@/settings/RemoteSkillSyncDialog.js";
 import { selectPluginsForScope } from "@/settings/pluginCapabilityProjection.js";
 
 const DEFAULT_MCP_SOURCE: ServerScope = "zcodeagentmcp";
@@ -616,7 +615,6 @@ export function McpSettingsSection({
   const [formScopeKey, setFormScopeKey] = useState(parentScopeKey);
   const [editingServer, setEditingServer] = useState<ZCodeMcpServer | null>(null);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
-  const [remoteMcpSyncOpen, setRemoteMcpSyncOpen] = useState(false);
   const query = searchQuery;
   const [editorMode, setEditorMode] = useState<McpEditorMode>("form");
   const [mcpConfigReadyWorkspaceKey, setMcpConfigReadyWorkspaceKey] = useState("");
@@ -1140,16 +1138,9 @@ export function McpSettingsSection({
     () => filterLocalMcpServers(scopedServers, query),
     [query, scopedServers],
   );
-  const connectedRemoteSyncTarget =
-    shouldShowRemoteSyncActions({
-      remoteSessionId,
-      remoteTarget,
-      clientMode: "desktop-continuous" as const,
-      hasLocalSourceService: Boolean(baseServices.mcpSyncService),
-    }) && activeWorkspacePath
-      ? remoteTarget
-      : null;
-  const isRemoteSyncContext = Boolean(connectedRemoteSyncTarget);
+  // DWeis Next 无云绑定：远程 MCP 同步目标已随远程工作区摘除；MCP 设置恒为本地上下文。
+  const connectedRemoteSyncTarget = null;
+  const isRemoteSyncContext = false;
   const pluginMcpServers = useMemo(() => {
     if (!shouldShowPluginMcpServersInMcpSettings(isRemoteSyncContext)) {
       // 插件 MCP 列表来自本机插件管理 store，不是当前远端目标。
@@ -1211,9 +1202,6 @@ export function McpSettingsSection({
   useEffect(() => {
     onVisibleCountChange?.(filteredMcpCount);
   }, [filteredMcpCount, onVisibleCountChange]);
-  const remoteMcpSyncTargetLabel = connectedRemoteSyncTarget
-    ? formatRemoteSkillSyncTarget(connectedRemoteSyncTarget, activeWorkspacePath ?? "")
-    : "";
 
   async function handleToggle(id: string, enabled: boolean) {
     await toggleServer(id, enabled);
@@ -1418,33 +1406,6 @@ export function McpSettingsSection({
 
   return (
     <div className="space-y-4">
-      {connectedRemoteSyncTarget ? (
-        <div className="flex justify-end">
-          <ControlHintTooltip title={intl.formatMessage({ id: "settings.mcp.remoteSync.open" })}>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon-lg"
-              aria-label={intl.formatMessage({
-                id: "settings.mcp.remoteSync.open",
-              })}
-              onClick={() => setRemoteMcpSyncOpen(true)}
-            >
-              <UploadCloud className="size-3.5" aria-hidden="true" />
-            </Button>
-          </ControlHintTooltip>
-        </div>
-      ) : null}
-
-      {connectedRemoteSyncTarget ? (
-        <div className="rounded-lg border border-border bg-card px-3 py-2 text-ui-base text-foreground-subtle">
-          {intl.formatMessage(
-            { id: "settings.mcp.remoteContext" },
-            { target: remoteMcpSyncTargetLabel },
-          )}
-        </div>
-      ) : null}
-
       {!mcpProjectionReady ? (
         <PluginLoadingState label={intl.formatMessage({ id: "common.loading" })} />
       ) : hasEmptySearchResult ? (
@@ -1566,30 +1527,8 @@ export function McpSettingsSection({
           await loadMcpFromUserDirectory(services.mcpSyncService, activeWorkspaceIdentity);
         }}
       />
-      <RemoteSyncDialogs
-        canSyncSkills={false}
-        canSyncMcp={Boolean(connectedRemoteSyncTarget && activeWorkspacePath)}
-        skillOpen={false}
-        mcpOpen={remoteMcpSyncOpen}
-        onSkillOpenChange={() => {}}
-        onMcpOpenChange={setRemoteMcpSyncOpen}
-        localMcpSyncService={baseServices.mcpSyncService}
-        remoteMcpSyncService={services.mcpSyncService}
-        remoteTarget={connectedRemoteSyncTarget}
-        skillWorkspacePath=""
-        mcpWorkspacePath={activeWorkspacePath ?? ""}
-        mcpLocalWorkspacePath={localWorkspacePath}
-        onSkillsSynced={() => {}}
-        onMcpSynced={async () => {
-          const loaded = await loadMcpFromUserDirectory(
-            services.mcpSyncService,
-            activeWorkspaceIdentity,
-          );
-          if (loaded) {
-            await requestMcpServerStatusList();
-          }
-        }}
-      />
+      {/* DWeis Next 无云绑定：远程同步对话框已随远程工作区摘除。 */}
+
     </div>
   );
 }

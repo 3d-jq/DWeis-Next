@@ -22,8 +22,6 @@ export type {
   ResourceUsageProcess,
   HostResourceUsageProcess,
   ResourceUsageSnapshot,
-  RemoteTargetSnapshot,
-  RemoteWorkspaceSessionEntry,
   PersistedWorkspaceSessionEntry,
 } from "./protocol.js";
 export type { WorkspacePurpose } from "./workspacePurpose.js";
@@ -31,20 +29,8 @@ export { DEFAULT_LOCALE } from "./protocol.js";
 export { ZCODE_VERSION, ZCODE_COMMIT, ZCODE_BUILD_TIME } from "./version.js";
 export type { HelloMessage, HelloAckMessage } from "./handshake.js";
 export type { ArmsRumEnv, ZCodeEnv, ZCodeProductFlavor } from "./env.js";
-export type { RemoteAssetInstallMode } from "./remoteAssetInstallMode.js";
-export type {
-  RemoteResourcePackageId,
-  RemoteResourcePackageSelection,
-} from "./remoteResourcePackages.js";
-export type {
-  DockerConnectOptions,
-  RemoteTarget,
-  SSHConnectOptions,
-  WSLConnectOptions,
-} from "./remoteTarget.js";
-export { stripRemoteTargetSecrets } from "./remoteTarget.js";
-export { buildSshRemoteHostKey } from "./remoteSshHostKey.js";
-export { buildRemoteEnvironmentKey } from "./remoteEnvironmentKey.js";
+// DWeis Next 无云绑定：remoteSshHostKey / remoteEnvironmentKey（远程连接身份键）
+// 已随远程工作区摘除。
 export type {
   ShortcutChannel,
   ShortcutCommandEntry,
@@ -84,7 +70,6 @@ export * from "./account-provider-state.js";
 export * from "./zcode-protocol-legacy-types.js";
 export * from "./zcode-task-types-core.js";
 export * from "./task-realtime-core.js";
-export * from "./remote-workspace-identity.js";
 export * from "./zcode-api-retry-status.js";
 export * from "./zcode-network-debug-status.js";
 export * from "./zcode-session-visible-content.js";
@@ -99,6 +84,7 @@ export * from "./zcode-slash-command-help.js";
 export * from "./zcodeEndpoint.js";
 export * from "./zcode-source-headers.js";
 export * from "./zcode-agent-policy.js";
+export * from "./remote-workspace-identity.js";
 export * from "./zcode-media-policy.js";
 export * from "./media-preview.js";
 export * from "./plugin-display-name.js";
@@ -107,7 +93,6 @@ export * from "./runtimeEnv.js";
 export * from "./dynamic-workflow-feature.js";
 export * from "./markdown-artifact-images.js";
 export * from "./serviceAuthority.js";
-export * from "./server-remote.js";
 
 export interface ICredentialStore {
   get(key: string): Promise<string | null>;
@@ -125,17 +110,22 @@ export * from "./feedback.js";
 export * from "./e2e-test-bridge.js";
 export * from "./remoteAppConfig.js";
 export * from "./helpAppConfig.js";
-export * from "./remoteAssetInstallMode.js";
 export * from "./onboardingRecord.js";
-export * from "./remoteResourcePackages.js";
 export * from "./plan-identity.js";
+export * from "./workspaceTelemetryDetail.js";
+export type {
+  DockerConnectOptions,
+  RemoteTarget,
+  SSHConnectOptions,
+  WSLConnectOptions,
+} from "./remoteTarget.js";
+export { stripRemoteTargetSecrets } from "./remoteTarget.js";
 export {
   BROWSER_SCREENSHOT_SURFACE_PREPARE_TIMEOUT_MS,
   BROWSER_VIEW_RESTORE_BOOTSTRAP_URL,
   LOCAL_MEDIA_PREVIEW_SCHEME,
   DesktopCommandIds,
   buildLocalMediaPreviewUrl,
-  createOpenInEditorRemoteTarget,
 } from "./platform.js";
 export type {
   ArmsCustomEventPayload,
@@ -166,14 +156,10 @@ export {
   resolveTelemetryProviderScope,
   sanitizeTelemetryModelValue,
 } from "./telemetryRedaction.js";
-export * from "./remoteUsageTelemetry.js";
 export * from "./sessionCreateTelemetry.js";
 export type { LaunchMarks } from "./launchMarks.js";
 export { LAUNCH_MARKS_QUERY_KEY, parseLaunchMarks, serializeLaunchMarks } from "./launchMarks.js";
 export type {
-  CancelPendingRemoteConnectionRequest,
-  BindRemoteWorkspaceSessionContextRequest,
-  BotRemoteWorkspaceReconnectedEvent,
   BrowserTabResidencyState,
   BrowserViewCloseTabNotification,
   BrowserViewCloseTabRequest,
@@ -189,7 +175,6 @@ export type {
   ChromeBrowserDataImportError,
   ChromeBrowserDataImportOptions,
   ChromeBrowserDataImportResult,
-  ConnectRemoteRequest,
   CreateTempTextAttachmentRequest,
   CreateTempTextAttachmentResult,
   SaveFileRequest,
@@ -199,7 +184,6 @@ export type {
   CuaOsSupport,
   DesktopWindowChromeState,
   DesktopTitleBarTheme,
-  DockerContainerInfo,
   EditorInfo,
   ApplicationIconInfo,
   ApplicationIconLocator,
@@ -209,17 +193,12 @@ export type {
   EmbeddedBrowserDataClearResult,
   EmbeddedBrowserOpenUrlRequest,
   IPlatformService,
-  OpenInEditorRemoteTarget,
   OpenInEditorOptions,
   PostUpdateReleaseNotesPayload,
-  RemoteConnectionRuntimeLog,
-  RemoteSessionClosedEvent,
   RemoteServiceSession,
-  SSHConfigAliasOption,
   TaskNotificationPayload,
   UpdateCheckResultPayload,
   UpdateStatePayload,
-  WSLDistro,
   ZCodeStdioTapDevState,
 } from "./platform.js";
 export type {
@@ -253,7 +232,6 @@ export * from "./skills-types.js";
 export * from "./skill-sync.js";
 export * from "./mcp-sync.js";
 export * from "./plugin-sync.js";
-export * from "./remote-sync.js";
 export * from "./plugin-types.js";
 export * from "./subagents-types.js";
 export * from "./settings-source.js";

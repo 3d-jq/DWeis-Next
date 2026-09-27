@@ -1,5 +1,5 @@
 /* eslint-disable max-lines -- 文件树行集中维护拖拽、打开方式、Git 状态与上下文菜单交互。 */
-import type { EditorInfo, OpenInEditorRemoteTarget } from "@zcode/shared";
+import type { EditorInfo } from "@zcode/shared";
 import type { CSSProperties, KeyboardEvent, MouseEvent } from "react";
 import { AlertCircle, ChevronRight, LoaderCircle } from "lucide-react";
 import { TID_WORKSPACE_FILE_TREE_ROW, testId } from "@zcode/shared";
@@ -84,7 +84,7 @@ export function WorkspaceFileTreeRowView({
   canOpenLocalFileManager: boolean;
   installedEditors: EditorInfo[];
   isRemoteWorkspaceFileTree: boolean;
-  remoteTarget?: OpenInEditorRemoteTarget;
+  remoteTarget?: unknown;
   workspacePath: string;
   workspaceIdentity?: string;
   style: CSSProperties;
@@ -171,11 +171,9 @@ export function WorkspaceFileTreeRowView({
     if (isDeletedFile) {
       return;
     }
-    // 远程文件树以前整项禁用第三方打开，且调用只传 Linux path；
-    // 这里把已脱敏 remoteTarget 与文件/目录类型交给 main，由唯一平台边界生成正确 URI。
+    // DWeis Next 无云绑定：remoteTarget 已随远程工作区摘除，openInEditor 只处理本地路径。
     const result = await platform.openInEditor(editor.id, row.path, {
       pathKind: isDirectory ? "directory" : "file",
-      remoteTarget,
       workspaceIdentity,
     });
     if (result.success) {

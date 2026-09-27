@@ -37,7 +37,7 @@ interface ResolvedWindowHostControllerSource {
 }
 
 function sourceKey(scope: WindowHostControllerSourceScope): string {
-  return `${scope.kind}\0${scope.kind === "remote" ? scope.remoteSessionId : "local"}\0${scope.workspaceIdentity?.trim() || scope.workspacePath}`;
+  return `local\0${scope.workspaceIdentity?.trim() || scope.workspacePath}`;
 }
 
 function taskKey(task: Pick<ZCodeTaskMeta, "taskId" | "workspacePath" | "workspaceIdentity">) {
@@ -234,9 +234,7 @@ export function createWindowHostControllerRuntime(options: {
   ): Promise<WindowHostControllerMutationResult> {
     const current = resolveCurrentSource(scope);
     if (!current?.taskService || current.sourceAvailability !== "online") {
-      throw new Error(
-        scope.kind === "remote" ? "远程 source 当前离线，禁止列表写操作" : "本地 source 当前不可用",
-      );
+      throw new Error("本地 source 当前不可用");
     }
     const service = current.taskService;
     const base = mutationParams(address);
@@ -512,15 +510,10 @@ export function createWindowHostControllerRuntime(options: {
                     (row) =>
                       row.address.taskId === normalized.taskId &&
                       row.address.workspacePath === normalized.workspacePath &&
-                      row.address.workspaceIdentity === normalized.workspaceIdentity &&
-                      row.address.remoteSessionId ===
-                        (source.scope.kind === "remote" ? source.scope.remoteSessionId : undefined),
+                      row.address.workspaceIdentity === normalized.workspaceIdentity,
                   );
                 return {
                   ...(projected?.meta ?? normalized),
-                  ...(source.scope.kind === "remote"
-                    ? { remoteSessionId: source.scope.remoteSessionId }
-                    : {}),
                   sourceAvailability: "online" as const,
                   liveStatus: projected?.liveStatus ?? liveStatusFromMeta(normalized),
                   ...(projected?.activity ? { activity: projected.activity } : {}),
@@ -549,20 +542,14 @@ export function createWindowHostControllerRuntime(options: {
       items = projection
         .getTasks()
         .filter((row) => {
-          const scope: WindowHostControllerSourceScope = row.address.remoteSessionId
-            ? {
-                kind: "remote",
-                remoteSessionId: row.address.remoteSessionId,
-                workspacePath: row.address.workspacePath,
-                workspaceIdentity: row.address.workspaceIdentity!,
-              }
-            : {
-                kind: "local",
-                workspacePath: row.address.workspacePath,
-                ...(row.address.workspaceIdentity
-                  ? { workspaceIdentity: row.address.workspaceIdentity }
-                  : {}),
-              };
+          // DWeis Next 无云绑定：投影行只剩 local 来源，remote 行不再产生。
+          const scope: WindowHostControllerSourceScope = {
+            kind: "local",
+            workspacePath: row.address.workspacePath,
+            ...(row.address.workspaceIdentity
+              ? { workspaceIdentity: row.address.workspaceIdentity }
+              : {}),
+          };
           return (
             selectedSources.has(sourceKey(scope)) &&
             matchesTaskListMembershipKind(row.membership, query.kind)
@@ -570,7 +557,6 @@ export function createWindowHostControllerRuntime(options: {
         })
         .map((row) => ({
           ...row.meta,
-          ...(row.address.remoteSessionId ? { remoteSessionId: row.address.remoteSessionId } : {}),
           sourceAvailability: row.sourceAvailability,
           liveStatus: row.liveStatus,
           ...(row.activity ? { activity: row.activity } : {}),
@@ -680,37 +666,15 @@ export function createWindowHostControllerRuntime(options: {
       taskId: string;
       workspacePath: string;
       workspaceIdentity?: string;
-      attachmentScope?: import("@zcode/shared").WindowHostAttachmentScope;
       allowMissingTask?: boolean;
     }): Promise<WindowHostTaskAddress> {
-      const remoteAttachmentScope =
-        params.attachmentScope?.kind === "remote" ? params.attachmentScope : undefined;
-      if (remoteAttachmentScope) {
-        if (
-          remoteAttachmentScope.workspacePath !== params.workspacePath ||
-          remoteAttachmentScope.workspaceIdentity !== params.workspaceIdentity
-        ) {
-          throw new Error("列表 mutation 与 remote attachment scope 不匹配");
-        }
-      }
       const resolved = options.resolveSource({
         workspacePath: params.workspacePath,
         ...(params.workspaceIdentity ? { workspaceIdentity: params.workspaceIdentity } : {}),
       });
-      if (
-        remoteAttachmentScope &&
-        (!resolved ||
-          resolved.scope.kind !== "remote" ||
-          resolved.scope.remoteSessionId !== remoteAttachmentScope.remoteSessionId ||
-          resolved.scope.workspacePath !== remoteAttachmentScope.workspacePath ||
-          resolved.scope.workspaceIdentity !== remoteAttachmentScope.workspaceIdentity)
-      ) {
-        throw new Error("列表 mutation 与 remote attachment source 不匹配");
-      }
       if (resolved) {
-        // remote attachment 曾直接返回 address，跳过 source refresh；新绑定的
-        // workspace 尚未读取 Controller 列表时没有投影行，导致 unread/archive 等首次写入失败。
-        // 这里只物化已按完整 remoteSessionId + identity 验证的 source，继续保持 fail-closed。
+        // 新 workspace 尚未读取 Controller 列表时没有投影行，会导致 unread/archive
+        // 等首次写入失败；这里先做一次 source refresh，保持 fail-closed。
         await refreshSource(resolved);
       }
       const matches = projection
@@ -719,9 +683,7 @@ export function createWindowHostControllerRuntime(options: {
           (row) =>
             row.address.taskId === params.taskId &&
             row.address.workspacePath === params.workspacePath &&
-            row.address.workspaceIdentity === params.workspaceIdentity &&
-            (!remoteAttachmentScope ||
-              row.address.remoteSessionId === remoteAttachmentScope.remoteSessionId),
+            row.address.workspaceIdentity === params.workspaceIdentity,
         );
       if (matches.length !== 1) {
         if (matches.length === 0 && params.allowMissingTask && resolved) {
@@ -731,9 +693,6 @@ export function createWindowHostControllerRuntime(options: {
             workspacePath: resolved.scope.workspacePath,
             ...(resolved.scope.workspaceIdentity
               ? { workspaceIdentity: resolved.scope.workspaceIdentity }
-              : {}),
-            ...(resolved.scope.kind === "remote"
-              ? { remoteSessionId: resolved.scope.remoteSessionId }
               : {}),
           };
         }

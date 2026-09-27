@@ -5,7 +5,7 @@
  * 替代直接调用 window.zcode。
  */
 import { createContext, useContext, useCallback, type ReactNode } from "react";
-import type { IPlatformService, RemoteTarget } from "@zcode/shared";
+import type { IPlatformService } from "@zcode/shared";
 
 const PlatformContext = createContext<IPlatformService | null>(null);
 
@@ -38,16 +38,4 @@ export function useSelectDirectory() {
   return useCallback(() => platform.selectDirectory(), [platform]);
 }
 
-/** 连接远程的便捷 hook */
-export function useConnectRemote() {
-  const platform = usePlatform();
-  return useCallback(
-    async (options: RemoteTarget, requestId?: string) => {
-      const result = await platform.connectRemote(options, requestId);
-      if (!result.success) {
-        throw new Error(result.error || "Connection failed");
-      }
-    },
-    [platform],
-  );
-}
+// DWeis Next 无云绑定：useConnectRemote（SSH/WSL/Docker 建连）已随远程工作区摘除。

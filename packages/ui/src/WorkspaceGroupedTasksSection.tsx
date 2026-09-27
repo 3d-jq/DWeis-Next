@@ -1,4 +1,4 @@
-/* eslint-disable max-lines -- 顶层 grouped task 容器仍集中维护远程 workspace service 解析、group 菜单、task 菜单和列表写回；子行与纯 helper 已拆到 workspace-grouped-tasks 目录。 */
+/* eslint-disable max-lines -- 顶层 grouped task 容器仍集中维护本地 workspace service 解析、group 菜单、task 菜单和列表写回；远程 workspace 解析已随 DWeis Next 远程工作区摘除；子行与纯 helper 已拆到 workspace-grouped-tasks 目录。 */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import {
@@ -32,11 +32,7 @@ import { resolveTaskFileTreeTargetFromTabs } from "@/lib/taskFileTreeTarget.js";
 import { toast } from "@/components/ui/toast.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { selectWorkspaceZCodeState, useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
-import { useRemoteWorkspaceSessionStore } from "@/store/remoteWorkspaceSessionStore.js";
-import { buildWorkspaceServiceLookup } from "@/lib/workspaceServiceResolver.js";
 import { applyTaskQueryCacheMutation } from "@/store/taskQueryCacheStore.js";
-import { useRemotePinnedTaskStore } from "@/store/remotePinnedTaskStore.js";
-import { useRemoteTimelineTaskStore } from "@/store/remoteTimelineTaskStore.js";
 import { bumpTaskListMembershipVersion } from "@/v4/taskListMembershipVersion.js";
 import { GroupItem, GroupedTaskItem } from "@/workspace-grouped-tasks/items.js";
 import { GroupDragOverlay } from "@/workspace-grouped-tasks/group-drag-overlay.js";
@@ -557,24 +553,21 @@ export function WorkspaceGroupedTasksSection({
 }) {
   const { intl } = useZCodeIntl();
   const baseServices = useBaseWorkspaceServices();
-  const sessionsById = useRemoteWorkspaceSessionStore((state) => state.sessionsById);
-  const sessionIdByWorkspaceIdentity = useRemoteWorkspaceSessionStore(
-    (state) => state.sessionIdByWorkspaceIdentity,
-  );
-  const sessionIdByWorkspacePath = useRemoteWorkspaceSessionStore(
-    (state) => state.sessionIdByWorkspacePath,
-  );
-  const serviceResolverState = useMemo(
-    () => ({
-      sessionsById,
-      sessionIdByWorkspaceIdentity,
-      sessionIdByWorkspacePath,
-    }),
-    [sessionIdByWorkspaceIdentity, sessionIdByWorkspacePath, sessionsById],
-  );
+  // DWeis Next 无云绑定：远程 workspace session 解析（serviceResolverState /
+  // buildWorkspaceServiceLookup）已随远程工作区摘除，窗口内本地 tab 统一解析到
+  // 唯一一套 window 级 Host services（baseServices）。
   const workspaceServiceLookup = useMemo(
-    () => buildWorkspaceServiceLookup(workspaceTabs, baseServices, serviceResolverState),
-    [baseServices, serviceResolverState, workspaceTabs],
+    () =>
+      new Map(
+        workspaceTabs.map(
+          (tab) =>
+            [
+              buildTaskWorkspaceKey(tab.workspacePath, tab.workspaceIdentity),
+              { services: baseServices },
+            ] as const,
+        ),
+      ),
+    [baseServices, workspaceTabs],
   );
   const removeTaskState = useZCodeSessionStore((state) => state.removeTaskState);
   const upsertOptimisticTaskListItem = useZCodeSessionStore(
@@ -882,12 +875,10 @@ export function WorkspaceGroupedTasksSection({
     return tab?.label || getPathLeaf(activeWorkspacePath) || activeWorkspacePath;
   }, [activeWorkspaceIdentity, activeWorkspacePath, intl, workspaceTabByKey]);
 
-  const getTaskRemoteSessionId = useCallback(
-    (task: ZCodeTaskMeta) =>
-      workspaceServiceLookup.get(buildTaskWorkspaceKey(task.workspacePath, task.workspaceIdentity))
-        ?.remoteSessionId,
-    [workspaceServiceLookup],
-  );
+  // DWeis Next 无云绑定：remoteSessionId 解析已随远程工作区摘除。GroupItem /
+  // VirtualizedGroupedTopLevelList 的 getTaskRemoteSessionId 是既有必填 prop，
+  // 这里保留零参数兼容实现（恒为 undefined），确认无远端会话后可随子组件一并清理。
+  const getTaskRemoteSessionId = useCallback(() => undefined, []);
 
   const handleOpenTaskFileTree = useCallback(
     (task: ZCodeTaskMeta) => {
@@ -1098,14 +1089,6 @@ export function WorkspaceGroupedTasksSection({
           // 归档成功后主动换代 membership；渲染层在权威列表确认消失前继续屏蔽该 task。
           bumpTaskListMembershipVersion();
           removeTaskState(task.workspacePath, task.taskId, task.workspaceIdentity);
-          if (task.workspaceIdentity) {
-            useRemoteTimelineTaskStore
-              .getState()
-              .removeTask(task.workspacePath, task.taskId, task.workspaceIdentity);
-            useRemotePinnedTaskStore
-              .getState()
-              .removeTask(task.workspacePath, task.taskId, task.workspaceIdentity);
-          }
           applyTaskQueryCacheMutation({
             previousTask: task,
             nextTask: meta,
@@ -1242,7 +1225,6 @@ export function WorkspaceGroupedTasksSection({
           kind: "zcode/session",
           workspacePath: activeTask.workspacePath,
           workspaceIdentity: activeTask.workspaceIdentity,
-          remoteSessionId: getTaskRemoteSessionId(activeTask),
           sessionId: activeTask.taskId,
         };
       }
@@ -1259,7 +1241,7 @@ export function WorkspaceGroupedTasksSection({
       }
       setActiveDragTaskKey(nextActiveTaskKey);
     },
-    [collapsedGroupIds, getTaskRemoteSessionId, onCollapsedGroupIdsChange, authoritativeView, view],
+    [collapsedGroupIds, onCollapsedGroupIdsChange, authoritativeView, view],
   );
 
   const applyGroupedTaskDragOverPreview = useCallback(
@@ -1567,7 +1549,6 @@ export function WorkspaceGroupedTasksSection({
           key={taskKey(node.task)}
           task={node.task}
           groups={groups}
-          remoteSessionId={getTaskRemoteSessionId(node.task)}
           workspaceLabel={getTaskWorkspaceLabel(node.task)}
           activeWorkspacePath={activeWorkspacePath}
           activeWorkspaceIdentity={activeWorkspaceIdentity}
@@ -1654,7 +1635,6 @@ export function WorkspaceGroupedTasksSection({
           <GroupedTaskItem
             task={activeDragTask}
             groups={groups}
-            remoteSessionId={getTaskRemoteSessionId(activeDragTask)}
             workspaceLabel={getTaskWorkspaceLabel(activeDragTask)}
             activeWorkspacePath={activeWorkspacePath}
             activeWorkspaceIdentity={activeWorkspaceIdentity}

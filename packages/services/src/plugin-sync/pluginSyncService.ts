@@ -18,7 +18,6 @@ import type {
   PluginSyncCandidate,
   PluginSyncComponentType,
   PluginSyncImportResult,
-  PluginSyncRemoteStatus,
 } from "@zcode/shared";
 import type { IPluginSyncService } from "./pluginSync.js";
 import {
@@ -28,7 +27,6 @@ import {
   type PluginSyncArchiveMetadata,
 } from "./pluginSyncArchive.js";
 import { normalizePluginSyncRelativePath, resolvePluginSyncPathWithin } from "./pluginSyncPath.js";
-import { checkRemoteSyncDirectoriesWriteAccess } from "../remote-sync/remoteSyncWriteAccess.js";
 
 interface PluginManifestInfo {
   name: string;
@@ -89,36 +87,6 @@ export function createPluginSyncService(options?: {
       return {
         candidates: await collectLocalUserPluginCandidates(),
         maxArchiveBytes,
-      };
-    },
-    async listRemoteUserPluginStatuses(params) {
-      const targetRoot = getUserZcodePluginRoot();
-      const existingPluginPathById = await collectConfiguredInlinePluginPathById();
-      return {
-        statuses: params.plugins.map((plugin): PluginSyncRemoteStatus => {
-          const directoryName = normalizePluginSyncRelativePath(plugin.directoryName);
-          const pluginId = normalizePluginId(plugin.pluginId);
-          const targetPath = resolvePluginSyncPathWithin(targetRoot, directoryName);
-          if (existsSync(targetPath)) {
-            return {
-              pluginId,
-              directoryName,
-              exists: true,
-              path: targetPath,
-              reason: "targetExists",
-            };
-          }
-          const existingPath = existingPluginPathById.get(normalizePluginIdKey(pluginId));
-          return existingPath
-            ? {
-                pluginId,
-                directoryName,
-                exists: true,
-                path: existingPath,
-                reason: "samePluginId",
-              }
-            : { pluginId, directoryName, exists: false };
-        }),
       };
     },
     async exportPluginsArchive(params) {
@@ -191,12 +159,6 @@ export function createPluginSyncService(options?: {
         );
       }
       return await importPluginsArchive(params.archive, maxArchiveBytes);
-    },
-    async checkRemoteUserPluginWriteAccess() {
-      return checkRemoteSyncDirectoriesWriteAccess([
-        getUserZcodePluginRoot(),
-        dirname(getUserZcodeConfigPath()),
-      ]);
     },
     async importMarketplaceSourceArchive(params) {
       if (params.overwrite) {

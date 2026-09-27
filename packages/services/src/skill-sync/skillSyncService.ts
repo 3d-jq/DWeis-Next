@@ -10,7 +10,6 @@ import type {
   SkillSyncCandidate,
   SkillSyncCandidateListResult,
   SkillSyncImportResult,
-  SkillSyncRemoteStatusResult,
 } from "@zcode/shared";
 import type { ISkillSyncService } from "./skillSync.js";
 import { createSkillSyncArchive, extractSkillSyncArchive } from "./skillSyncArchive.js";
@@ -21,7 +20,6 @@ import {
   shouldWalkSkillDirectoryEntry,
   walkSkillMarkdownPaths,
 } from "../skills/skillDiscoveryWalk.js";
-import { checkRemoteSyncDirectoryWriteAccess } from "../remote-sync/remoteSyncWriteAccess.js";
 
 const SKILL_FILE_NAME = "SKILL.md";
 const DEFAULT_MAX_ARCHIVE_BYTES = 20 * 1024 * 1024;
@@ -33,36 +31,6 @@ export function createSkillSyncService(options?: { maxArchiveBytes?: number }): 
       return {
         candidates: await collectUserSkillCandidates(),
         maxArchiveBytes,
-      };
-    },
-    async listRemoteUserSkillStatuses(params): Promise<SkillSyncRemoteStatusResult> {
-      const root = getUserZcodeSkillRoot();
-      const existingSkillPathByName = await collectUserSkillDirectoryPathByName();
-      // skill sync service 会通过 RPC 暴露给 renderer / remote 客户端；
-      // directoryName 不能只信 UI 候选，必须在服务端限制为 skills 根内的安全相对路径。
-      const directoryNames = params.directoryNames.map((directoryName) =>
-        normalizeSkillSyncRelativePath(directoryName),
-      );
-      const requestedSkillNameByDirectory = new Map(
-        (params.skills ?? []).map((skill) => [
-          normalizeSkillSyncRelativePath(skill.directoryName),
-          skill.name,
-        ]),
-      );
-      return {
-        statuses: directoryNames.map((directoryName) => {
-          const path = resolveSkillSyncPathWithin(root, directoryName);
-          if (existsSync(path)) {
-            return { directoryName, exists: true, path };
-          }
-          const requestedName = requestedSkillNameByDirectory.get(directoryName);
-          const existingPath = requestedName
-            ? existingSkillPathByName.get(normalizeSkillNameKey(requestedName))
-            : undefined;
-          return existingPath
-            ? { directoryName, exists: true, path: existingPath }
-            : { directoryName, exists: false };
-        }),
       };
     },
     async exportSkillsArchive(params): Promise<SkillSyncArchiveExportResult> {
@@ -106,9 +74,6 @@ export function createSkillSyncService(options?: { maxArchiveBytes?: number }): 
           directoryName,
         })),
       };
-    },
-    async checkRemoteUserSkillWriteAccess() {
-      return checkRemoteSyncDirectoryWriteAccess(getUserZcodeSkillRoot());
     },
     async importSkillsArchive(params): Promise<SkillSyncImportResult> {
       if (params.overwrite) {

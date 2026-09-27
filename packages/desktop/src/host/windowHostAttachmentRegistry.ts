@@ -98,41 +98,13 @@ export function createWindowHostAttachmentRegistry<
     disposeTracked(tracked);
   }
 
-  function detachStaleRemoteSessionAttachments(
-    remoteSessionId: string,
-    currentGeneration: number,
-  ): void {
-    for (const [attachmentId, tracked] of attachments) {
-      if (
-        tracked.params.scope.kind !== "remote" ||
-        tracked.params.scope.remoteSessionId !== remoteSessionId ||
-        tracked.params.generation === currentGeneration
-      ) {
-        continue;
-      }
-      attachments.delete(attachmentId);
-      disposeTracked(tracked);
-    }
-  }
-
-  function detachRemoteSessionAttachments(remoteSessionId: string): void {
-    for (const [attachmentId, tracked] of attachments) {
-      if (
-        tracked.params.scope.kind !== "remote" ||
-        tracked.params.scope.remoteSessionId !== remoteSessionId
-      ) {
-        continue;
-      }
-      attachments.delete(attachmentId);
-      disposeTracked(tracked);
-    }
-  }
+  // DWeis Next 无云绑定：detachStaleRemoteSessionAttachments /
+  // detachRemoteSessionAttachments（远程 logical session 的 attachment 清理）
+  // 已随远程工作区摘除，scope 仅剩 local 一类。
 
   return {
     attach,
     detach,
-    detachRemoteSessionAttachments,
-    detachStaleRemoteSessionAttachments,
     size: () => attachments.size,
     list: () =>
       Array.from(attachments.values(), (tracked) => ({

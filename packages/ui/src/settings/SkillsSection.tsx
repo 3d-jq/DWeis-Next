@@ -55,8 +55,8 @@ import {
 } from "@/settings/pluginStoreListing.js";
 import { groupSkillsByPlugin } from "@/settings/pluginManagedResourceGroups.js";
 import { SkillsImportDialog } from "@/settings/ExternalAgentImportDialog.js";
-import { formatRemoteSkillSyncTarget } from "@/settings/RemoteSkillSyncDialog.js";
-import { RemoteSyncDialogs, shouldShowRemoteSyncActions } from "@/settings/RemoteSyncActions.js";
+// DWeis Next 无云绑定：远程 Skills 同步入口（RemoteSkillSyncDialog/RemoteSyncActions）
+// 已随远程工作区摘除；本地 skill 同步仅面向本机用户目录。
 import { refreshSharedSkillStoreForWorkspace } from "@/lib/skillStoreRefresh.js";
 import { usePluginManagementStore } from "@/store/pluginManagementStore.js";
 import {
@@ -218,7 +218,6 @@ export function SkillsSection({
   const [diagnostics, setDiagnostics] = useState<SkillDiagnostic[]>([]);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
-  const [remoteSkillSyncOpen, setRemoteSkillSyncOpen] = useState(false);
   const latestRequestIdRef = useRef(0);
   const activeSkillTargetKey = activeWorkspaceIdentity?.trim() || activeWorkspacePath || "";
   const projectionMatchesTarget =
@@ -242,20 +241,7 @@ export function SkillsSection({
   ]);
 
   const workspaceLabel = getWorkspaceBasename(activeWorkspacePath);
-  const connectedRemoteSyncTarget =
-    targetServiceResolution.rpcReady &&
-    shouldShowRemoteSyncActions({
-      remoteSessionId,
-      remoteTarget,
-      clientMode: "desktop-continuous" as const,
-      hasLocalSourceService: Boolean(baseServices.skillSyncService),
-    }) &&
-    activeWorkspacePath
-      ? remoteTarget
-      : null;
-  const remoteSkillSyncTargetLabel = connectedRemoteSyncTarget
-    ? formatRemoteSkillSyncTarget(connectedRemoteSyncTarget, activeWorkspacePath ?? "")
-    : "";
+  // DWeis Next 无云绑定：connectedRemoteSyncTarget / remoteSkillSyncTargetLabel 已随远程工作区摘除。
 
   const renderScopeLabel = useCallback(
     (skill: SkillSummary): string => {
@@ -342,7 +328,6 @@ export function SkillsSection({
       setLoading(false);
       setError(null);
       setImportDialogOpen(false);
-      setRemoteSkillSyncOpen(false);
       return;
     }
     // 首屏或切换 Scope target 时必须显示阻塞 loading；手动刷新仍走后台刷新，
@@ -662,21 +647,6 @@ export function SkillsSection({
       newActionId="settings.skills.create.open"
     />
   );
-  const remoteSyncAction = connectedRemoteSyncTarget ? (
-    <ControlHintTooltip title={intl.formatMessage({ id: "settings.skills.remoteSync.open" })}>
-      <Button
-        type="button"
-        variant="outline"
-        size="icon-lg"
-        aria-label={intl.formatMessage({
-          id: "settings.skills.remoteSync.open",
-        })}
-        onClick={() => setRemoteSkillSyncOpen(true)}
-      >
-        <UploadCloud className="size-3.5" aria-hidden="true" />
-      </Button>
-    </ControlHintTooltip>
-  ) : null;
 
   return (
     <div className="space-y-4">
@@ -701,17 +671,6 @@ export function SkillsSection({
           }
         />
       ) : null}
-      {remoteSyncAction ? <div className="flex justify-end">{remoteSyncAction}</div> : null}
-
-      {connectedRemoteSyncTarget ? (
-        <div className="rounded-lg border border-border bg-card px-3 py-2 text-ui-base text-foreground-subtle">
-          {intl.formatMessage(
-            { id: "settings.skills.remoteContext" },
-            { target: remoteSkillSyncTargetLabel },
-          )}
-        </div>
-      ) : null}
-
       {targetServiceResolution.rpcReady && diagnostics.length > 0 ? (
         <div className="overflow-hidden rounded-lg border border-amber-500/40 bg-amber-500/10 text-ui-base text-foreground">
           <button
@@ -976,32 +935,8 @@ export function SkillsSection({
           await refresh();
         }}
       />
-      <RemoteSyncDialogs
-        canSyncSkills={Boolean(
-          targetServiceResolution.rpcReady && connectedRemoteSyncTarget && activeWorkspacePath,
-        )}
-        canSyncMcp={false}
-        skillOpen={remoteSkillSyncOpen && targetServiceResolution.rpcReady}
-        mcpOpen={false}
-        onSkillOpenChange={setRemoteSkillSyncOpen}
-        onMcpOpenChange={() => {}}
-        localSkillSyncService={baseServices.skillSyncService}
-        remoteSkillSyncService={skillSyncService}
-        remoteTarget={connectedRemoteSyncTarget}
-        skillWorkspacePath={activeWorkspacePath ?? ""}
-        mcpWorkspacePath=""
-        workspaceIdentity={activeWorkspaceIdentity}
-        onSkillsSynced={async () => {
-          await invalidateDeferredDraftSessionForSkillChange({
-            zcodeSessionService,
-            workspacePath: activeWorkspacePath,
-            workspaceIdentity: activeWorkspaceIdentity,
-            reason: "settings-remote-skill-sync",
-          });
-          await Promise.all([refresh(), refreshSharedSkillStoreForCurrentWorkspace()]);
-        }}
-        onMcpSynced={() => {}}
-      />
+      {/* DWeis Next 无云绑定：远程同步对话框已随远程工作区摘除。 */}
+
     </div>
   );
 }

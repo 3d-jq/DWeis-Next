@@ -16,7 +16,6 @@ import {
   markTaskQueryCacheScopesStale,
   useTaskQueryCacheStore,
 } from "@/store/taskQueryCacheStore.js";
-import { useRemoteWorkspaceSessionStore } from "@/store/remoteWorkspaceSessionStore.js";
 import {
   isRemoteWorkspaceTarget,
   resolveWorkspaceRemoteSessionId,
@@ -201,13 +200,10 @@ export function useWorkspaceTaskLists(params: {
   defaultVisibleLimit: number;
 }) {
   const baseServices = useBaseWorkspaceServices();
-  const sessionsById = useRemoteWorkspaceSessionStore((state) => state.sessionsById);
-  const sessionIdByWorkspaceIdentity = useRemoteWorkspaceSessionStore(
-    (state) => state.sessionIdByWorkspaceIdentity,
-  );
-  const sessionIdByWorkspacePath = useRemoteWorkspaceSessionStore(
-    (state) => state.sessionIdByWorkspacePath,
-  );
+  // DWeis Next 无云绑定：远程 session store 已随远程工作区摘除，服务解析恒走本地。
+  const sessionsById = {};
+  const sessionIdByWorkspaceIdentity = {};
+  const sessionIdByWorkspacePath = {};
   const serviceResolverState = useMemo(
     () => ({
       sessionsById,
@@ -258,7 +254,8 @@ export function useWorkspaceTaskLists(params: {
           return {
             workspaceKey,
             remoteSessionId: resolvedRemoteSessionId,
-            ready: resolvedRemoteSessionId ? Boolean(sessionsById[resolvedRemoteSessionId]) : true,
+            // DWeis Next 无云绑定：远程 session 注册表已空，workspace 就绪恒真。
+            ready: true,
           };
         }),
       ),

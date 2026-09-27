@@ -418,10 +418,10 @@ export function WorkspaceFileTree({
     if (!canOpenInFileManager) {
       return;
     }
+    // DWeis Next 无云绑定：remoteTarget 已随远程工作区摘除，文件管理器只走本地路径。
     const result = wslFileManagerEditor
       ? await platform.openInEditor(wslFileManagerEditor.id, workspacePath, {
           pathKind: "directory",
-          remoteTarget,
           workspaceIdentity,
         })
       : await platform.openInFileManager(workspacePath);

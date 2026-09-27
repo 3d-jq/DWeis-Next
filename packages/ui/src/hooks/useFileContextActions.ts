@@ -1,5 +1,4 @@
 import { useCallback } from "react";
-import type { OpenInEditorRemoteTarget } from "@zcode/shared";
 import { toast } from "@/components/ui/toast.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
@@ -8,8 +7,8 @@ import { logger } from "@/logger.js";
 
 interface FileContextActionOptions {
   canOpenLocalFileManager?: boolean;
+  /** passive 残留字段：远程标识随后续阶段清理，本地动作不再使用。 */
   isRemoteWorkspace?: boolean;
-  remoteTarget?: OpenInEditorRemoteTarget;
   workspaceIdentity?: string;
   openFailedMessage?: string;
 }
@@ -36,17 +35,15 @@ export function useFileContextActions(options: FileContextActionOptions = {}) {
   const { intl } = useZCodeIntl();
   const canOpenLocalFileManager = Boolean(options.canOpenLocalFileManager);
   const isRemoteWorkspace = Boolean(options.isRemoteWorkspace);
-  const remoteTarget = options.remoteTarget;
   const workspaceIdentity = options.workspaceIdentity;
   const openFailedMessage =
     options.openFailedMessage ?? intl.formatMessage({ id: "appHeader.openInFileManagerFailed" });
 
   const canRevealInFileManager = useCallback(
     (target: FileContextActionTarget) =>
-      canOpenLocalFileManager &&
-      !target.deleted &&
-      (!isRemoteWorkspace || remoteTarget?.kind === "wsl"),
-    [canOpenLocalFileManager, isRemoteWorkspace, remoteTarget?.kind],
+      // DWeis Next 无云绑定：远程 workspace 已摘除，本地路径恒可用文件管理器。
+      canOpenLocalFileManager && !target.deleted,
+    [canOpenLocalFileManager],
   );
 
   const copyPathText = useCallback(async (path: string) => {
@@ -84,17 +81,8 @@ export function useFileContextActions(options: FileContextActionOptions = {}) {
       }
 
       const openPath = resolveFileManagerOpenPath(target);
-      // 审查区过去把所有远程工作区统一禁用；如果直接放开，又会把 WSL 的
-      // Linux 路径交给本机文件管理器。只有精确解析到 WSL target 时才走 Explorer，
-      // 并保留该入口“打开文件所在目录”的既有语义，由 main 在平台边界转换为 UNC。
-      const result =
-        remoteTarget?.kind === "wsl"
-          ? await platform.openInEditor("explorer", openPath, {
-              pathKind: "directory",
-              remoteTarget,
-              workspaceIdentity,
-            })
-          : await platform.openInFileManager(openPath);
+      // DWeis Next 无云绑定：WSL UNC 分支已随远程工作区摘除，本地路径直接走文件管理器。
+      const result = await platform.openInFileManager(openPath);
       if (result.success) {
         return;
       }
@@ -105,7 +93,7 @@ export function useFileContextActions(options: FileContextActionOptions = {}) {
       });
       toast(openFailedMessage);
     },
-    [canRevealInFileManager, openFailedMessage, platform, remoteTarget, workspaceIdentity],
+    [canRevealInFileManager, openFailedMessage, platform, workspaceIdentity],
   );
 
   return {

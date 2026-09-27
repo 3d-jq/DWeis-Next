@@ -21,7 +21,6 @@ import {
   useTaskQueryCacheStore,
 } from "@/store/taskQueryCacheStore.js";
 import { taskNavigationTargetExists } from "@/lib/taskNavigationTarget.js";
-import { getRemoteWorkspaceSession } from "@/store/remoteWorkspaceSessionStore.js";
 import { useTabStoreApi } from "@/store/TabStoreProvider.js";
 import { isWorkspaceTab } from "@/store/tabStore.js";
 import { bumpTaskListMembershipVersion } from "@/v4/taskListMembershipVersion.js";
@@ -112,10 +111,6 @@ export function useWorkspaceTaskNavigation({
         buildTaskWorkspaceKey(activeTab.workspacePath, activeTab.workspaceIdentity) ===
           targetWorkspaceKey,
       );
-      const resolvedRemoteSessionId =
-        activeTab && isWorkspaceTab(activeTab) && activeWorkspaceTabMatchesTarget
-          ? activeTab.remoteSessionId
-          : undefined;
       const targetWorkspaceIdentity =
         activeTab && isWorkspaceTab(activeTab) && activeWorkspaceTabMatchesTarget
           ? (activeTab.workspaceIdentity ?? targetWorkspaceIdentityHint)
@@ -135,13 +130,6 @@ export function useWorkspaceTaskNavigation({
       const expectedUnreadAt =
         typeof selectedRowUnreadAt === "number" ? selectedRowUnreadAt : previousUnreadAt;
       const shouldClearUnread = typeof expectedUnreadAt === "number";
-      const isRemoteWorkspace = Boolean(
-        targetWorkspaceIdentity ||
-        (activeTab &&
-          isWorkspaceTab(activeTab) &&
-          activeWorkspaceTabMatchesTarget &&
-          (activeTab.remoteSessionId || activeTab.remoteTarget)),
-      );
 
       if (shouldClearUnread) {
         // unread 之前只在 useTaskRestore 的 resumeTask 后持久化清除。
@@ -152,17 +140,12 @@ export function useWorkspaceTaskNavigation({
         // 不会让蓝点重渲染。先对精确 entity key 加字段级 overlay，服务端回包
         // 后再 reconcile；期间的旧 membership 刷新也不能把蓝点写回来。
         setTaskQueryCacheUnreadOverlay(targetTask, undefined);
-        const targetServices = resolvedRemoteSessionId
-          ? (getRemoteWorkspaceSession(resolvedRemoteSessionId)?.services ?? null)
-          : isRemoteWorkspace
-            ? null
-            : baseServices;
+        // DWeis Next 无云绑定：remote session 路由已随远程工作区摘除，未读清理恒走本窗口 Host。
+        const targetServices = baseServices;
         if (!targetServices) {
-          // 远程 workspace 断开时不能按相同 workspacePath 回退到
-          // 其他 remote session 或本地 base services，否则会把另一个工作区的未读状态清掉。
           rollbackTaskQueryCacheUnread(targetTask, previousUnreadAt);
           logger.warn(
-            `[App] 选择 task 时跳过未读持久化，远程 workspace 未连接 workspace=${targetWorkspacePath} taskId=${taskId}`,
+            `[App] 跳过未读持久化，本地 Host services 未就绪 workspace=${targetWorkspacePath} taskId=${taskId}`,
           );
         } else {
           void targetServices.zcodeTaskService
@@ -171,7 +154,7 @@ export function useWorkspaceTaskNavigation({
               unread: false,
               expectedUnreadAt,
             })
-            .then((meta) => {
+            .then((meta: import("@zcode/shared").ZCodeTaskMeta) => {
               reconcileTaskQueryCacheUnread(targetTask, meta.unreadAt);
               bumpTaskListMembershipVersion();
             })

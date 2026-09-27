@@ -2,20 +2,12 @@ import type {
   PluginSyncArchiveExportResult,
   PluginSyncCandidateListResult,
   PluginSyncImportResult,
-  PluginSyncRemoteStatusResult,
-  RemoteSyncWriteAccessResult,
 } from "@zcode/shared";
 import { ServiceChannels } from "@zcode/shared";
 import { createServiceDescriptor } from "../descriptors.js";
 
 export interface IPluginSyncService {
   listLocalUserPluginCandidates(): Promise<PluginSyncCandidateListResult>;
-  listRemoteUserPluginStatuses(params: {
-    plugins: Array<{
-      pluginId: string;
-      directoryName: string;
-    }>;
-  }): Promise<PluginSyncRemoteStatusResult>;
   exportPluginsArchive(params: { pluginIds: string[] }): Promise<PluginSyncArchiveExportResult>;
   exportMarketplaceSourceArchive(params: {
     marketplaceId: string;
@@ -31,7 +23,6 @@ export interface IPluginSyncService {
     archive: Uint8Array;
     overwrite?: false;
   }): Promise<PluginSyncImportResult>;
-  checkRemoteUserPluginWriteAccess(): Promise<RemoteSyncWriteAccessResult>;
   importMarketplaceSourceArchive(params: { archive: Uint8Array; overwrite?: false }): Promise<{
     marketplaceId: string;
     path: string;

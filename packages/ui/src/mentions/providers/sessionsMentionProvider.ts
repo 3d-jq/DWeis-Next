@@ -18,7 +18,6 @@ import {
   resolveWorkspaceServices,
   type WorkspaceServiceResolverState,
 } from "@/lib/workspaceServiceResolver.js";
-import { useRemoteWorkspaceSessionStore } from "@/store/remoteWorkspaceSessionStore.js";
 import { useTabStore } from "@/store/TabStoreProvider.js";
 import { isWorkspaceTab, type WorkspaceTabState } from "@/store/tabStore.js";
 import {
@@ -199,13 +198,10 @@ export function useSessionsMentionProvider(
   const baseServices = useBaseWorkspaceServices();
   const tabs = useTabStore((state) => state.tabs);
   const workspaceTabs = useMemo(() => tabs.filter(isWorkspaceTab), [tabs]);
-  const sessionsById = useRemoteWorkspaceSessionStore((state) => state.sessionsById);
-  const sessionIdByWorkspaceIdentity = useRemoteWorkspaceSessionStore(
-    (state) => state.sessionIdByWorkspaceIdentity,
-  );
-  const sessionIdByWorkspacePath = useRemoteWorkspaceSessionStore(
-    (state) => state.sessionIdByWorkspacePath,
-  );
+  // DWeis Next 无云绑定：远程 session store 已随远程工作区摘除，服务解析恒走本地。
+  const sessionsById = {};
+  const sessionIdByWorkspaceIdentity = {};
+  const sessionIdByWorkspacePath = {};
   const serviceResolverState = useMemo(
     () => ({
       sessionsById,

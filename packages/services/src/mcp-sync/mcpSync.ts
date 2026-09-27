@@ -5,8 +5,6 @@ import type {
   McpSyncExportResult,
   McpSyncExportedServer,
   McpSyncImportResult,
-  McpSyncRemoteStatusResult,
-  RemoteSyncWriteAccessResult,
   SaveCliMcpToUserDirectoryRequest,
   ZCodeAgentMcpServer,
   ZCodeMcpListMode,
@@ -32,9 +30,7 @@ export interface IMcpSyncService {
   }): Promise<ZCodeMcpListResult>;
   saveMcpToUserDirectory(payload: SaveCliMcpToUserDirectoryRequest): Promise<void>;
   listLocalUserMcpCandidates(): Promise<McpSyncCandidateListResult>;
-  listRemoteUserMcpStatuses(params: { names: string[] }): Promise<McpSyncRemoteStatusResult>;
   exportMcpServers(params: { serverIds: string[] }): Promise<McpSyncExportResult>;
-  checkRemoteUserMcpWriteAccess(): Promise<RemoteSyncWriteAccessResult>;
   importMcpServers(params: {
     servers: McpSyncExportedServer[];
     localHomeDir: string;

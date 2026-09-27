@@ -6,8 +6,7 @@
 // 走各自 endpoint 的 agentService proxy，同 workspaceKey 不同 endpoint 不能共用 store。
 import type { IZCodeAgentService } from "@zcode/services";
 import { logger } from "@/logger.js";
-import { remoteAgentServiceGeneration } from "@/lib/remoteAgentServiceGeneration.js";
-import { findRemoteWorkspaceSessionIdForAgentService } from "@/store/remoteWorkspaceSessionStore.js";
+import { agentServiceGeneration } from "@/lib/agentServiceGeneration.js";
 import { createAgentSessionsIndexTransport } from "@/v4/agentSessionsIndexTransport.js";
 import { SessionsIndexStore } from "@/v4/sessionsIndexStore.js";
 
@@ -59,20 +58,7 @@ function reportScopeEndpointMismatch(
   scope: SessionsIndexScope,
   agentService: SessionsIndexAgentService,
 ): void {
-  const remoteSessionId = findRemoteWorkspaceSessionIdForAgentService(agentService);
-  if (!remoteSessionId) return;
-  const endpointKey = scope.endpointKey ?? LOCAL_SESSIONS_INDEX_ENDPOINT;
-  if (endpointKey === remoteSessionId) return;
-  const reportKey = `${endpointKey}\0${scope.workspaceKey}\0${remoteSessionId}`;
-  if (reportedScopeEndpointMismatches.has(reportKey)) return;
-  reportedScopeEndpointMismatches.add(reportKey);
-  logger.lifecycle.warn("[v4-sessions-index] scope endpoint 与远程代理归属不一致", {
-    event: "v4.sessions_index.scope_endpoint_mismatch",
-    endpointKey,
-    remoteSessionId,
-    workspaceKey: scope.workspaceKey,
-    workspacePath: scope.workspacePath,
-  });
+  return;
 }
 
 function createSessionsIndexTransport(
@@ -93,7 +79,7 @@ export function buildSessionsIndexEntryKey(
 ): string {
   const entryKey = `${scope.endpointKey ?? LOCAL_SESSIONS_INDEX_ENDPOINT}\0${scope.workspaceKey}`;
   return agentService
-    ? `${entryKey}\0service-generation:${remoteAgentServiceGeneration(agentService)}`
+    ? `${entryKey}\0service-generation:${agentServiceGeneration(agentService)}`
     : entryKey;
 }
 
@@ -104,7 +90,7 @@ export function acquireSessionsIndex(
 ): SessionsIndexStore {
   reportScopeEndpointMismatch(scope, agentService);
   const entryKey = buildSessionsIndexEntryKey(scope);
-  const incomingServiceGeneration = remoteAgentServiceGeneration(agentService);
+  const incomingServiceGeneration = agentServiceGeneration(agentService);
   const existing = registry.get(entryKey);
   if (existing?.agentService === agentService) {
     existing.refCount += 1;

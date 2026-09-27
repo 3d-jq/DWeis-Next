@@ -1,4 +1,4 @@
-import { createOpenInEditorRemoteTarget, type EditorInfo, type RemoteTarget } from "@zcode/shared";
+import type { EditorInfo, RemoteTarget } from "@zcode/shared";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button.js";
 import { ChevronDown } from "lucide-react";
@@ -106,7 +106,8 @@ export function WorkspaceEditorButtonGroup({
     const openOptions =
       remoteTarget || workspaceIdentity
         ? {
-            remoteTarget: remoteTarget ? createOpenInEditorRemoteTarget(remoteTarget) : undefined,
+            // DWeis Next 无云绑定：远程目标已随远程工作区摘除，openInEditor 只处理本地路径。
+            remoteTarget: undefined,
             workspaceIdentity,
           }
         : undefined;

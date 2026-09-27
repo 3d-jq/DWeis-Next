@@ -1,8 +1,10 @@
 import { copyFile, mkdir, rename, rm } from "node:fs/promises";
-import { dirname, posix, relative, resolve } from "node:path";
+import { dirname, relative, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
-import type { IRemoteBackend } from "@zcode/server/remote";
 import type { BrowserRecordingArtifact } from "@zcode/shared";
+
+// DWeis Next 无云绑定：remoteSessionId / remoteBackend.upload 分支（录像直传远端
+// workspace）已随远程工作区摘除，Browser 录像产物一律物化到本地 workspace。
 
 function resolveWorkspaceRecordingPath(workspacePath: string, outputPath: string): string {
   const root = resolve(workspacePath);
@@ -18,40 +20,14 @@ function resolveWorkspaceRecordingPath(workspacePath: string, outputPath: string
 }
 
 /**
- * main 只返回短期 WebM；Host 按当前 workspace authority 落盘。本地使用同目录 rename，远端
- * 复用已有 backend.upload，避免让远端 Agent 依赖 Desktop 临时路径。
+ * main 只返回短期 WebM；Host 按当前 workspace authority 落盘到本地 workspace。
  */
 export async function materializeBrowserRecordingArtifact(input: {
   artifact: BrowserRecordingArtifact;
   localPath: string;
   outputPath: string;
   workspacePath: string;
-  remoteSessionId?: string;
-  remoteBackend?: Pick<IRemoteBackend, "upload">;
 }): Promise<BrowserRecordingArtifact> {
-  if (input.remoteSessionId) {
-    if (!input.remoteBackend) {
-      throw new Error("remote Browser recording materialization is unavailable for this session");
-    }
-    const normalizedWorkspace = posix.normalize(input.workspacePath.replace(/\\/gu, "/"));
-    const rawOutputSegments = input.outputPath.split(/[\\/]+/u);
-    const normalizedOutput = posix.normalize(input.outputPath.replace(/\\/gu, "/"));
-    if (
-      rawOutputSegments.some((segment) => segment === ".." || segment === "." || !segment) ||
-      normalizedOutput === ".." ||
-      normalizedOutput.startsWith("../") ||
-      posix.isAbsolute(normalizedOutput)
-    ) {
-      throw new Error("recording outputPath must stay inside the remote workspace");
-    }
-    if (!normalizedOutput.toLowerCase().endsWith(".webm")) {
-      throw new Error("recording outputPath must end with .webm");
-    }
-    const remoteTargetPath = posix.join(normalizedWorkspace, normalizedOutput);
-    await input.remoteBackend.upload(input.localPath, remoteTargetPath);
-    return { ...input.artifact, path: remoteTargetPath };
-  }
-
   const targetPath = resolveWorkspaceRecordingPath(input.workspacePath, input.outputPath);
   await mkdir(dirname(targetPath), { recursive: true });
   const stagingPath = `${targetPath}.zcode-recording-${randomUUID()}.tmp`;

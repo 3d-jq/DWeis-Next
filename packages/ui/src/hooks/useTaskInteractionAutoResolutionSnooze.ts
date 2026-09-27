@@ -2,8 +2,6 @@ import { useCallback, useRef } from "react";
 import { ensureAgentV4ConnectionHandshake } from "@/v4/agentV4ConnectionHandshake.js";
 import { useOptionalServices } from "@/hooks/useServices.js";
 import { logger } from "@/logger.js";
-import { resolveWorkspaceRemoteSessionId } from "@/lib/workspaceServiceResolver.js";
-import { useRemoteWorkspaceSessionStore } from "@/store/remoteWorkspaceSessionStore.js";
 import { sendInteractionAutoResolutionSnooze } from "@/v4/interactionAutoResolutionCommand.js";
 
 interface TaskInteractionAutoResolutionTarget {
@@ -21,37 +19,10 @@ export function useTaskInteractionAutoResolutionSnooze(
   target: TaskInteractionAutoResolutionTarget,
 ) {
   const loggedInteractionIdsRef = useRef(new Set<string>());
-  const contextServices = useOptionalServices();
   const workspaceIdentity = target.workspaceIdentity?.trim() || undefined;
-  const remoteSessionId = target.remoteSessionId?.trim() || undefined;
-  const isRemoteTarget = Boolean(workspaceIdentity || remoteSessionId);
-  const selectTargetServices = useCallback(
-    (state: ReturnType<typeof useRemoteWorkspaceSessionStore.getState>) => {
-      if (!isRemoteTarget) {
-        return state.baseServices ?? contextServices;
-      }
-
-      const resolvedRemoteSessionId = resolveWorkspaceRemoteSessionId(
-        {
-          workspacePath: target.workspacePath,
-          workspaceIdentity,
-          remoteSessionId,
-          // 该 hook 的 target 类型只携带 task 路由字段；remoteSessionId 已存在就足以
-          // 表明旧数据可使用 path 兼容恢复，不需要伪造具体 RemoteTarget。
-          remoteTarget: remoteSessionId ? true : undefined,
-        },
-        state,
-      );
-      if (resolvedRemoteSessionId) {
-        return state.sessionsById[resolvedRemoteSessionId]?.services ?? null;
-      }
-      // 远程 task 找不到原 host 时禁止回退本地 service，否则相同 taskId
-      // 可能被投递到错误 workspace；保留可重试失败，等待远端 attachment 恢复。
-      return null;
-    },
-    [contextServices, isRemoteTarget, remoteSessionId, target.workspacePath, workspaceIdentity],
-  );
-  const targetServices = useRemoteWorkspaceSessionStore(selectTargetServices);
+  // DWeis Next 无云绑定：远程 session 路由已随远程工作区摘除，
+  // 暂停命令始终发往当前窗口 Local Host 的 agent service。
+  const targetServices = useOptionalServices();
 
   return useCallback(
     async (interactionId: string): Promise<boolean> => {

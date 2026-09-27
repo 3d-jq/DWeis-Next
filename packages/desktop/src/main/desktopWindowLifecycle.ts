@@ -40,8 +40,6 @@ export function createWindow(options: {
   syncAutoUpdaterStateToWindow: (win: BrowserWindow) => void;
   syncReadyUpdateToWindow: (win: BrowserWindow) => void;
   syncPostUpdateReleaseNotesToWindow: (win: BrowserWindow) => void;
-  disposeRemoteWorkspaceSessionsForWindow: (windowId: number, reason: string) => void;
-  reattachRemoteWorkspaceSessionsForWindow: (win: BrowserWindow, reason: string) => void;
   bootstrap?: WindowBootstrapOptions;
   agentWarmupTargets?: readonly StartupWorkspaceWarmupTarget[];
   agentSpawnFallbackCwd: string;
@@ -159,7 +157,6 @@ export function createWindow(options: {
         options.syncAutoUpdaterStateToWindow(win);
         options.syncReadyUpdateToWindow(win);
         options.syncPostUpdateReleaseNotesToWindow(win);
-        options.reattachRemoteWorkspaceSessionsForWindow(win, `${label}:renderer-reload`);
         return;
       } catch (error) {
         options.logger.warn(
@@ -204,7 +201,6 @@ export function createWindow(options: {
       options.syncAutoUpdaterStateToWindow(win);
       options.syncReadyUpdateToWindow(win);
       options.syncPostUpdateReleaseNotesToWindow(win);
-      options.reattachRemoteWorkspaceSessionsForWindow(win, `${label}:renderer-ready`);
     };
 
     if (!options.runtimeProcessEnvPatchPromise) {
@@ -265,7 +261,6 @@ export function createWindow(options: {
       options.disposeHostProcess(child, `${label}:window-closed`);
       options.windowHostProcessMap.delete(wcId);
     }
-    options.disposeRemoteWorkspaceSessionsForWindow(wcId, `${label}:window-closed`);
   });
 
   return win;

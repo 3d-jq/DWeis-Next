@@ -154,7 +154,6 @@ export function OpenSplitButton({
     void platform
       .openInEditor(editor.id, target.path, {
         pathKind: "file",
-        remoteTarget: openInEditorRemoteTarget,
         workspaceIdentity: target.previewSource?.workspaceIdentity,
       })
       .then((result) => {

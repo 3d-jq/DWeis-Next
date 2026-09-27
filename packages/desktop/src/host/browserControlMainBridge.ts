@@ -25,7 +25,6 @@ interface BrowserExecuteRequestMessage {
   workspaceKey: string;
   workspacePath: string;
   workspaceIdentity?: string;
-  remoteSessionId?: string;
   clientMode: BrowserClientMode;
   sessionContext: "live" | "cached";
   command: BrowserCommand;
@@ -43,7 +42,6 @@ interface PendingEntry {
   startedAt: number;
   workspacePath: string;
   workspaceIdentity?: string;
-  remoteSessionId?: string;
   outputPath?: string;
 }
 
@@ -103,7 +101,6 @@ interface BrowserControlMainBridge {
     workspaceKey?: string;
     workspacePath?: string;
     workspaceIdentity?: string;
-    remoteSessionId?: string;
     clientMode?: BrowserClientMode;
     sessionContext?: "live" | "cached";
     command: BrowserCommand;
@@ -122,7 +119,6 @@ export function createBrowserControlMainBridge(deps: {
     outputPath: string;
     workspacePath: string;
     workspaceIdentity?: string;
-    remoteSessionId?: string;
   }): Promise<BrowserRecordingArtifact>;
 }): BrowserControlMainBridge {
   const pending = new Map<string, PendingEntry>();
@@ -180,7 +176,6 @@ export function createBrowserControlMainBridge(deps: {
       workspaceKey = sessionId,
       workspacePath = workspaceKey,
       workspaceIdentity,
-      remoteSessionId,
       clientMode = "desktop-continuous",
       sessionContext = "live",
       command,
@@ -254,7 +249,6 @@ export function createBrowserControlMainBridge(deps: {
               workspaceKey,
               workspacePath,
               workspaceIdentity,
-              remoteSessionId,
               clientMode,
               sessionContext,
               command: { method: "cancelRequest", requestId },
@@ -279,7 +273,6 @@ export function createBrowserControlMainBridge(deps: {
           startedAt,
           workspacePath,
           ...(workspaceIdentity ? { workspaceIdentity } : {}),
-          ...(remoteSessionId ? { remoteSessionId } : {}),
           ...(command.method === "recordingStatus" && command.outputPath
             ? { outputPath: command.outputPath }
             : {}),
@@ -296,7 +289,6 @@ export function createBrowserControlMainBridge(deps: {
             workspaceKey,
             workspacePath,
             workspaceIdentity,
-            remoteSessionId,
             clientMode,
             sessionContext,
             command,
@@ -350,7 +342,6 @@ export function createBrowserControlMainBridge(deps: {
             outputPath: entry.outputPath,
             workspacePath: entry.workspacePath,
             ...(entry.workspaceIdentity ? { workspaceIdentity: entry.workspaceIdentity } : {}),
-            ...(entry.remoteSessionId ? { remoteSessionId: entry.remoteSessionId } : {}),
           });
           entry.resolve({
             ...message.result,

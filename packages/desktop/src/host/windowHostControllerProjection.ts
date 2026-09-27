@@ -16,18 +16,15 @@ import {
   type WindowHostTaskAddress,
 } from "@zcode/shared/zcode-protocol-v4";
 
-export type WindowHostControllerSourceScope =
-  | {
-      kind: "local";
-      workspacePath: string;
-      workspaceIdentity?: string;
-    }
-  | {
-      kind: "remote";
-      remoteSessionId: string;
-      workspacePath: string;
-      workspaceIdentity: string;
-    };
+// DWeis Next 无云绑定：Controller source 只剩本窗口 Local Host 一类；
+// kind:"remote" scope（远程 logical session 投影）已随远程工作区摘除。
+// 协议层 WindowHostTaskAddress.remoteSessionId 仍保留为可选字段（跨端契约），
+// 但 Host 不再产生或消费 remote 行。
+export type WindowHostControllerSourceScope = {
+  kind: "local";
+  workspacePath: string;
+  workspaceIdentity?: string;
+};
 
 interface WindowHostControllerTaskMembership {
   meta: ZCodeTaskMeta;
@@ -88,14 +85,11 @@ interface TopicState {
 
 function sourceKey(scope: WindowHostControllerSourceScope): string {
   const workspaceKey = scope.workspaceIdentity?.trim() || scope.workspacePath;
-  return scope.kind === "remote"
-    ? `remote\0${scope.remoteSessionId}\0${workspaceKey}`
-    : `local\0${workspaceKey}`;
+  return `local\0${workspaceKey}`;
 }
 
 function addressFor(scope: WindowHostControllerSourceScope, taskId: string): WindowHostTaskAddress {
   return {
-    ...(scope.kind === "remote" ? { remoteSessionId: scope.remoteSessionId } : {}),
     workspacePath: scope.workspacePath,
     ...(scope.workspaceIdentity ? { workspaceIdentity: scope.workspaceIdentity } : {}),
     taskId,
@@ -183,7 +177,6 @@ function validateMembershipScope(
 
 function workspaceFact(source: ControllerSource): WindowHostControllerWorkspaceFact {
   return {
-    ...(source.scope.kind === "remote" ? { remoteSessionId: source.scope.remoteSessionId } : {}),
     workspacePath: source.scope.workspacePath,
     ...(source.scope.workspaceIdentity
       ? { workspaceIdentity: source.scope.workspaceIdentity }
@@ -213,8 +206,8 @@ export function createWindowHostControllerProjection(options: { createId: () => 
 
   function allWorkspaceFacts(): WindowHostControllerWorkspaceFact[] {
     return Array.from(sources.values(), workspaceFact).sort((left, right) => {
-      const leftKey = `${left.remoteSessionId ?? "local"}\0${left.workspaceIdentity ?? left.workspacePath}`;
-      const rightKey = `${right.remoteSessionId ?? "local"}\0${right.workspaceIdentity ?? right.workspacePath}`;
+      const leftKey = `${left.workspaceIdentity ?? left.workspacePath}`;
+      const rightKey = `${right.workspaceIdentity ?? right.workspacePath}`;
       return leftKey.localeCompare(rightKey);
     });
   }
@@ -319,9 +312,6 @@ export function createWindowHostControllerProjection(options: { createId: () => 
       scope: WindowHostControllerSourceScope;
       mutate: ControllerSource["mutate"];
     }): void {
-      if (params.scope.kind === "remote" && !params.scope.workspaceIdentity.trim()) {
-        throw new Error("远程 Controller source 必须携带 workspaceIdentity");
-      }
       const key = sourceKey(params.scope);
       const existing = sources.get(key);
       if (existing) {
@@ -396,9 +386,6 @@ export function createWindowHostControllerProjection(options: { createId: () => 
           ? [
               {
                 op: "workspace.removed" as const,
-                ...(replacedSource.scope.kind === "remote"
-                  ? { remoteSessionId: replacedSource.scope.remoteSessionId }
-                  : {}),
                 workspacePath: replacedSource.scope.workspacePath,
                 ...(replacedSource.scope.workspaceIdentity
                   ? { workspaceIdentity: replacedSource.scope.workspaceIdentity }
@@ -461,7 +448,6 @@ export function createWindowHostControllerProjection(options: { createId: () => 
       publishWorkspaceDeltas([
         {
           op: "workspace.removed",
-          ...(scope.kind === "remote" ? { remoteSessionId: scope.remoteSessionId } : {}),
           workspacePath: scope.workspacePath,
           ...(scope.workspaceIdentity ? { workspaceIdentity: scope.workspaceIdentity } : {}),
         },
@@ -484,9 +470,6 @@ export function createWindowHostControllerProjection(options: { createId: () => 
         if (candidate.scope.workspaceIdentity !== address.workspaceIdentity) {
           return false;
         }
-        if (candidate.scope.kind === "remote") {
-          return candidate.scope.remoteSessionId === address.remoteSessionId;
-        }
         return address.remoteSessionId == null;
       });
       if (
@@ -498,9 +481,6 @@ export function createWindowHostControllerProjection(options: { createId: () => 
         throw new Error("没有与任务地址匹配的 source");
       }
       if (source.sourceAvailability !== "online") {
-        if (source.scope.kind === "remote") {
-          throw new Error("远程 source 当前离线，禁止列表写操作");
-        }
         throw new Error("本地 source 当前不可用");
       }
       return source.mutate(address, mutation);

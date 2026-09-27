@@ -1,5 +1,3 @@
-import type { RemoteAssetInstallMode } from "./remoteAssetInstallMode.js";
-import type { RemoteResourcePackageSelection } from "./remoteResourcePackages.js";
 import type { ProviderFamilyDomain } from "./model-provider-family.js";
 import type { ProviderFamilyConnectionSelectionSettings } from "./provider-family-connection-selection.js";
 import type { ZCodeProvider } from "./zcode-task-types-core.js";
@@ -106,6 +104,7 @@ export interface IntegratedTerminalShellOption {
   source: "system" | "path";
 }
 
+
 /** 默认语言 */
 export const DEFAULT_LOCALE: Locale = "zh-CN";
 
@@ -123,61 +122,6 @@ export interface TabState {
   label: string;
 }
 
-export interface SSHRemoteTargetSnapshot {
-  kind: "ssh";
-  host: string;
-  port?: number;
-  username: string;
-  /** 用户建立连接时选择的 SSH config Host alias，仅用于 UI 展示。 */
-  sshConfigAlias?: string;
-  privateKeyPath?: string;
-  assetInstallMode?: RemoteAssetInstallMode;
-  resourcePackages?: RemoteResourcePackageSelection;
-  /**
-   * SSH 密码不会写入 setting.json。
-   * 这里只保存 credentialService 的键名，恢复时再去安全存储读取真实密码。
-   */
-  passwordCredentialKey?: string;
-  /**
-   * 私钥口令不会写入 setting.json。
-   * 这里只保存 credentialService 的键名，恢复时再去安全存储读取真实口令。
-   */
-  privateKeyPassphraseCredentialKey?: string;
-}
-
-export interface WSLRemoteTargetSnapshot {
-  kind: "wsl";
-  distro?: string;
-  user?: string;
-}
-
-export interface DockerRemoteTargetSnapshot {
-  kind: "docker";
-  container: string;
-}
-
-export type RemoteTargetSnapshot =
-  | SSHRemoteTargetSnapshot
-  | WSLRemoteTargetSnapshot
-  | DockerRemoteTargetSnapshot;
-
-export interface RemoteWorkspaceSessionSnapshot {
-  /** 远程 workspace 的真实绝对路径 */
-  workspacePath: string;
-  /** 发起远程连接时的本机 workspace 路径，仅用于 MCP filesystem 路径改写。 */
-  localWorkspacePath?: string;
-  /** 远程 workspace 的稳定身份键（authority + canonicalPath）。 */
-  workspaceIdentity?: string;
-  /** 远程连接目标的可恢复快照 */
-  target: RemoteTargetSnapshot;
-  /** 最近一次成功打开该 workspace 的时间戳 */
-  lastOpenedAt: number;
-  /** 最近一次恢复/重连结果 */
-  lastConnectionStatus: "connected" | "failed";
-  /** 最近一次失败原因；成功后清空 */
-  lastConnectionError?: string;
-}
-
 export interface LocalWorkspaceSessionEntry {
   kind: "local";
   workspacePath: string;
@@ -185,13 +129,10 @@ export interface LocalWorkspaceSessionEntry {
   workspacePurpose?: WorkspacePurpose;
 }
 
-export interface RemoteWorkspaceSessionEntry extends RemoteWorkspaceSessionSnapshot {
-  kind: "remote";
-}
-
-export type PersistedWorkspaceSessionEntry =
-  | LocalWorkspaceSessionEntry
-  | RemoteWorkspaceSessionEntry;
+// DWeis Next 无云绑定：SSH/WSL/Docker 远程工作区已摘除，持久化会话只保留本地条目。
+// 旧 settings.json 里可能残留 kind:"remote" 的会话数据——restore 侧按非 local 跳过，
+// 无需为历史数据保留远程快照类型。
+export type PersistedWorkspaceSessionEntry = LocalWorkspaceSessionEntry;
 
 // ── Process Monitor ──
 

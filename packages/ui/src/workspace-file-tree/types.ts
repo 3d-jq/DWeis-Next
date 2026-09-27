@@ -1,4 +1,4 @@
-import type { EditorInfo, OpenInEditorRemoteTarget } from "@zcode/shared";
+import type { EditorInfo } from "@zcode/shared";
 import type { IDisposable } from "@zcode/rpc";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
 import type { WorkspaceFileGitStatus, WorkspaceFileTreeRow } from "@/workspace-file-tree/model.js";
@@ -43,7 +43,8 @@ export interface WorkspaceFileTreeEditorState {
   canOpenLocalFileManager: boolean;
   installedEditors: EditorInfo[];
   isRemoteWorkspaceFileTree: boolean;
-  remoteTarget?: OpenInEditorRemoteTarget;
+  /** passive 残留字段：远程目标随后续阶段清理，本地文件树不再使用。 */
+  remoteTarget?: unknown;
 }
 
 export type WorkspaceFileGitStatusLabels = Record<WorkspaceFileGitStatus, string>;

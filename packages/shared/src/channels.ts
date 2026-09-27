@@ -23,9 +23,6 @@ import type {
 } from "./rendererActionTrace.js";
 import type { RendererHeapSample } from "./validation.js";
 import type {
-  CancelPendingRemoteConnectionRequest,
-  BindRemoteWorkspaceSessionContextRequest,
-  BotRemoteWorkspaceReconnectedEvent,
   BrowserViewScreenshotSurfacePreparePayload,
   BrowserViewScreenshotSurfaceReadyPayload,
   BrowserViewScreenshotSurfaceReleasePayload,
@@ -36,10 +33,8 @@ import type {
   BrowserViewRestoredTabShell,
   BrowserViewRestoreTabsRequest,
   BrowserViewViewportChangedPayload,
-  ConnectRemoteRequest,
   DesktopCommandId,
   DesktopTitleBarTheme,
-  DockerContainerInfo,
   EmbeddedBrowserOpenUrlRequest,
   EditorInfo,
   CreateTempTextAttachmentRequest,
@@ -49,10 +44,7 @@ import type {
   PrintPageToPdfResult,
   OpenInEditorOptions,
   PostUpdateReleaseNotesPayload,
-  RemoteSessionClosedEvent,
-  SSHConfigAliasOption,
   TaskNotificationPayload,
-  WSLDistro,
   UpdateCheckResultPayload,
   UpdateStatePayload,
   DesktopZoomState,
@@ -96,10 +88,14 @@ export const ServiceChannels = {
   WindowController: "window-controller",
   /** ZCode Protocol agent 服务 */
   ZCodeAgent: "zcode-agent",
+  /** 远端 Environment 内部 Provider Provisioning target（client remoteServiceAccess 保留契约） */
+  ProviderProvisioningTarget: "provider-provisioning-target",
   /** ZCode session 应用服务 */
   ZCodeSession: "zcode-session",
   /** 会话分享发布、预览与 continuation API 编排 */
   ConversationShare: "conversation-share",
+  /** Composer 附件预传服务（client remoteServiceAccess 保留契约） */
+  PromptAttachmentTransfer: "prompt-attachment-transfer",
   /** 文件系统监视服务 */
   FileWatcher: "file-watcher",
   /** OAuth 认证服务 */
@@ -108,8 +104,6 @@ export const ServiceChannels = {
   ProviderSettings: "provider-settings",
   /** 新 Provider Registry 的模型选择 Facade */
   ModelSelection: "model-selection",
-  /** 远端 Environment 内部 Provider Provisioning target */
-  ProviderProvisioningTarget: "provider-provisioning-target",
   /** 本地 usage 统计服务 */
   UsageStats: "usage-stats",
   /** Coding Plan 订阅购买服务 */
@@ -119,11 +113,11 @@ export const ServiceChannels = {
   ClientScenes: "client-scenes",
   /** Skills 管理服务 */
   Skills: "skills",
-  /** SSH 远程 skills 同步服务 */
+  /** 本地 skills 同步服务（DWeis Next：远程目标已移除，保留本地 user-dir 同步） */
   SkillSync: "skill-sync",
-  /** SSH 远程 MCP 同步服务 */
+  /** 本地 MCP 同步服务 */
   McpSync: "mcp-sync",
-  /** SSH 远程 plugin 同步服务 */
+  /** 本地 plugin 同步服务 */
   PluginSync: "plugin-sync",
   /** 插件管理服务 */
   Plugins: "plugins",
@@ -139,12 +133,10 @@ export const ServiceChannels = {
   Memory: "memory",
   /** 首次启动设置同步服务 */
   SettingsSync: "settings-sync",
-  /** Bots 远程聊天控制服务 */
+  /** Bots 会话控制服务 */
   Bots: "bots",
   /** 用户反馈工单服务 */
   Feedback: "feedback",
-  /** Composer 附件在 host-local 与 remote runtime 之间的预传服务 */
-  PromptAttachmentTransfer: "prompt-attachment-transfer",
   /** 闲时任务管理服务（与 automation 服务面独立） */
   OffPeakTask: "off-peak-task",
   /** Onboarding 完成记录服务（本地持久化，后续上传服务器） */
@@ -171,30 +163,8 @@ export const PlatformChannels = {
   SaveFile: "zcode:save-file",
   /** Renderer → Main：用 Chromium 打印引擎把当前页面 print 媒体版面导出为 PDF */
   PrintToPdf: "zcode:print-to-pdf",
-  /** Main → Renderer：转发远程连接过程日志 */
-  RemoteConnectionLog: "zcode:remote-connection-log",
-  /** Main → Renderer：远程 workspace session 已关闭 */
-  RemoteSessionClosed: "zcode:remote-session-closed",
-  /** Main → Renderer：Bot 已触发远端 workspace 重连成功 */
-  BotRemoteWorkspaceReconnected: "zcode:bot-remote-workspace-reconnected",
   /** 检查目录是否已在其他窗口打开，如果是则激活该窗口 */
   ActivateOrSetWorkspace: "zcode:activate-or-set-workspace",
-  /** 建立 SSH 远程连接 */
-  ConnectRemote: "zcode:connect-remote",
-  /** 取消当前窗口正在进行中的远程连接 */
-  CancelPendingRemoteConnection: "zcode:cancel-pending-remote-connection",
-  /** Renderer → Main：绑定远程 logical session 的 canonical workspace context */
-  BindRemoteWorkspaceSessionContext: "zcode:bind-remote-workspace-session-context",
-  /** 释放当前窗口里的远程 session */
-  DisposeRemoteSession: "zcode:dispose-remote-session",
-  /** Renderer → Main：检查本机 Docker daemon 是否可用 */
-  IsDockerAvailable: "zcode:is-docker-available",
-  /** Renderer → Main：列出本机可用的 WSL 发行版 */
-  ListWSLDistros: "zcode:list-wsl-distros",
-  /** Renderer → Main：列出当前可连接的 Docker 容器 */
-  ListDockerContainers: "zcode:list-docker-containers",
-  /** Renderer → Main：列出 SSH config 里可用于快速填表的 alias */
-  ListSSHConfigAliases: "zcode:list-ssh-config-aliases",
   /** Renderer → Main：从用户目录加载 CLI MCP 配置 */
   LoadMcpFromUserDirectory: "zcode:load-mcp-from-user-directory",
   /** Renderer → Main：保存 CLI MCP 配置到用户目录 */
@@ -489,10 +459,7 @@ export const InternalChannels = {
   DatabaseStartupControl: "zcode:database-startup-control",
   /** main → renderer 转发 MessagePort（通过 webContents.postMessage） */
   ServicePort: "zcode:service-port",
-  /** main → renderer 转发窗口 Host 的 scoped MessagePort */
-  ScopedServicePort: "zcode:scoped-service-port",
-  /** renderer → main：scoped MessagePort 已注册，可安全切换 attachment */
-  ScopedServicePortReady: "zcode:scoped-service-port-ready",
+
   /** preload → renderer：主进程已确认系统通知展示，renderer 可播放提示音 */
   TaskNotificationSound: "zcode:task-notification-sound",
 } as const;
@@ -511,14 +478,6 @@ export const HostMessageTypes = {
   DatabaseStartupControl: "database-startup-control",
   /** 初始化本地服务 */
   InitLocal: "init-local",
-  /** main → window Host：在当前窗口建立一个远程 logical session */
-  ConnectRemoteWorkspace: "connect-remote-workspace",
-  /** main → window Host：取消尚未完成的远程连接 */
-  CancelRemoteWorkspaceConnect: "cancel-remote-workspace-connect",
-  /** main → window Host：为 logical session 绑定 canonical workspace 身份 */
-  BindRemoteWorkspaceContext: "bind-remote-workspace-context",
-  /** main → window Host：释放一个远程 logical session */
-  DisposeRemoteWorkspaceSession: "dispose-remote-workspace-session",
   /** main → host：复用现有服务，对新的 RPC MessagePort 暴露服务 */
   AttachServicePort: "attach-service-port",
   /** main → host：精确释放一个 RPC MessagePort attachment */
@@ -537,12 +496,6 @@ export const HostMessageTypes = {
   TaskOwnerCommandDeliver: "task-owner-command-deliver",
   /** main → host：deliver owner command result to requester */
   TaskOwnerCommandResult: "task-owner-command-result",
-  /** main → host：Bot 远端 workspace 重连结果 */
-  BotRemoteWorkspaceReconnectResult: "bot-remote-workspace-reconnect-result",
-  /** main → host：Bot 远端 workspace 连接状态查询结果 */
-  BotRemoteWorkspaceConnectionStatusResult: "bot-remote-workspace-connection-status-result",
-  /** main → host：Bot 远端 workspace runtime RPC 端口 */
-  BotRemoteWorkspaceRuntimePort: "bot-remote-workspace-runtime-port",
   /** main → host：把 session message 投递到该 host 管理的目标 session */
   SessionMessageDeliver: "session-message-deliver",
   /** main → host：把 session message 投递结果回写到源 session */
@@ -559,8 +512,6 @@ export const HostMessageTypes = {
   LocalMediaPreviewPathAuthorizeResult: "local-media-preview-path-authorize-result",
   /** Main → Host：全局前台 ZCode 窗口派生的 producer focus fact。 */
   CuaPipFocusChanged: "cua-pip-focus-changed",
-  /** main → host：要求 Host 现读本地 Source，并同步指定 Remote Environment。 */
-  ProviderProvisioningExecute: "provider-provisioning-execute",
   /** main → host：资源管理器请求 Host 采样其后代进程（Agent / MCP / 终端）的 CPU 与内存 */
   ResourceUsageSnapshotRequest: "resource-usage-snapshot-request",
   ResourceUsageSnapshotCancel: "resource-usage-snapshot-cancel",
@@ -569,14 +520,6 @@ export const HostMessageTypes = {
 /** host process → main process 的反馈消息类型 */
 export const HostResponseTypes = {
   DatabaseStartupState: "database-startup-state",
-  /** window Host → main：按 requestId 上报远程连接过程日志 */
-  RemoteWorkspaceConnectionLog: "remote-workspace-connection-log",
-  /** window Host → main：远程 logical session 已建立 */
-  RemoteWorkspaceConnected: "remote-workspace-connected",
-  /** window Host → main：远程 logical session 建立失败 */
-  RemoteWorkspaceConnectFailed: "remote-workspace-connect-failed",
-  /** window Host → main：已连接的远程 logical session 关闭 */
-  RemoteWorkspaceClosed: "remote-workspace-closed",
   /** host 进程日志上报 */
   Log: "log",
   /** host 内拉起新的 agent 子进程 */
@@ -606,8 +549,6 @@ export const HostResponseTypes = {
   WorkspaceRunningTaskCountChanged: "workspace-running-task-count-changed",
   /** host → main：Windows desktop-local CUA turn 的操作提示状态 */
   CuaOperationState: "cua-operation-state",
-  /** host → main：workspace generation 已可安全 attach */
-  RemoteWorkspaceAcquired: "remote-workspace-acquired",
   /** 广播消息 */
   Broadcast: "broadcast",
   /** host → main：申请跨窗口原子 claim */
@@ -628,12 +569,6 @@ export const HostResponseTypes = {
   TaskOwnerCommandRequest: "task-owner-command-request",
   /** host → main：owner 返回 task command result */
   TaskOwnerCommandResult: "task-owner-command-result",
-  /** host → main：Bot 请求创建远端 workspace session */
-  BotRemoteWorkspaceReconnectRequest: "bot-remote-workspace-reconnect-request",
-  /** host → main：Bot 查询当前窗口是否已有远端 workspace session */
-  BotRemoteWorkspaceConnectionStatusRequest: "bot-remote-workspace-connection-status-request",
-  /** host → main：Bot 请求远端 workspace runtime RPC 端口 */
-  BotRemoteWorkspaceRuntimePortRequest: "bot-remote-workspace-runtime-port-request",
   /** host → main：Agent 请求向另一个 session 发送消息 */
   SessionMessageSendRequested: "session-message-send-requested",
   /** host → main：声明一个 ZCode Agent session 当前归属该 host */
@@ -658,8 +593,6 @@ export const HostResponseTypes = {
   NetworkTelemetryBatch: "network-telemetry-batch",
   /** host → main：本地 Provisioning Source 成功持久化。 */
   ProviderProvisioningSourceChanged: "provider-provisioning-source-changed",
-  /** host → main：一次 Remote Environment 同步执行完毕。 */
-  ProviderProvisioningExecutionResult: "provider-provisioning-execution-result",
 } as const;
 
 // ============================================================================
@@ -692,26 +625,6 @@ export interface PlatformChannelMap {
     request: void;
     response: PrintPageToPdfResult;
   };
-  [PlatformChannels.RemoteConnectionLog]: {
-    request: {
-      label: string;
-      requestId?: string;
-      sessionId?: string;
-      level: "info" | "warn" | "error";
-      source: string;
-      message: string;
-      timestamp: string;
-    };
-    response: void;
-  };
-  [PlatformChannels.RemoteSessionClosed]: {
-    request: RemoteSessionClosedEvent;
-    response: void;
-  };
-  [PlatformChannels.BotRemoteWorkspaceReconnected]: {
-    request: BotRemoteWorkspaceReconnectedEvent;
-    response: void;
-  };
   [PlatformChannels.ActivateOrSetWorkspace]: {
     request: string;
     response: { activated: boolean };
@@ -719,38 +632,6 @@ export interface PlatformChannelMap {
   [PlatformChannels.OpenWorkspacePath]: {
     request: string;
     response: void;
-  };
-  [PlatformChannels.ConnectRemote]: {
-    request: ConnectRemoteRequest;
-    response: { success: boolean; error?: string; sessionId?: string };
-  };
-  [PlatformChannels.CancelPendingRemoteConnection]: {
-    request: CancelPendingRemoteConnectionRequest;
-    response: void;
-  };
-  [PlatformChannels.BindRemoteWorkspaceSessionContext]: {
-    request: BindRemoteWorkspaceSessionContextRequest;
-    response: void;
-  };
-  [PlatformChannels.DisposeRemoteSession]: {
-    request: string;
-    response: void;
-  };
-  [PlatformChannels.IsDockerAvailable]: {
-    request: void;
-    response: boolean;
-  };
-  [PlatformChannels.ListWSLDistros]: {
-    request: void;
-    response: WSLDistro[];
-  };
-  [PlatformChannels.ListDockerContainers]: {
-    request: void;
-    response: DockerContainerInfo[];
-  };
-  [PlatformChannels.ListSSHConfigAliases]: {
-    request: void;
-    response: SSHConfigAliasOption[];
   };
   [PlatformChannels.LoadMcpFromUserDirectory]: {
     request: LoadCliMcpFromUserDirectoryRequest;

@@ -60,7 +60,6 @@ import {
   buildPluginConfigPatch,
   type PluginOptionDraftValue,
 } from "@/settings/pluginConfigPatch.js";
-import { formatRemoteSkillSyncTarget } from "@/settings/RemoteSkillSyncDialog.js";
 import {
   buildPluginStoreTryMention,
   buildPluginStoreTryPrompt,
@@ -91,11 +90,7 @@ import {
   getPluginWorkspaceKey,
   isPluginScopeWorkspaceConnected,
 } from "@/settings/PluginScopeMenu.js";
-import {
-  RemoteSyncDialogs,
-  shouldShowRemoteSyncActions,
-  useRemoteSyncDialogIntent,
-} from "@/settings/RemoteSyncActions.js";
+// DWeis Next 无云绑定：远程插件同步入口（RemoteSyncActions）已随远程工作区摘除。
 
 type PluginTabTarget = "plugins" | "mcps" | "skills" | "commands";
 type PluginTab = Exclude<PluginTabTarget, "commands">;
@@ -194,33 +189,9 @@ function PluginList({
   const [pluginOptionsDrafts, setPluginOptionsDrafts] = useState<
     Record<string, Record<string, PluginOptionDraftValue>>
   >({});
-  // 设置页重构后只保留了 Plugin 管理列表，漏掉了旧版插件页的远端同步入口。
-  // 同步目标必须沿用当前 Scope 的 target services，不能回退到激活 workspace 的 host。
-  const connectedRemoteSyncTarget =
-    targetServiceResolution.rpcReady &&
-    shouldShowRemoteSyncActions({
-      remoteSessionId: target?.remoteSessionId,
-      remoteTarget: target?.remoteTarget,
-      clientMode: "desktop-continuous" as const,
-      hasLocalSourceService: Boolean(baseServices.pluginSyncService),
-    }) &&
-    target?.workspacePath
-      ? target.remoteTarget
-      : null;
-  // 设置页重构时只迁移了插件远程同步操作，遗漏了当前远端工作区提示，
-  // 用户无法确认插件列表实际对应的是哪个远程目标。
-  const remotePluginSyncTargetLabel = connectedRemoteSyncTarget
-    ? formatRemoteSkillSyncTarget(connectedRemoteSyncTarget, target?.workspacePath ?? "")
-    : "";
+  // DWeis Next 无云绑定：connectedRemoteSyncTarget / remotePluginSyncTargetLabel
+  // 与远程同步弹窗状态已随远程工作区摘除。
   const targetKey = target ? workspaceKey(target) : "";
-  const pluginSyncTargetKey = target
-    ? `${targetKey}\u0000${target.remoteSessionId?.trim() ?? ""}`
-    : "";
-  const { open: remotePluginSyncOpen, setOpen: setRemotePluginSyncOpen } =
-    useRemoteSyncDialogIntent({
-      rpcReady: targetServiceResolution.rpcReady,
-      targetKey: pluginSyncTargetKey,
-    });
   const storeKey = currentWorkspaceIdentity?.trim() || currentWorkspacePath || "";
   const storeMatchesTarget = storeKey === targetKey && currentConfigScope === configScope;
   const storeItemById = useMemo(
@@ -787,25 +758,6 @@ function PluginList({
             </span>
           </h3>
           <div className="flex flex-wrap items-center gap-2">
-            {connectedRemoteSyncTarget ? (
-              <ControlHintTooltip
-                title={intl.formatMessage({
-                  id: "settings.plugins.remoteSync.open",
-                })}
-              >
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-md"
-                  aria-label={intl.formatMessage({
-                    id: "settings.plugins.remoteSync.open",
-                  })}
-                  onClick={() => setRemotePluginSyncOpen(true)}
-                >
-                  <UploadCloud className="size-3.5" aria-hidden="true" />
-                </Button>
-              </ControlHintTooltip>
-            ) : null}
             <SettingsResourceHeaderActions onRefresh={() => void refreshAfterPluginChange()} />
             {configScope === "user" ? (
               <>
@@ -832,14 +784,6 @@ function PluginList({
             data-testid="plugin-settings-workspace-scope-hint"
           >
             {intl.formatMessage({ id: "settings.plugins.scope.workspaceHint" })}
-          </div>
-        ) : null}
-        {connectedRemoteSyncTarget ? (
-          <div className="rounded-lg border border-border bg-card px-3 py-2 text-ui-base text-foreground-subtle">
-            {intl.formatMessage(
-              { id: "settings.plugins.remoteContext" },
-              { target: remotePluginSyncTargetLabel },
-            )}
           </div>
         ) : null}
         {!target ? (
@@ -910,30 +854,8 @@ function PluginList({
         onCancel={uninstall.cancelUninstall}
         onConfirm={() => void uninstall.confirmUninstall()}
       />
-      <RemoteSyncDialogs
-        canSyncSkills={false}
-        canSyncMcp={false}
-        canSyncPlugins={Boolean(connectedRemoteSyncTarget && target?.workspacePath)}
-        skillOpen={false}
-        mcpOpen={false}
-        pluginOpen={remotePluginSyncOpen}
-        onSkillOpenChange={() => {}}
-        onMcpOpenChange={() => {}}
-        onPluginOpenChange={setRemotePluginSyncOpen}
-        localPluginSyncService={baseServices.pluginSyncService}
-        remotePluginSyncService={targetServiceResolution.services.pluginSyncService}
-        localZCodeAgentService={baseServices.zcodeAgentService}
-        remoteZCodeAgentService={targetServiceResolution.services.zcodeAgentService}
-        remoteTarget={connectedRemoteSyncTarget}
-        skillWorkspacePath=""
-        mcpWorkspacePath=""
-        pluginWorkspacePath={target?.workspacePath ?? ""}
-        pluginLocalWorkspacePath={target?.localWorkspacePath}
-        workspaceIdentity={target?.workspaceIdentity}
-        onSkillsSynced={() => {}}
-        onMcpSynced={() => {}}
-        onPluginsSynced={refreshAfterPluginChange}
-      />
+      {/* DWeis Next 无云绑定：远程同步对话框已随远程工作区摘除。 */}
+
     </section>
   );
 }

@@ -1482,11 +1482,8 @@ export function PreviewPane({
     }
 
     try {
-      // 远程能力过滤产生的 fallback 只用于本次打开；不能把它写回面板偏好，
-      // 否则同一 PreviewPane 切回本地文件时仍会错误沿用远程 VS Code。
       const result = await platform.openInEditor(selectedEditor.id, source.path, {
         pathKind: "file",
-        remoteTarget: openInEditorRemoteTarget,
         workspaceIdentity: source.workspaceIdentity,
       });
       if (result.success) {

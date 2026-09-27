@@ -970,7 +970,8 @@ export async function openMessageFileLinkInEditor({
     path: string,
     options: OpenInEditorOptions,
   ) => Promise<{ success: boolean; error?: string }>;
-  remoteTarget?: OpenInEditorOptions["remoteTarget"];
+  /** DWeis Next 无云绑定：远程目标已随远程工作区移除，仅保留兼容形参。 */
+  remoteTarget?: unknown;
   statFile: (params: { path: string }) => Promise<Pick<FileStat, "type">>;
 }) {
   // Markdown 渲染层无法从名称可靠判断文件/目录。这里在动作发生时通过
@@ -978,7 +979,6 @@ export async function openMessageFileLinkInEditor({
   const fileStat = await statFile({ path: fileLink.path });
   return openInEditor(editorId, fileLink.path, {
     pathKind: fileStat.type,
-    remoteTarget,
     workspaceIdentity: fileLink.workspaceIdentity,
   });
 }

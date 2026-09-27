@@ -2,8 +2,7 @@ import type { ZCodeProvider } from "@zcode/shared";
 import { useCallback, useEffect, useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useServices } from "./useServices.js";
-import { useResolvedRemoteWorkspaceSessionId } from "@/hooks/useResolvedRemoteWorkspaceSessionId.js";
-import { shouldEnableWorkspaceRpc } from "@/lib/workspaceRpcAvailability.js";
+// DWeis Next 无云绑定：远程 session 解析与 RPC 可用性门控已随远程工作区摘除。
 import { useTabStore } from "@/store/TabStoreProvider.js";
 import { isWorkspaceTab, type WindowTabState, type WorkspaceTabState } from "@/store/tabStore.js";
 import { getSubagentsContextKey, useSubagentsContextStore } from "@/store/subagentsContextStore.js";
@@ -46,17 +45,8 @@ export function useSubagents(
     }),
   );
   const workspaceIdentity = explicitIdentity || workspaceRpcTarget.workspaceIdentity;
-  const remoteSessionId = useResolvedRemoteWorkspaceSessionId(
-    workspacePath,
-    workspaceRpcTarget.preferredRemoteSessionId,
-    workspaceIdentity,
-    workspaceRpcTarget.remoteTarget,
-  );
-  const workspaceRpcEnabled = shouldEnableWorkspaceRpc({
-    workspaceIdentity,
-    remoteSessionId,
-    remoteTarget: workspaceRpcTarget.remoteTarget,
-  });
+  const remoteSessionId: string | null = null;
+  const workspaceRpcEnabled = true;
   const contextKey = workspacePath
     ? getSubagentsContextKey(workspacePath, provider, workspaceIdentity)
     : null;

@@ -8,7 +8,6 @@ import { useEffect, useRef } from "react";
 import { useState } from "react";
 import type { AppSettings } from "@zcode/shared";
 import type { ISettingService } from "@zcode/services";
-import { readPersistedWorkspaceSessionEntries } from "@/lib/remoteWorkspaceHistory.js";
 import { useTabStoreApi } from "../store/TabStoreProvider.js";
 import { isWorkspaceTab, type TabStoreState } from "../store/tabStore.js";
 import { logger } from "../logger.js";
@@ -64,7 +63,7 @@ function getRecentProjectPathsFromSettings(
   excludedPaths: readonly string[] = [],
 ): string[] {
   const excludedPathSet = new Set(excludedPaths);
-  return readPersistedWorkspaceSessionEntries(settings)
+  return (settings.lastWorkspaceSession ?? [])
     .flatMap((entry) =>
       entry.kind === "local" &&
       entry.workspacePurpose !== "conversation" &&
@@ -181,7 +180,9 @@ export function useTabPersistence({
         if (restorePersistedSession) {
           restoreResult = await restorePersistedSession(settings);
         } else {
-          const tabs = readPersistedWorkspaceSessionEntries(settings).flatMap((entry) =>
+          // DWeis Next 无云绑定：原 remoteWorkspaceHistory 工具已删；
+          // 持久化条目只剩本地一类，remote 旧数据由 settings 迁移层过滤。
+          const tabs = (settings.lastWorkspaceSession ?? []).flatMap((entry) =>
             entry.kind === "local"
               ? [
                   entry.workspacePurpose

@@ -11,14 +11,11 @@ import { formatTaskRelativeTime } from "@/lib/taskListItemPresentation.js";
 import { getTaskChangeSummary } from "@/lib/taskChangeSummary.js";
 import { getPathLeaf } from "@/lib/path.js";
 import { logger } from "@/logger.js";
-import { useRemoteWorkspaceSessionStore } from "@/store/remoteWorkspaceSessionStore.js";
 import type { WorkspaceTabState } from "@/store/tabStore.js";
 import { buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
 import { applyTaskQueryCacheMutation } from "@/store/taskQueryCacheStore.js";
 import { removeTaskFromTaskCaches } from "@/lib/taskListMetaSync.js";
-import { TaskListRemoteSyncHint } from "@/TaskListRemoteSyncHint.js";
 import { TaskListLoadingHint } from "@/TaskListLoadingHint.js";
-import { buildWorkspaceServiceLookup } from "@/lib/workspaceServiceResolver.js";
 import { DeleteAllArchivedTasksButton } from "@/DeleteAllArchivedTasksButton.js";
 
 export function WorkspaceArchivedTasksFlatSection({
@@ -45,21 +42,6 @@ export function WorkspaceArchivedTasksFlatSection({
   const { intl } = useZCodeIntl();
   const confirmDialog = useConfirmDialog();
   const baseServices = useBaseWorkspaceServices();
-  const sessionsById = useRemoteWorkspaceSessionStore((state) => state.sessionsById);
-  const sessionIdByWorkspaceIdentity = useRemoteWorkspaceSessionStore(
-    (state) => state.sessionIdByWorkspaceIdentity,
-  );
-  const sessionIdByWorkspacePath = useRemoteWorkspaceSessionStore(
-    (state) => state.sessionIdByWorkspacePath,
-  );
-  const serviceResolverState = useMemo(
-    () => ({
-      sessionsById,
-      sessionIdByWorkspaceIdentity,
-      sessionIdByWorkspacePath,
-    }),
-    [sessionIdByWorkspaceIdentity, sessionIdByWorkspacePath, sessionsById],
-  );
   const [showAllTasks, setShowAllTasks] = useState(false);
   const [deletingTaskKeys, setDeletingTaskKeys] = useState<Set<string>>(() => new Set());
   const collapsedLimit = 20;
@@ -77,12 +59,24 @@ export function WorkspaceArchivedTasksFlatSection({
     [workspaceTabs],
   );
 
+  // DWeis Next 无云绑定：远程 workspace session 解析（serviceResolverState /
+  // buildWorkspaceServiceLookup）已随远程工作区摘除，窗口内本地 tab 统一解析到
+  // 唯一一套 window 级 Host services（baseServices）。
   const workspaceServiceLookup = useMemo(
-    () => buildWorkspaceServiceLookup(workspaceTabs, baseServices, serviceResolverState),
-    [baseServices, serviceResolverState, workspaceTabs],
+    () =>
+      new Map(
+        workspaceTabs.map(
+          (tab) =>
+            [
+              buildTaskWorkspaceKey(tab.workspacePath, tab.workspaceIdentity),
+              { services: baseServices },
+            ] as const,
+        ),
+      ),
+    [baseServices, workspaceTabs],
   );
   const activeWorkspaceKey = buildTaskWorkspaceKey(activeWorkspacePath, activeWorkspaceIdentity);
-  const { items, total, loading, syncingRemoteWorkspaces, refresh } = useGlobalTaskList({
+  const { items, total, loading, refresh } = useGlobalTaskList({
     kind: "archived",
     workspaceTabs,
     sortBy,
@@ -333,7 +327,6 @@ export function WorkspaceArchivedTasksFlatSection({
           );
         })}
       </ul>
-      {syncingRemoteWorkspaces ? <TaskListRemoteSyncHint /> : null}
       {canToggleExpanded ? (
         <div className="cursor-pointer pl-8.5 pb-4">
           <span

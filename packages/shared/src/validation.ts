@@ -8,9 +8,7 @@ import { z } from "zod";
 import { zcodeProcessDiagnosticSchema } from "./process-diagnostic.js";
 import { browserCommandSchema } from "./browser-use/commands.js";
 import { browserCommandResultSchema } from "./browser-use/result.js";
-import { REMOTE_ASSET_INSTALL_MODES } from "./remoteAssetInstallMode.js";
 import { PROCESS_RESOURCE_CLI_LANES } from "./processResourceTelemetry.js";
-import { isKnownRemoteResourcePackageId } from "./remoteResourcePackages.js";
 import { zcodeProviderSchema } from "./providers.js";
 import { zcodeAgentProviderSchema } from "./zcode-agent-policy.js";
 import { modelSelectionSchema } from "./model-selection.js";
@@ -39,9 +37,7 @@ import {
   taskStreamMirrorTargetSchema,
 } from "./task-realtime-core.js";
 
-export { WSL_USER_MAX_LENGTH, isValidWslUser, wslUserSchema } from "./wslUserValidation.js";
 export { zcodeTaskModeSchema } from "./zcode-task-mode-schema.js";
-import { wslUserSchema } from "./wslUserValidation.js";
 export {
   appSettingsOccupationEnum,
   appSettingsPatchSchema,
@@ -64,40 +60,6 @@ export const stringArraySchema = z.array(z.string());
 export const credentialRecordSchema = z.record(z.string(), z.string());
 export const credentialKeySchema = nonEmptyStringSchema;
 export const credentialValueSchema = z.string();
-
-export const sshConnectOptionsSchema = z.object({
-  kind: z.literal("ssh"),
-  host: nonEmptyStringSchema,
-  port: z.number().int().positive().max(65535).optional(),
-  username: nonEmptyStringSchema,
-  sshConfigAlias: nonEmptyStringSchema.optional(),
-  password: z.string().optional(),
-  privateKeyPath: z.string().optional(),
-  privateKeyPassphrase: z.string().optional(),
-  assetInstallMode: z.enum(REMOTE_ASSET_INSTALL_MODES).optional(),
-  resourcePackages: z
-    .object({
-      selectedPackageIds: z.array(z.string().refine(isKnownRemoteResourcePackageId)).optional(),
-    })
-    .optional(),
-});
-
-export const wslConnectOptionsSchema = z.object({
-  kind: z.literal("wsl"),
-  distro: z.string().optional(),
-  user: wslUserSchema.optional(),
-});
-
-export const dockerConnectOptionsSchema = z.object({
-  kind: z.literal("docker"),
-  container: nonEmptyStringSchema,
-});
-
-export const remoteTargetSchema = z.discriminatedUnion("kind", [
-  sshConnectOptionsSchema,
-  wslConnectOptionsSchema,
-  dockerConnectOptionsSchema,
-]);
 
 export const helloMessageSchema = z.object({
   type: z.literal("zcode-hello"),
@@ -165,13 +127,6 @@ export const broadcastMessageSchema = z.object({
   sourceWindowId: z.number().int().optional(),
 });
 
-export const remoteAssetDirsSchema = z.object({
-  mockCdnDir: z.string().optional(),
-  remoteCdnBaseUrl: z.string().optional(),
-  remoteCdnBaseUrls: z.array(z.string()).optional(),
-  remoteCacheDir: z.string().optional(),
-});
-
 const hostAgentWarmupTargetSchema = z.object({
   workspacePath: nonEmptyStringSchema,
   workspaceIdentity: nonEmptyStringSchema.optional(),
@@ -194,67 +149,12 @@ export const hostInitLocalMessageSchema = z.object({
     .optional(),
 });
 
-export const windowHostRemoteWorkspaceDescriptorSchema = z
-  .object({
-    remoteSessionId: nonEmptyStringSchema,
-    target: remoteTargetSchema,
-    workspacePath: nonEmptyStringSchema.optional(),
-    workspaceIdentity: nonEmptyStringSchema.optional(),
-    generation: z.number().int().positive(),
-  })
+// DWeis Next 无云绑定：attachment scope 只剩 local 一类，远程 logical session
+// scope 已随远程工作区摘除。
+export const windowHostAttachmentScopeSchema = z
+  .object({ kind: z.literal("local") })
   .strict();
-export type WindowHostRemoteWorkspaceDescriptor = z.infer<
-  typeof windowHostRemoteWorkspaceDescriptorSchema
->;
-
-export const windowHostAttachmentScopeSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("local") }).strict(),
-  z
-    .object({
-      kind: z.literal("remote"),
-      remoteSessionId: nonEmptyStringSchema,
-      workspacePath: nonEmptyStringSchema,
-      workspaceIdentity: nonEmptyStringSchema,
-    })
-    .strict(),
-]);
 export type WindowHostAttachmentScope = z.infer<typeof windowHostAttachmentScopeSchema>;
-
-export const hostConnectRemoteWorkspaceMessageSchema = z
-  .object({
-    type: z.literal("connect-remote-workspace"),
-    requestId: nonEmptyStringSchema,
-    target: remoteTargetSchema,
-    remoteAssets: remoteAssetDirsSchema,
-    workspacePath: nonEmptyStringSchema.optional(),
-    workspaceIdentity: nonEmptyStringSchema.optional(),
-  })
-  .strict();
-
-export const hostCancelRemoteWorkspaceConnectMessageSchema = z
-  .object({
-    type: z.literal("cancel-remote-workspace-connect"),
-    requestId: nonEmptyStringSchema,
-  })
-  .strict();
-
-export const hostBindRemoteWorkspaceContextMessageSchema = z
-  .object({
-    type: z.literal("bind-remote-workspace-context"),
-    requestId: nonEmptyStringSchema,
-    remoteSessionId: nonEmptyStringSchema,
-    workspacePath: nonEmptyStringSchema,
-    workspaceIdentity: nonEmptyStringSchema,
-  })
-  .strict();
-
-export const hostDisposeRemoteWorkspaceSessionMessageSchema = z
-  .object({
-    type: z.literal("dispose-remote-workspace-session"),
-    requestId: nonEmptyStringSchema,
-    remoteSessionId: nonEmptyStringSchema,
-  })
-  .strict();
 
 export const hostAttachServicePortMessageSchema = z
   .object({
@@ -320,29 +220,6 @@ export const hostTaskOwnerCommandDeliverMessageSchema = z.object({
 export const hostTaskOwnerCommandResultMessageSchema = z.object({
   type: z.literal("task-owner-command-result"),
   result: taskOwnerCommandResultSchema,
-});
-
-export const hostBotRemoteWorkspaceReconnectResultMessageSchema = z.object({
-  type: z.literal("bot-remote-workspace-reconnect-result"),
-  requestId: nonEmptyStringSchema,
-  ok: z.boolean(),
-  sessionId: nonEmptyStringSchema.optional(),
-  error: z.string().optional(),
-});
-
-export const hostBotRemoteWorkspaceConnectionStatusResultMessageSchema = z.object({
-  type: z.literal("bot-remote-workspace-connection-status-result"),
-  requestId: nonEmptyStringSchema,
-  ok: z.boolean(),
-  connected: z.boolean().optional(),
-  error: z.string().optional(),
-});
-
-export const hostBotRemoteWorkspaceRuntimePortMessageSchema = z.object({
-  type: z.literal("bot-remote-workspace-runtime-port"),
-  requestId: nonEmptyStringSchema,
-  ok: z.boolean(),
-  error: z.string().optional(),
 });
 
 export const sessionMessageRequestSchema = z.object({
@@ -447,16 +324,6 @@ export const hostCuaPipFocusChangedMessageSchema = z
   })
   .strict();
 
-export const hostProviderProvisioningExecuteMessageSchema = z
-  .object({
-    type: z.literal("provider-provisioning-execute"),
-    requestId: nonEmptyStringSchema,
-    environmentKey: nonEmptyStringSchema,
-    remoteSessionId: nonEmptyStringSchema,
-    trigger: providerProvisioningTriggerSchema,
-  })
-  .strict();
-
 export const hostResourceUsageSnapshotRequestMessageSchema = z
   .object({
     type: z.literal("resource-usage-snapshot-request"),
@@ -476,10 +343,6 @@ export const hostIncomingMessageSchema = z.discriminatedUnion("type", [
     .object({ type: z.literal("resource-usage-snapshot-cancel"), requestId: nonEmptyStringSchema })
     .strict(),
   hostInitLocalMessageSchema,
-  hostConnectRemoteWorkspaceMessageSchema,
-  hostCancelRemoteWorkspaceConnectMessageSchema,
-  hostBindRemoteWorkspaceContextMessageSchema,
-  hostDisposeRemoteWorkspaceSessionMessageSchema,
   hostAttachServicePortMessageSchema,
   hostDetachServicePortMessageSchema,
   hostDisposeMessageSchema,
@@ -489,9 +352,6 @@ export const hostIncomingMessageSchema = z.discriminatedUnion("type", [
   hostTaskRunLeaseResultMessageSchema,
   hostTaskOwnerCommandDeliverMessageSchema,
   hostTaskOwnerCommandResultMessageSchema,
-  hostBotRemoteWorkspaceReconnectResultMessageSchema,
-  hostBotRemoteWorkspaceConnectionStatusResultMessageSchema,
-  hostBotRemoteWorkspaceRuntimePortMessageSchema,
   hostSessionMessageDeliverMessageSchema,
   hostSessionMessageDeliveryResultMessageSchema,
   hostFeedbackLogArchiveResultMessageSchema,
@@ -500,44 +360,7 @@ export const hostIncomingMessageSchema = z.discriminatedUnion("type", [
   hostBrowserExecuteResultMessageSchema,
   hostLocalMediaPreviewPathAuthorizeResultMessageSchema,
   hostCuaPipFocusChangedMessageSchema,
-  hostProviderProvisioningExecuteMessageSchema,
 ]);
-
-export const hostRemoteWorkspaceConnectedResponseSchema = z
-  .object({
-    type: z.literal("remote-workspace-connected"),
-    requestId: nonEmptyStringSchema,
-    descriptor: windowHostRemoteWorkspaceDescriptorSchema,
-  })
-  .strict();
-
-export const hostRemoteWorkspaceConnectionLogResponseSchema = z
-  .object({
-    type: z.literal("remote-workspace-connection-log"),
-    requestId: nonEmptyStringSchema,
-    level: z.enum(["info", "warn", "error"]),
-    message: nonEmptyStringSchema,
-  })
-  .strict();
-
-export const hostRemoteWorkspaceConnectFailedResponseSchema = z
-  .object({
-    type: z.literal("remote-workspace-connect-failed"),
-    requestId: nonEmptyStringSchema,
-    error: nonEmptyStringSchema,
-  })
-  .strict();
-
-export const hostRemoteWorkspaceClosedResponseSchema = z
-  .object({
-    type: z.literal("remote-workspace-closed"),
-    remoteSessionId: nonEmptyStringSchema,
-    reason: z.enum(["connection-closed", "disposed", "connect-cancelled"]),
-    exitCode: z.number().int().nullable().optional(),
-    signal: z.string().nullable().optional(),
-    error: z.string().optional(),
-  })
-  .strict();
 
 export const hostLogResponseSchema = z.object({
   type: z.literal("log"),
@@ -816,30 +639,6 @@ export const hostTaskOwnerCommandResultResponseSchema = z.object({
   result: taskOwnerCommandResultSchema,
 });
 
-export const hostBotRemoteWorkspaceReconnectRequestResponseSchema = z.object({
-  type: z.literal("bot-remote-workspace-reconnect-request"),
-  requestId: nonEmptyStringSchema,
-  workspacePath: nonEmptyStringSchema,
-  workspaceIdentity: nonEmptyStringSchema,
-  target: remoteTargetSchema,
-});
-
-export const hostBotRemoteWorkspaceConnectionStatusRequestResponseSchema = z.object({
-  type: z.literal("bot-remote-workspace-connection-status-request"),
-  requestId: nonEmptyStringSchema,
-  workspacePath: nonEmptyStringSchema,
-  workspaceIdentity: nonEmptyStringSchema,
-  target: remoteTargetSchema,
-});
-
-export const hostBotRemoteWorkspaceRuntimePortRequestResponseSchema = z.object({
-  type: z.literal("bot-remote-workspace-runtime-port-request"),
-  requestId: nonEmptyStringSchema,
-  workspacePath: nonEmptyStringSchema,
-  workspaceIdentity: nonEmptyStringSchema,
-  target: remoteTargetSchema,
-});
-
 export const hostSessionMessageSendRequestedResponseSchema = z.object({
   type: z.literal("session-message-send-requested"),
   request: sessionMessageRequestSchema,
@@ -948,16 +747,6 @@ export const hostProviderProvisioningSourceChangedResponseSchema = z
   })
   .strict();
 
-export const hostProviderProvisioningExecutionResultResponseSchema = z
-  .object({
-    type: z.literal("provider-provisioning-execution-result"),
-    requestId: nonEmptyStringSchema,
-    environmentKey: nonEmptyStringSchema,
-    status: z.enum(["applied", "already-applied", "unsupported", "failed", "rollback_failed"]),
-    error: z.string().optional(),
-  })
-  .strict();
-
 export const hostResourceUsageProcessSchema = z
   .object({
     pid: z.number().int().positive(),
@@ -987,10 +776,6 @@ export const hostResponseMessageSchema = z.discriminatedUnion("type", [
     .object({ type: z.literal("database-startup-state"), state: databaseStartupStateSchema })
     .strict(),
   hostResourceUsageSnapshotResultResponseSchema,
-  hostRemoteWorkspaceConnectionLogResponseSchema,
-  hostRemoteWorkspaceConnectedResponseSchema,
-  hostRemoteWorkspaceConnectFailedResponseSchema,
-  hostRemoteWorkspaceClosedResponseSchema,
   hostLogResponseSchema,
   hostAgentProcessSpawnedResponseSchema,
   hostAgentProcessReadyResponseSchema,
@@ -1016,9 +801,6 @@ export const hostResponseMessageSchema = z.discriminatedUnion("type", [
   hostTaskRunLeaseReleaseResponseSchema,
   hostTaskOwnerCommandRequestResponseSchema,
   hostTaskOwnerCommandResultResponseSchema,
-  hostBotRemoteWorkspaceReconnectRequestResponseSchema,
-  hostBotRemoteWorkspaceConnectionStatusRequestResponseSchema,
-  hostBotRemoteWorkspaceRuntimePortRequestResponseSchema,
   hostSessionMessageSendRequestedResponseSchema,
   hostSessionRouteAnnounceResponseSchema,
   hostSessionMessageDeliverResultResponseSchema,
@@ -1027,7 +809,6 @@ export const hostResponseMessageSchema = z.discriminatedUnion("type", [
   hostLocalMediaPreviewPathAuthorizeRequestResponseSchema,
   hostNetworkTelemetryBatchResponseSchema,
   hostProviderProvisioningSourceChangedResponseSchema,
-  hostProviderProvisioningExecutionResultResponseSchema,
   hostCronRunResultResponseSchema,
   hostOffPeakRunResultResponseSchema,
   hostCronSchedulerWakeRequestResponseSchema,

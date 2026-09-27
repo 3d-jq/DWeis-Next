@@ -14,9 +14,9 @@ import type {
 } from "@zcode/shared";
 import { buildTurnChangeSummary, toWorkspaceRelativePath } from "@/lib/taskChangeSummary.js";
 import { logger } from "@/logger.js";
-import { shouldEnableWorkspaceRpc } from "@/lib/workspaceRpcAvailability.js";
+// DWeis Next 无云绑定：workspaceRpcAvailability / useResolvedRemoteWorkspaceSessionId
+// 已随远程工作区摘除；Git RPC 只服务本地 workspace，恒启用。
 import { useServices } from "@/hooks/useServices.js";
-import { useResolvedRemoteWorkspaceSessionId } from "@/hooks/useResolvedRemoteWorkspaceSessionId.js";
 
 type GitRepositorySourceId = Extract<GitChangeSourceId, "unstaged" | "staged" | "branch">;
 
@@ -389,17 +389,8 @@ export function useGitRepository(options: {
     workspaceIdentity = null,
   } = options;
   const { gitService } = useServices();
-  const remoteSessionId = useResolvedRemoteWorkspaceSessionId(
-    workspacePath,
-    preferredRemoteSessionId,
-    workspaceIdentity,
-    remoteTarget,
-  );
-  const workspaceRpcEnabled = shouldEnableWorkspaceRpc({
-    workspaceIdentity,
-    remoteSessionId,
-    remoteTarget,
-  });
+  const remoteSessionId: string | null = null;
+  const workspaceRpcEnabled = true;
   const workspaceKey = workspaceIdentity?.trim() || workspacePath;
   // store 收尾：per-turn 变更摘要 map（setPerTurnSummaries/setPerTurnFileChanges）
   // 的写入链路随旧 ChatView 流订阅删除，store 不再保存该派生态（删除前也恒为空）。

@@ -8,7 +8,7 @@
 //   本地 __base__ 用新 service 重建条目。
 import type { IZCodeAgentService } from "@zcode/services";
 import { createAgentConversationTransport } from "@/v4/agentConversationTransport.js";
-import { remoteAgentServiceGeneration } from "@/lib/remoteAgentServiceGeneration.js";
+import { agentServiceGeneration } from "@/lib/agentServiceGeneration.js";
 import { ReplaceableConversationTransport } from "@/v4/replaceableConversationTransport.js";
 import { SessionDataLayer } from "@/v4/sessionDataLayer.js";
 import type { ConversationTransport } from "@/v4/transport.js";
@@ -163,7 +163,7 @@ export function acquireWorkspaceConnection(
 ): WorkspaceConnectionLease {
   const key = buildWorkspaceConnectionKey(scope);
   const existing = registry.get(key);
-  const incomingServiceGeneration = remoteAgentServiceGeneration(agentService);
+  const incomingServiceGeneration = agentServiceGeneration(agentService);
   const isRemote =
     (scope.remoteSessionId ?? LOCAL_WORKSPACE_CONNECTION_ENDPOINT) !==
     LOCAL_WORKSPACE_CONNECTION_ENDPOINT;

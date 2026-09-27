@@ -19,7 +19,6 @@ import type {
   SettingsDirectorySource,
 } from "@zcode/shared";
 import type { IMcpSyncService } from "./mcpSync.js";
-import { checkRemoteSyncDirectoryWriteAccess } from "../remote-sync/remoteSyncWriteAccess.js";
 
 type McpConfigKeyName = "mcp.servers" | "mcpServers";
 
@@ -101,17 +100,6 @@ export function createMcpSyncService(
         localHomeDir,
       };
     },
-    async listRemoteUserMcpStatuses(params) {
-      const remoteHomeDir = resolveUserHomeDir();
-      const existingByName = await collectEffectiveUserMcpRecordByName();
-      return {
-        remoteHomeDir,
-        statuses: params.names.map((name): McpSyncRemoteStatus => {
-          const existing = existingByName.get(normalizeMcpNameKey(name));
-          return existing ? { name, exists: true, path: existing.path } : { name, exists: false };
-        }),
-      };
-    },
     async exportMcpServers(params) {
       const candidates = (await collectEffectiveUserMcpRecords()).map(recordToCandidate);
       const candidateById = new Map(candidates.map((candidate) => [candidate.id, candidate]));
@@ -132,9 +120,6 @@ export function createMcpSyncService(
           };
         }),
       };
-    },
-    async checkRemoteUserMcpWriteAccess() {
-      return checkRemoteSyncDirectoryWriteAccess(dirname(getUserZcodeMcpConfigPath()));
     },
     async importMcpServers(params) {
       if (params.overwrite) {

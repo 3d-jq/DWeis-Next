@@ -1,4 +1,5 @@
-import { createOpenInEditorRemoteTarget } from "@zcode/shared";
+// DWeis Next 无云绑定：createOpenInEditorRemoteTarget 已随远程工作区摘除，
+// 编辑器打开目标恒为本地 workspace。
 import { useMemo } from "react";
 import { useOptionalTabStore } from "@/store/TabStoreProvider.js";
 import { isWorkspaceTab, type WindowTabState, type WorkspaceTabState } from "@/store/tabStore.js";
@@ -40,8 +41,8 @@ function resolveWorkspaceOpenInEditorTarget(
   );
   const remoteTarget = matchedTab?.remoteTarget;
   return {
-    isRemoteWorkspace: hasRemoteMatch,
-    remoteTarget: remoteTarget ? createOpenInEditorRemoteTarget(remoteTarget) : undefined,
+    isRemoteWorkspace: false,
+    remoteTarget: undefined,
   };
 }
 

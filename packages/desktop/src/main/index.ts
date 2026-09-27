@@ -133,13 +133,8 @@ import {
 import { resolveZCodeBuiltinProviderConfigFilePath } from "./desktopProviderConfig.js";
 import {
   getCredentialsDir,
-  isDockerDaemonAvailable,
-  listSSHConfigAliases,
-  listAvailableDockerContainers,
-  listAvailableWSLDistros,
   loadHostProcessEnvFromLocalFiles,
   resolveBundledGlmBinaryPath,
-  resolveRemoteAssetDirs,
   resolveZCodeEndpointEnvBaseOrigin,
   desktopRuntimeEnv,
   runtimeApplicationName,
@@ -173,8 +168,6 @@ import {
   extractOpenWorkspacePathFromArgs,
   isWorkspaceOpenUrl,
 } from "./desktopDeepLinkUrl.js";
-import { createRemoteWorkspaceSessionManager } from "./desktopRemoteSessions.js";
-import { resolveCanonicalWslTarget } from "./desktopWslTargetResolver.js";
 import {
   listRegisteredHostAgentProcessIds,
   setBrowserUseGuestWebContentsIdsProvider,
@@ -186,7 +179,7 @@ import {
   migrateLegacyCommonMcp,
   saveCliMcpToUserDirectory,
 } from "./mcpUserDirectory/index.js";
-import { registerRemoteIpcHandlers } from "./desktopMainIpcRemote.js";
+import { registerSharedIpcHandlers } from "./desktopMainIpcShared.js";
 import {
   registerDesktopStabilityMonitors,
   registerStabilityMainWindow,
@@ -308,7 +301,6 @@ const browserGuestManager = new BrowserGuestManager(
     if (win && !win.isDestroyed()) {
       win.webContents.send(PlatformChannels.BrowserViewReady, {
         workspaceKey: owner.workspaceKey,
-        ...(owner.remoteSessionId ? { remoteSessionId: owner.remoteSessionId } : {}),
         sessionId: owner.sessionId,
         tabId,
         browserId: owner.browserId,
@@ -322,7 +314,6 @@ const browserGuestManager = new BrowserGuestManager(
       win.webContents.send(PlatformChannels.BrowserViewVisibility, {
         visible,
         workspaceKey: owner.workspaceKey,
-        remoteSessionId: owner.remoteSessionId,
         sessionId: owner.sessionId,
         ...(tabId ? { tabId } : {}),
         browserId: owner.browserId,
@@ -335,7 +326,6 @@ const browserGuestManager = new BrowserGuestManager(
     if (win && !win.isDestroyed()) {
       win.webContents.send(PlatformChannels.BrowserViewViewportChanged, {
         workspaceKey: owner.workspaceKey,
-        ...(owner.remoteSessionId ? { remoteSessionId: owner.remoteSessionId } : {}),
         sessionId: owner.sessionId,
         tabId,
         browserId: owner.browserId,
@@ -415,7 +405,6 @@ async function runBrowserCommandOnView(params: {
   workspaceKey?: string;
   workspacePath?: string;
   workspaceIdentity?: string;
-  remoteSessionId?: string;
   clientMode?: "desktop-continuous" | "web-remote-replayable";
   sessionContext?: "live" | "cached";
   command: unknown;
@@ -434,7 +423,6 @@ async function runBrowserCommandOnView(params: {
     if (params.win.isDestroyed()) return;
     params.win.webContents.send(PlatformChannels.BrowserViewOperation, {
       workspaceKey,
-      ...(params.remoteSessionId ? { remoteSessionId: params.remoteSessionId } : {}),
       sessionId: params.sessionId,
       tabId,
       browserId: params.browserId ?? "legacy-iab",
@@ -458,7 +446,6 @@ async function runBrowserCommandOnView(params: {
         workspaceKey,
         sessionId: params.sessionId,
         ...(params.turnId ? { turnId: params.turnId } : {}),
-        ...(params.remoteSessionId ? { remoteSessionId: params.remoteSessionId } : {}),
         clientMode: params.clientMode ?? "desktop-continuous",
       },
       params.command as Parameters<typeof browserGuestManager.execute>[1],
@@ -694,13 +681,9 @@ app.on("browser-window-created", (_event, win) => {
   win.once("closed", () => cuaPipFocusRouter.removeWindow(windowKey));
 });
 
-const remoteSessionManager = createRemoteWorkspaceSessionManager({
-  logger,
-  windowHostProcessMap,
-  resolveRemoteAssetDirs: () =>
-    resolveRemoteAssetDirs({ locale: currentApplicationLocale }, hostProcessLocalEnv),
-  resolveWslTarget: resolveCanonicalWslTarget,
-});
+// DWeis Next 无云绑定：SSH/WSL/Docker 远程工作区已整体摘除，
+// createRemoteWorkspaceSessionManager（desktopRemoteSessions.ts）随之删除；
+// 本地 workspace 的 Host 生命周期只由 desktopWindowLifecycle / desktopHostProcess 管理。
 
 // 帮助配置是公开读取，不能复用下面附带账号鉴权的灰度响应缓存。
 const readHelpConfig = createDesktopHelpConfigReader({
@@ -951,9 +934,8 @@ async function prepareAppQuit(reason: string, kind: AppShutdownKind = "normal"):
         logger.warn(`[app-quit] cron scheduler dispose failed (${reason}):`, error);
       }
     })(),
-    // remote session、attachment 和 transport 都由窗口 Host 持有；这里先清理
-    // Main 的请求关联，再由下方每窗口唯一 Host 的 shutdown barrier 释放真实连接与 Agent。
-    remoteSessionManager.disposeAllAndWaitForAppShutdown(reason),
+    // DWeis Next 无云绑定：remote session 随远程工作区摘除，app 退出只清理
+    // Cron / Host；attachment 与 transport 仍由各窗口 Host 的 shutdown barrier 释放。
     ...hostProcesses.map((child, index) =>
       disposeHostProcessAndWait(
         child,
@@ -1612,76 +1594,8 @@ function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
           onCronSchedulerWakeRequested: wakeCronScheduler,
           onOffPeakSchedulerWakeRequested: wakeOffPeakScheduler,
           authorizeLocalMediaPreviewPath: localMediaPreviewPathRegistry.authorize,
-          // Bugfix: bot service 运行在本地窗口 host 内，/reconnect 必须能从本地 host 请求 main 创建远端 session。
-          handleBotRemoteWorkspaceReconnectRequest: async ({
-            win,
-            requestId,
-            workspacePath,
-            workspaceIdentity,
-            target,
-          }) => {
-            try {
-              const sessionId = await remoteSessionManager.reconnectBotRemoteWorkspaceSession(win, {
-                target,
-                workspacePath,
-                workspaceIdentity,
-                requestId,
-              });
-              if (!win.isDestroyed() && !win.webContents.isDestroyed()) {
-                win.webContents.send(PlatformChannels.BotRemoteWorkspaceReconnected, {
-                  sessionId,
-                  workspacePath,
-                  workspaceIdentity,
-                  target,
-                });
-              }
-              return { ok: true, sessionId };
-            } catch (error) {
-              return {
-                ok: false,
-                error: error instanceof Error ? error.message : String(error),
-              };
-            }
-          },
-          handleBotRemoteWorkspaceConnectionStatusRequest: async ({
-            win,
-            target,
-            workspacePath,
-            workspaceIdentity,
-          }) => ({
-            ok: true,
-            // Bugfix: Bot 远端连接状态必须按 workspaceIdentity/workspacePath 精确隔离。
-            // 只按 SSH target 判断会把同一台机器上的其他目录误判为当前 workspace 已连接。
-            connected: remoteSessionManager.hasRemoteWorkspaceSessionForTarget(win, target, {
-              workspacePath,
-              workspaceIdentity,
-            }),
-          }),
-          handleBotRemoteWorkspaceRuntimePortRequest: async ({
-            win,
-            requestId,
-            workspacePath,
-            workspaceIdentity,
-            target,
-          }) => {
-            try {
-              const port = await remoteSessionManager.createBotRemoteWorkspaceRuntimePort(
-                win,
-                {
-                  target,
-                  workspacePath,
-                  workspaceIdentity,
-                },
-                requestId,
-              );
-              return { ok: true, port };
-            } catch (error) {
-              return {
-                ok: false,
-                error: error instanceof Error ? error.message : String(error),
-              };
-            }
-          },
+          // DWeis Next 无云绑定：Bot 的远程 workspace reconnect / status / runtimePort
+          // 请求处理器随远程工作区一并摘除；Bot 只面向本地 workspace 运行。
           // browser-use：main 用 WebContentsView+CDP 执行命令。
           handleBrowserExecuteRequest: ({ win: browserWin, ...request }) =>
             runBrowserCommandOnView({ win: browserWin, ...request }),
@@ -1708,10 +1622,6 @@ function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
     syncAutoUpdaterStateToWindow,
     syncReadyUpdateToWindow,
     syncPostUpdateReleaseNotesToWindow,
-    disposeRemoteWorkspaceSessionsForWindow:
-      remoteSessionManager.disposeRemoteWorkspaceSessionsForWindow,
-    reattachRemoteWorkspaceSessionsForWindow:
-      remoteSessionManager.reattachRemoteWorkspaceSessionsForWindow,
     bootstrap: {
       restoreSession: startupBootstrap.restoreSession,
       initialWorkspacePath: startupBootstrap.initialWorkspacePath,
@@ -2043,18 +1953,11 @@ app.whenReady().then(async () => {
     logger,
   });
 
-  registerRemoteIpcHandlers({
+  // DWeis Next 无云绑定：远程连接相关 IPC（connect-remote / cancel-pending /
+  // bind-session-context / dispose-session / Docker/WSL/SSH 探测）已随远程工作区
+  // 摘除；此处仅保留 OAuth deep link、外链打开、系统通知等共享 handler。
+  registerSharedIpcHandlers({
     logger,
-    createRemoteWorkspaceSession: remoteSessionManager.createRemoteWorkspaceSession,
-    disposeRemoteWorkspaceSession: remoteSessionManager.disposeRemoteWorkspaceSession,
-    cancelPendingRemoteWorkspaceSessionsForWindow:
-      remoteSessionManager.cancelPendingRemoteWorkspaceSessionsForWindow,
-    bindRemoteWorkspaceSessionContext: remoteSessionManager.bindRemoteWorkspaceSessionContext,
-    confirmRendererAttachmentReady: remoteSessionManager.confirmRendererAttachmentReady,
-    isDockerDaemonAvailable,
-    listAvailableWSLDistros,
-    listAvailableDockerContainers,
-    listSSHConfigAliases,
   });
 
   registerDesktopStabilityMonitors(logger, crashCapturePaths);
