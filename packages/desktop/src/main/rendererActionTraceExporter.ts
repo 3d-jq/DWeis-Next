@@ -1,17 +1,6 @@
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import type { SpanExporter } from "@opentelemetry/sdk-trace-base";
 
 type EnvRecord = Record<string, string | undefined>;
-
-function resolveRendererActionTraceEndpoint(env: EnvRecord): string | undefined {
-  const traceEndpoint = validHttpUrl(env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT);
-  if (traceEndpoint) return traceEndpoint;
-  const commonEndpoint = validHttpUrl(env.OTEL_EXPORTER_OTLP_ENDPOINT);
-  if (!commonEndpoint) return undefined;
-  const parsed = new URL(commonEndpoint);
-  parsed.pathname = `${parsed.pathname.replace(/\/$/u, "")}/v1/traces`;
-  return parsed.toString();
-}
 
 export function parseRendererActionTraceHeaders(
   value: string | undefined,
@@ -28,16 +17,12 @@ export function parseRendererActionTraceHeaders(
   return Object.keys(headers).length > 0 ? headers : undefined;
 }
 
-export function createRendererActionTraceExporter(env: EnvRecord): SpanExporter | undefined {
-  const endpoint = resolveRendererActionTraceEndpoint(env);
-  if (!endpoint) return undefined;
-  return new OTLPTraceExporter({
-    url: endpoint,
-    headers: parseRendererActionTraceHeaders(
-      env.OTEL_EXPORTER_OTLP_TRACES_HEADERS ?? env.OTEL_EXPORTER_OTLP_HEADERS,
-    ),
-    timeoutMillis: 3_000,
-  });
+/**
+ * DWeis Next 不做遥测：renderer 用户操作 Trace 不再导出到 OTLP。
+ * 恒返回 undefined（即"未配置 exporter"），调用方会把 Trace 只留在本地链路。
+ */
+export function createRendererActionTraceExporter(_env: EnvRecord): SpanExporter | undefined {
+  return undefined;
 }
 
 export function validHttpUrl(value: string | undefined): string | undefined {

@@ -47,7 +47,6 @@ import type {
   OpenInEditorOptions,
   RemoteTarget,
   TaskNotificationPayload,
-  TelemetryRendererContext,
   RendererActionTraceBatchV1,
   RendererActionTraceConfigV1,
   RendererHeapSample,

@@ -18,7 +18,6 @@ import { randomUUID } from "node:crypto";
 import {
   MessagePortProtocol,
   ChannelServer,
-  type IDisposable,
   type IChannelServer,
   LoggingChannelServer,
   NetworkTelemetryChannelServer,
@@ -42,7 +41,6 @@ import {
   ICuaPipSessionService,
   createZCodeAgentConnectionScope,
   type ZCodeAgentV4ClientMode,
-  collectServiceMemoryDiagnostics,
 } from "@zcode/services";
 import {
   createLocalServices,
@@ -2785,7 +2783,7 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
               authorizeLocalMediaPreviewPath,
               runtimeProcessEnvPatch: msg.runtimeProcessEnvPatch,
               agentRuntimeContext: {
-                getDeviceMid: () => msg.deviceMid: "",
+                getDeviceMid: () => "",
                 runtimeSurface: "desktop_local_host",
               },
               serviceAuthorityMode: "desktop-local",
@@ -2794,7 +2792,7 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
               processLifecycleReporter: runtimeProcessLifecycleReporter,
               taskRuntimeReporter: runtimeTaskReporter,
               feedback: {
-                getDeviceMid: () => msg.deviceMid: "",
+                getDeviceMid: () => "",
                 apiBaseUrl: msg.feedbackApiBase,
                 createFullLogArchive: createFullFeedbackLogArchiveViaMain,
               },

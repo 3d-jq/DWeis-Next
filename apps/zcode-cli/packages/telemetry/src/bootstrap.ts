@@ -39,27 +39,16 @@ export interface ModelTelemetryBootstrap {
 export function createModelTelemetry(
   options: CreateModelTelemetryOptions = {},
 ): ModelTelemetryBootstrap {
-  // 显式注入优先，Endpoint 永远不能覆盖宿主提供的进程级 Owner。
-  const owner = options.owner ?? preparedOwner;
-  if (!owner) {
-    return {
-      agentExecution: noopExecution,
-      enabled: false,
-      modelExecution: noopExecution,
-      async shutdown() {},
-    };
-  }
+  // DWeis Next 不做遥测：OpenTelemetry / OTLP 导出链（模型 trace、agent metrics）
+  // 永久关闭，无论 OTEL_EXPORTER_OTLP_* 是否配置都不再初始化 Provider / Exporter。
+  // 保留该模块与 noop 返回，是为了不破坏 cli 各调用点的导入契约。
+  void options;
+  void preparedOwner;
   return {
-    agentExecution: owner.agentExecution,
-    enabled: owner.enabled,
-    modelExecution: owner.modelExecution,
-    statusSink: owner.statusSink,
-    async shutdown() {
-      if (options.sessionId) owner.abandonSession(options.sessionId);
-      // Session 只借用进程 Owner。关闭 Session 可以 flush，但不能关闭 Provider、Exporter、
-      // Context Manager 或其他 Session 仍在使用的队列。
-      await owner.flush({ timeoutMs: 1_500 });
-    },
+    agentExecution: noopExecution,
+    enabled: false,
+    modelExecution: noopExecution,
+    async shutdown() {},
   };
 }
 
@@ -121,19 +110,10 @@ export async function prepareModelTelemetryEnv(
   env: EnvRecord,
   options: PrepareModelTelemetryOptions = {},
 ): Promise<EnvRecord> {
-  if (!resolveOtlpTraceEndpoint(env) || isExplicitlyDisabled(env.ZCODE_MODEL_TELEMETRY_ENABLED)) {
-    return env;
-  }
-  const existingInstallationId = normalizeTelemetryDeviceMid(env.ZCODE_TELEMETRY_DEVICE_MID);
-  const installationId =
-    existingInstallationId ?? (await resolveStandaloneDeviceMid(env.ZCODE_HOME?.trim()));
-  const preparedEnv = installationId ? { ...env, ZCODE_TELEMETRY_DEVICE_MID: installationId } : env;
-
-  if (!preparingOwner && !preparedOwner) {
-    preparingOwner = createPreparedOwner(preparedEnv, options);
-  }
-  preparedOwner = await preparingOwner;
-  return preparedEnv;
+  // DWeis Next 不做遥测：不再准备 OTLP 身份 / 不加载 OTel SDK，
+  // 直接返回原始 env。保留函数是为不破坏 CLI 启动链的导入契约。
+  void options;
+  return env;
 }
 
 export async function shutdownPreparedModelTelemetry(): Promise<void> {

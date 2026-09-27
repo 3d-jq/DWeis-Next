@@ -28,13 +28,10 @@ export function createLocalTtftExporter(options: {
   logger: { warn(...args: unknown[]): void };
 }) {
   const exporter = createRendererActionTraceExporter(options.env);
-  const endpoint =
-    validHttpUrl(options.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT) ??
-    validHttpUrl(
-      options.env.OTEL_EXPORTER_OTLP_ENDPOINT
-        ? `${options.env.OTEL_EXPORTER_OTLP_ENDPOINT.replace(/\/$/, "")}/v1/metrics`
-        : undefined,
-    );
+  // DWeis Next 不做遥测：TTFT 指标/trace 不再导出到 OTLP。
+  // endpoint 恒为 undefined 时下面 MeterProvider 不挂任何 reader，
+  // 且 enqueue 首行 `!endpoint` 直接短路，本地链路完全静默。
+  const endpoint = undefined as string | undefined;
   const resource = resourceFromAttributes({
     "service.name": "zcode-local-ttft",
     "service.version": options.version,

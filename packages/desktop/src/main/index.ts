@@ -2085,7 +2085,6 @@ app.whenReady().then(async () => {
   logger.info("[startup] 创建主窗口");
   await primaryWindowCoordinator.ensurePrimaryWindow("app-ready");
 
-  const primaryWindow = getApplicationWindowsExcludingCuaIndicator()[0];
 
   // 启动后检测 CPU 架构是否匹配（如 Apple 芯片误装 x64 版本经 Rosetta 转译运行），
   // 命中后异步弹框提示安装原生架构版本，不阻塞主界面。
