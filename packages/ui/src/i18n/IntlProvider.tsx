@@ -30,7 +30,7 @@ export interface IntlInstance {
   formatMessage(descriptor: { id: string }, values?: Record<string, string | number>): string;
 }
 
-const LOCALE_PREFERENCE_KEY = "zcode-locale-preference";
+const LOCALE_PREFERENCE_KEY = "dweis-locale-preference";
 const STATE_LOCALE_CHANNEL = "state:locale";
 
 interface LocaleBroadcastPayload {

@@ -165,11 +165,24 @@ source: "https://cdn-zcode.z.ai/zcode/official-plugin/marketplace.json",
 - `pnpm typecheck`、`pnpm lint` 通过。
 
 
-## 3. 只留桌面端
+## 3. 只留桌面端 —— 已完成（2026-09-27）
 
-- 删除 `packages/web`、`packages/server`、`apps/zcode-cli` 的 Web/Server 打包入口与 SSH-WSL 远程连接链路。
-- 注意：`packages/web/index.html` 里还有一份内联的 `zcode-theme` 主题脚本和 ZCode logo，会随本项一起消失；如暂不删 Web，可顺手把它也换成 `dweis-theme` 与品牌标志。
-- 注意：`packages/ui/src/store/index.ts` 的 locale 存储键仍是 `zcode-locale`（`dweis-theme` / `dweis-interface-mode` 已换），清理时可统一改成 `dweis-locale`。
+- 删除 `packages/web`、`packages/server`、`packages/zcode-server-cli` 三个包；
+  `zcode --web` 的发行打包入口（`scripts/build-zcode.mjs`、`scripts/zcode-distribution/`、
+  smoke 脚本）随 Web/Server 一起删除，CLI 只保留 TUI 与 app-server/agent-server 协议模式
+  （桌面端仍在用，不删）。根 `package.json` 的 `dev:web`/`dev:server`/`build:zcode`/
+  typecheck 列表同步清理，lockfile 已重整。
+- SSH-WSL/Docker 远程工作区链路整体摘除（见第 2 节「OAuth / 账号登录」下方记录）：
+  远程会话管理、远端服务集合、连接向导 UI、Bot 远程桥、SSH/WSL 资产部署全部删除。
+- locale 存储键已统一为 `dweis-locale` / `dweis-locale-preference`。
+- 保留的历史数据兼容层：`remoteTarget.ts`（RemoteTarget 类型，CLI v4 协议要解析旧
+  session 的 remote identity）、`remote-workspace-identity.ts`（旧 sqlite/settings 行
+  判定，防同路径实体串键）、`workspaceTelemetryDetail.ts`（埋点载荷形状，随遥测空转）。
+- 有意保留的被动透传：UI 里约 200 处 `remoteSessionId?: string` 可选字段（本地也用同一
+  WorkspaceTab 类型，且 provider 侧仍解析旧协议数据）；后续如要彻底清理可单独一轮。
+- 剩余一项随打包重构处理：`remoteCdn.ts` 负责的运行时资产下载（生产态官方插件包/
+  node 运行时路径）在本次删除后失去来源，packaged 构建时需确认两个官方插件的装载方式
+  （本地 seed 是否覆盖），再决定是否保留模块。
 
 ## 4. 推到远端
 
