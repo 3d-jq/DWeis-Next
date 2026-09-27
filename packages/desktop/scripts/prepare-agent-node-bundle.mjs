@@ -9,7 +9,7 @@
 // - 单平台体积从 ~180MB 降到 ~16MB，且同一份 JS 跨平台通用；
 // - app-server 命令路径不会加载 @zcode/tui，所以这里天然不打包 TUI。
 //
-// 远端（SSH/WSL/Docker）没有 Electron，仍走 prepare:remote-assets 的原生二进制，互不影响。
+// DWeis Next：远端（SSH/WSL/Docker）运行形态已摘除，原生二进制路径一并移除。
 
 import { cpSync, existsSync, mkdirSync } from "node:fs";
 import { access, cp, mkdir } from "node:fs/promises";
@@ -203,7 +203,7 @@ function buildOfficialPluginRuntimeForBootstrap(plugin) {
     return;
   }
 
-  // bootstrap:with-remote 会连续构建 remote assets 和桌面 agent bundle。
+  // bootstrap 会连续构建 workspace 包与桌面 agent bundle。
   // 通过 pnpm/filter 进入插件 build 时，tsc shim 在本地低内存环境中容易被 SIGKILL；
   // 这里仅在 bootstrap 开关下用当前 Node 直接执行等价 tsc + build-mcp，不改变插件自身 build 脚本。
   // browser-use 的 server 与 browser-client 是同一发布对；即使旧 server.js 存在也必须重建，
