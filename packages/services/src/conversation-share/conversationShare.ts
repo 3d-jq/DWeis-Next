@@ -12,7 +12,30 @@ import type { ConversationRow } from "@zcode/shared/zcode-protocol-v4";
 import { Event as RpcEvent, type Event } from "@zcode/rpc";
 
 import { createServiceDescriptor } from "../descriptors.js";
-import type { ConversationShareClientErrorKind } from "./conversationShareHttpClient.js";
+
+/**
+ * 原 conversationShareHttpClient 的客户端错误类型域。DWeis Next 摘除分享上传/下载
+ * 链路后 HttpClient 已删除，类型内联到契约文件，供 ConversationShareServiceError
+ * 的 kind 判别继续使用。
+ */
+export type ConversationShareClientErrorKind =
+  | "authentication_required"
+  | "feature_disabled"
+  | "invalid_contract"
+  | "invalid_conversation"
+  | "disclosure_required"
+  | "unsafe_structure"
+  | "artifact_not_allowed"
+  | "limit_exceeded"
+  | "upload_incomplete"
+  | "not_found"
+  | "expired"
+  | "import_not_allowed"
+  | "rate_limited"
+  | "network"
+  | "safety_check_pending"
+  | "unsupported_schema_version"
+  | "unknown";
 
 export type ConversationShareSelection =
   | { kind: "all" }

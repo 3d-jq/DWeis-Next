@@ -13,6 +13,7 @@ import {
   IZCodeAgentService,
   IZCodeSessionService,
   IConversationShareService,
+  createUnsupportedConversationShareService,
   IBotsService,
   IFileWatcherService,
   IOAuthService,
@@ -37,8 +38,6 @@ import {
   type IServiceAccessor,
 } from "@zcode/services";
 import {
-  ConversationShareHttpClient,
-  ConversationShareService,
   createSettingService,
   createCredentialService,
   createBroadcastService,
@@ -56,10 +55,8 @@ import {
   createServiceLogger,
   createSubagentsService,
   createMemoryService,
-  createRemoteConversationShareArtifactSource,
 } from "@zcode/services/node";
 import {
-  buildRuntimeZCodeApiUrl,
   DEFAULT_ZCODE_MODEL_CONTEXT_BUDGET_STRATEGY,
   type ZCodeSessionRuntimePreferencesResult,
 } from "@zcode/shared";
@@ -70,7 +67,6 @@ import {
 } from "./remoteProviderProvisioningService.js";
 
 const runtimePreferencesLogger = createServiceLogger("remote-runtime-preferences");
-const ZCODE_JWT_TOKEN_KEY = "zcodejwttoken";
 
 export function createRemoteWorkspaceServiceCollection(params: {
   clientConfigService: IClientConfigService;
@@ -113,19 +109,10 @@ export function createRemoteWorkspaceServiceCollection(params: {
   handleOAuthProviderLogout = createOAuthProviderLogoutHandler({
     accountProviderCredentialStore: localAccountProviderCredentialStore,
   });
-  const conversationShareClient = new ConversationShareHttpClient({
-    // 远端 workspace 的分享也必须使用真实 API；本地 Mock 仅用于单测，不生成无法跨进程访问的链接。
-    apiClient: localApiClient,
-    baseUrl: buildRuntimeZCodeApiUrl(process.env, "/api/v1"),
-    tokenProvider: async () =>
-      (await localCredentialService.load(ZCODE_JWT_TOKEN_KEY))?.trim() || null,
-  });
-  const conversationShareService = new ConversationShareService({
-    zcodeAgentService: params.connectionServices.zcodeAgentService,
-    client: conversationShareClient,
-    artifactSource: createRemoteConversationShareArtifactSource(
-      params.connectionServices.fileService,
-    ),
+  // DWeis Next 无云服务：远端 workspace 与本地宿主一致，分享统一走不可用门禁，
+  // 不再构造 ConversationShareHttpClient / ConversationShareService 出网。
+  const conversationShareService = createUnsupportedConversationShareService({
+    message: "Conversation sharing is disabled in DWeis Next",
   });
   const reportingRemoteZCodeTaskService = params.createReportingRemoteZCodeTaskService(
     params.connectionServices.zcodeTaskService,

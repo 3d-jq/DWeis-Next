@@ -224,10 +224,6 @@ export { createFeedbackDiagnosticArchive } from "./feedback/feedbackLogArchive.j
 export { createFeedbackService } from "./feedback/feedbackService.js";
 export type { CreateFeedbackServiceOptions } from "./feedback/feedbackService.js";
 export { createLocalPromptAttachmentTransferService } from "./prompt-attachment-transfer/promptAttachmentTransferService.js";
-export {
-  createLocalConversationShareArtifactSource,
-  createRemoteConversationShareArtifactSource,
-} from "./conversation-share/conversationShareArtifactSource.js";
 export { createNodeApiClient, NodeApiClient } from "./providers/api/nodeApiClient.js";
 export {
   createHostApiNetworkTransport,
@@ -303,12 +299,6 @@ import {
   IConversationShareService,
   type IConversationShareService as IConversationShareServiceType,
 } from "./conversation-share/conversationShare.js";
-import {
-  ConversationShareService,
-  conversationShareConnectionScopeFactory,
-} from "./conversation-share/conversationShareService.js";
-import { createLocalConversationShareArtifactSource } from "./conversation-share/conversationShareArtifactSource.js";
-import { ConversationShareHttpClient } from "./conversation-share/conversationShareHttpClient.js";
 import { IBotsService } from "./bots/bots.js";
 import { IFileWatcherService } from "./fileWatcher/fileWatcher.js";
 import { IOAuthService } from "./oauth/oauth.js";
@@ -523,16 +513,10 @@ import {
   zcodeProviderAccountAccessSchema,
   ZCODE_VERSION,
   ZCODE_ENV,
-  buildRuntimeZCodeApiUrl,
 } from "@zcode/shared";
 
-// 这些 conversation-share 实现依赖 Node 文件系统；仅通过 @zcode/services/node 暴露，
-// 防止 browser-safe 根入口把 node:* 依赖带进 renderer。
-export {
-  ConversationShareService,
-  ConversationShareHttpClient,
-  conversationShareConnectionScopeFactory,
-};
+// DWeis Next：ConversationShareService / HttpClient / 连接 scope 工厂已随分享上传
+// 链路删除，分享服务统一走 conversationShare.ts 的 createUnsupportedConversationShareService。
 
 interface ServiceWithDisposeAll {
   disposeAll: () => void;
@@ -2392,30 +2376,12 @@ export function createLocalServices(options: {
     authorizeLocalMediaPreviewPath: options?.authorizeLocalMediaPreviewPath,
     createLocalMediaPreviewUrl: buildLocalMediaPreviewUrl,
   });
-  const conversationShareClient = new ConversationShareHttpClient({
-    // 分享运行时始终走真实 API；测试/Mock 场景应在 service 单测或 Web fixture 中显式注入，
-    // 不能让开发环境默认生成仅存在于进程内存的 mock-share 链接。
-    apiClient,
-    baseUrl: buildRuntimeZCodeApiUrl(process.env, "/api/v1"),
-    tokenProvider: async (): Promise<string | null> => {
-      const activeProvider = await oauthCredentialRepo.getActiveProvider();
-      if (!activeProvider) {
-        return null;
-      }
-      const tokenSet = await oauthCredentialRepo.loadTokenSet(activeProvider);
-      return tokenSet?.zcodeJwtToken ?? tokenSet?.accessToken ?? null;
-    },
-  });
-  const conversationShareService: IConversationShareServiceType = isDesktopAttachedRemote
-    ? createUnsupportedConversationShareService({
-        message: "Conversation publishing is not available for remote workspaces",
-      })
-    : new ConversationShareService({
-        zcodeAgentService,
-        zcodeSessionService,
-        client: conversationShareClient,
-        artifactSource: createLocalConversationShareArtifactSource(),
-      });
+  // DWeis Next 无云服务：会话分享（上传到 Z.ai 生成链接 / 从链接导入）整体停用，
+  // 本地与 desktop-attached-remote 宿主统一走不可用门禁，绝不发起网络请求。
+  const conversationShareService: IConversationShareServiceType =
+    createUnsupportedConversationShareService({
+      message: "Conversation sharing is disabled in DWeis Next",
+    });
   // 注册链上的懒工厂（如 OffPeak）会各自创建 tasks-index sqlite repo；先收集到本数组，
   // services 集合建好后在 return 前统一登记进 sharedSqliteRepos 侧表
   const sqliteReposToClose: Array<{ close(): void }> = [];

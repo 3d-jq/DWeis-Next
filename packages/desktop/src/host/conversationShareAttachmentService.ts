@@ -1,70 +1,20 @@
-import { Event as RpcEvent } from "@zcode/rpc";
-import type { IConversationShareService, IZCodeAgentService } from "@zcode/services";
-import { conversationShareConnectionScopeFactory } from "@zcode/services/node";
+import type { IConversationShareService } from "@zcode/services";
 
-type ConversationShareAgentService = Pick<
-  IZCodeAgentService,
-  | "conversationRowsRangeV4"
-  | "conversationFileChangesV4"
-  | "conversationAttachmentReadV4"
-  | "conversationAttachmentStatV4"
->;
-
-type ConnectionScopableConversationShareService = IConversationShareService & {
-  [conversationShareConnectionScopeFactory](
-    agentService: ConversationShareAgentService,
-  ): IConversationShareService;
-};
-
-function isConnectionScopableConversationShareService(
-  service: IConversationShareService,
-): service is ConnectionScopableConversationShareService {
-  return (
-    conversationShareConnectionScopeFactory in service &&
-    typeof service[conversationShareConnectionScopeFactory] === "function"
-  );
-}
-
+/**
+ * 为 attachment 连接裁剪会话分享服务。
+ *
+ * DWeis Next 无云服务：分享服务已统一替换为 createUnsupportedConversationShareService
+ * （本地宿主与 desktop-attached-remote 宿主一致），所有写操作与远端查询自身就会
+ * 快速失败，连接 scope（conversationShareConnectionScopeFactory）随实现删除，
+ * 这里不再需要按 clientMode 区分，直接透传服务实例。
+ * 保留函数签名是为了不破坏 host/index attachment 装配的调用契约。
+ */
 export function scopeConversationShareServiceForAttachment(
   service: IConversationShareService,
   clientMode: "desktop-continuous" | "web-remote-replayable",
-  agentService?: ConversationShareAgentService,
+  agentService?: unknown,
 ): IConversationShareService {
-  if (clientMode === "desktop-continuous") {
-    if (!isConnectionScopableConversationShareService(service)) return service;
-    if (agentService) return service[conversationShareConnectionScopeFactory](agentService);
-    const rejectUnavailable = async (): Promise<never> => {
-      throw Object.assign(new Error("Conversation sharing connection is not ready"), {
-        kind: "connection_unavailable" as const,
-      });
-    };
-    return {
-      getCapabilities: () => service.getCapabilities(),
-      preflight: (input) => service.preflight(input),
-      publish: rejectUnavailable,
-      onDynamicPublishProgress: (operationId) => service.onDynamicPublishProgress(operationId),
-      importShare: (input, operationId) => service.importShare(input, operationId),
-      onDynamicImportProgress: (operationId) => service.onDynamicImportProgress(operationId),
-      getImportedConversation: (input) => service.getImportedConversation(input),
-      getPreview: (shareCode) => service.getPreview(shareCode),
-      getContinuation: (input) => service.getContinuation(input),
-    };
-  }
-  const rejectMobileShare = async (): Promise<never> => {
-    throw Object.assign(new Error("Conversation sharing is only available from Desktop"), {
-      kind: "feature_disabled" as const,
-    });
-  };
-  return {
-    getCapabilities: () => service.getCapabilities(),
-    preflight: rejectMobileShare,
-    publish: rejectMobileShare,
-    onDynamicPublishProgress: () => RpcEvent.None,
-    importShare: rejectMobileShare,
-    onDynamicImportProgress: () => RpcEvent.None,
-    // 手机远控没有本地 workspace 副本，直接返回 null 即可（不渲染只读块）。
-    getImportedConversation: async () => null,
-    getPreview: (shareCode: string) => service.getPreview(shareCode),
-    getContinuation: rejectMobileShare,
-  };
+  void clientMode;
+  void agentService;
+  return service;
 }
