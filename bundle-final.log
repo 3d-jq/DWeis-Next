@@ -87,7 +87,7 @@ apps/zcode-cli                           |  WARN  Unsupported engine: wanted
 
   dist\zcode.cjs  15.4mb
 
-Done in 3966ms
+Done in 3741ms
 [stage:agent-bundle] staged D:\program\ZCode\packages\desktop\bundled-agents\win32-x64\glm\zcode.cjs
 [prepare:agent-bundle] building @zcode/browser-use-plugin runtime ...
 .                                        |  WARN  Unsupported engine: wanted: {"node":"24.14.0"} (current: {"node":"v22.19.0","pnpm":"9.14.4"})
@@ -106,7 +106,7 @@ Done in 3966ms
 [prepare:agent-bundle] staged official plugin packages/browser-use-plugin
 [prepare:agent-bundle] staged official plugin packages/node-repl-host
 [prepare:agent-bundle] staged bundled skill pack packages/bundled-skills
-[ci][timer] prepare-runtime-assets:prepare:agent-bundle end duration_ms=90818
+[ci][timer] prepare-runtime-assets:prepare:agent-bundle end duration_ms=105223
 [ci][timer] prepare-runtime-assets:prepare:native-search start
 
 > @zcode/desktop@ prepare:native-search D:\program\ZCode\packages\desktop
@@ -118,7 +118,7 @@ Done in 3966ms
     [skip] ugrep v7.8.4-1 已存在
     [skip] ripgrep v14.1.1-1 已存在
 ==> Done! native search tools (win32-x64) -> D:\program\ZCode\packages\desktop\bundled-tools\win32-x64
-[ci][timer] prepare-runtime-assets:prepare:native-search end duration_ms=1924
+[ci][timer] prepare-runtime-assets:prepare:native-search end duration_ms=2018
 [bundle] > pnpm build
 
 > @zcode/desktop@ build D:\program\ZCode\packages\desktop
@@ -210,7 +210,7 @@ apps/zcode-cli                           |  WARN  Unsupported engine: wanted
 
   dist\zcode.cjs  15.4mb
 
-Done in 1740ms
+Done in 1592ms
 [stage:agent-bundle] staged D:\program\ZCode\packages\desktop\bundled-agents\win32-x64\glm\zcode.cjs
 [prepare:agent-bundle] building @zcode/browser-use-plugin runtime ...
 .                                        |  WARN  Unsupported engine: wanted: {"node":"24.14.0"} (current: {"node":"v22.19.0","pnpm":"9.14.4"})
@@ -229,7 +229,7 @@ Done in 1740ms
 [prepare:agent-bundle] staged official plugin packages/browser-use-plugin
 [prepare:agent-bundle] staged official plugin packages/node-repl-host
 [prepare:agent-bundle] staged bundled skill pack packages/bundled-skills
-[ci][timer] prepare-runtime-assets:prepare:agent-bundle end duration_ms=69671
+[ci][timer] prepare-runtime-assets:prepare:agent-bundle end duration_ms=81282
 [ci][timer] prepare-runtime-assets:prepare:native-search start
 
 > @zcode/desktop@ prepare:native-search D:\program\ZCode\packages\desktop
@@ -241,7 +241,7 @@ Done in 1740ms
     [skip] ugrep v7.8.4-1 已存在
     [skip] ripgrep v14.1.1-1 已存在
 ==> Done! native search tools (win32-x64) -> D:\program\ZCode\packages\desktop\bundled-tools\win32-x64
-[ci][timer] prepare-runtime-assets:prepare:native-search end duration_ms=663
+[ci][timer] prepare-runtime-assets:prepare:native-search end duration_ms=713
 
 > @zcode/desktop@ build:no-runtime-assets D:\program\ZCode\packages\desktop
 > pnpm prepare:build-meta && node scripts/run-production-build.mjs
@@ -251,9 +251,8 @@ Done in 1740ms
 > node scripts/build-metadata.mjs
 
 [build-meta] wrote D:\program\ZCode\packages\desktop\out\metadata\build-meta.json
-[build-meta] commit=45b09e27 time=2026-09-28T07:28:55.089Z
-[36mvite v8.0.8 [32mbuilding client environment for production...[36m[39m
-[2Ktransforming...[tsup] ZCODE_ENV=production ZCODE_PRODUCT_FLAVOR=production
+[build-meta] commit=352e6991 time=2026-09-28T08:04:49.507Z
+[tsup] ZCODE_ENV=production ZCODE_PRODUCT_FLAVOR=production
 [2m[[22mMAIN[2m][22m [34mCLI[39m Building entry: {"main/index":"src/main/index.ts","main/browserWebmRecorder":"src/main/browserView/electronBrowserWebmRecorder.ts","main/zcodeDataSizeWorker":"src/main/zcodeDataSizeWorker.ts","main/storageScanWorker":"src/main/storageScanWorker.ts"}
 [2m[[22mMAIN[2m][22m [34mCLI[39m Using tsconfig: tsconfig.json
 [2m[[22mPRELOAD[2m][22m [34mCLI[39m Building entry: {"preload/embeddedBrowserJavaScriptDialog":"src/preload/embeddedBrowserJavaScriptDialog.ts","preload/codingPlanWebview":"src/preload/codingPlanWebview.ts","preload/browserVideoRecorder":"src/preload/browserVideoRecorder.ts","preload/index":"src/preload/index.ts","preload/resourceManager":"src/preload/resourceManager.ts","preload/cuaPermissionPanel":"src/preload/cuaPermissionPanel.ts"}
@@ -272,41 +271,42 @@ Done in 1740ms
 [2m[[22mSCHEDULER[2m][22m [34mCLI[39m Using tsup config: D:\program\ZCode\packages\desktop\tsup.config.ts
 [2m[[22mMAIN[2m][22m [34mCLI[39m Target: node22
 [2m[[22mMAIN[2m][22m [34mESM[39m Build start
+[2m[[22mPRELOAD[2m][22m [34mCLI[39m Target: node22
+[2m[[22mPRELOAD[2m][22m [34mCJS[39m Build start
 [2m[[22mHOST[2m][22m [34mCLI[39m Target: node22
 [2m[[22mHOST[2m][22m [34mESM[39m Build start
 [2m[[22mSCHEDULER[2m][22m [34mCLI[39m Target: node22
 [2m[[22mSCHEDULER[2m][22m [34mESM[39m Build start
-[2m[[22mPRELOAD[2m][22m [34mCLI[39m Target: node22
-[2m[[22mPRELOAD[2m][22m [34mCJS[39m Build start
 [2m[[22mPRELOAD[2m][22m [32mCJS[39m [1mout\preload\embeddedBrowserJavaScriptDialog.cjs [22m[32m661.88 KB[39m
-[2m[[22mPRELOAD[2m][22m [32mCJS[39m [1mout\preload\browserVideoRecorder.cjs            [22m[32m140.00 B[39m
-[2m[[22mPRELOAD[2m][22m [32mCJS[39m [1mout\preload\codingPlanWebview.cjs               [22m[32m661.37 KB[39m
-[2m[[22mPRELOAD[2m][22m [32mCJS[39m [1mout\preload\cuaPermissionPanel.cjs              [22m[32m659.39 KB[39m
-[2m[[22mPRELOAD[2m][22m [32mCJS[39m [1mout\preload\resourceManager.cjs                 [22m[32m660.31 KB[39m
 [2m[[22mPRELOAD[2m][22m [32mCJS[39m [1mout\preload\index.cjs                           [22m[32m675.61 KB[39m
-[2m[[22mPRELOAD[2m][22m [32mCJS[39m ⚡️ Build success in 463ms
+[2m[[22mPRELOAD[2m][22m [32mCJS[39m [1mout\preload\codingPlanWebview.cjs               [22m[32m661.37 KB[39m
+[2m[[22mPRELOAD[2m][22m [32mCJS[39m [1mout\preload\browserVideoRecorder.cjs            [22m[32m140.00 B[39m
+[2m[[22mPRELOAD[2m][22m [32mCJS[39m [1mout\preload\resourceManager.cjs                 [22m[32m660.31 KB[39m
+[2m[[22mPRELOAD[2m][22m [32mCJS[39m [1mout\preload\cuaPermissionPanel.cjs              [22m[32m659.39 KB[39m
+[2m[[22mPRELOAD[2m][22m [32mCJS[39m ⚡️ Build success in 673ms
+[2m[[22mHOST[2m][22m [32mESM[39m [1mout\host\chunk-HNO47M6B.js     [22m[32m887.97 KB[39m
 [2m[[22mHOST[2m][22m [32mESM[39m [1mout\host\chunk-PW7R6VE3.js     [22m[32m140.00 B[39m
 [2m[[22mHOST[2m][22m [32mESM[39m [1mout\host\tasksStorageWorker.js [22m[32m528.00 B[39m
-[2m[[22mHOST[2m][22m [32mESM[39m [1mout\host\index.js              [22m[32m1.19 MB[39m
 [2m[[22mHOST[2m][22m [32mESM[39m [1mout\host\chunk-6RA2JL6Y.js     [22m[32m1.38 KB[39m
-[2m[[22mHOST[2m][22m [32mESM[39m [1mout\host\chunk-CWYDEGWF.js     [22m[32m887.97 KB[39m
 [2m[[22mHOST[2m][22m [32mESM[39m [1mout\host\chunk-RGHY5GY6.js     [22m[32m899.00 B[39m
-[2m[[22mHOST[2m][22m [32mESM[39m ⚡️ Build success in 1402ms
-[2m[[22mSCHEDULER[2m][22m [32mESM[39m [1mout\scheduler\chunk-PMB3P25V.js [22m[32m1.59 KB[39m
+[2m[[22mHOST[2m][22m [32mESM[39m [1mout\host\index.js              [22m[32m1.19 MB[39m
+[2m[[22mHOST[2m][22m [32mESM[39m ⚡️ Build success in 1697ms
 [2m[[22mSCHEDULER[2m][22m [32mESM[39m [1mout\scheduler\chunk-PV5YAO5U.js [22m[32m107.00 B[39m
+[2m[[22mSCHEDULER[2m][22m [32mESM[39m [1mout\scheduler\chunk-PMB3P25V.js [22m[32m1.59 KB[39m
 [2m[[22mSCHEDULER[2m][22m [32mESM[39m [1mout\scheduler\index.js          [22m[32m864.17 KB[39m
-[2m[[22mSCHEDULER[2m][22m [32mESM[39m ⚡️ Build success in 1550ms
-[2m[[22mMAIN[2m][22m [32mESM[39m [1mout\main\index.js               [22m[32m565.86 KB[39m
+[2m[[22mSCHEDULER[2m][22m [32mESM[39m ⚡️ Build success in 1716ms
 [2m[[22mMAIN[2m][22m [32mESM[39m [1mout\main\chunk-Y34SWCGO.js      [22m[32m11.66 KB[39m
-[2m[[22mMAIN[2m][22m [32mESM[39m [1mout\main\browserWebmRecorder.js [22m[32m153.00 B[39m
 [2m[[22mMAIN[2m][22m [32mESM[39m [1mout\main\zcodeDataSizeWorker.js [22m[32m1.70 KB[39m
-[2m[[22mMAIN[2m][22m [32mESM[39m [1mout\main\storageScanWorker.js   [22m[32m731.00 B[39m
-[2m[[22mMAIN[2m][22m [32mESM[39m [1mout\main\chunk-PVN6NRP3.js      [22m[32m981.00 B[39m
-[2m[[22mMAIN[2m][22m [32mESM[39m [1mout\main\chunk-TFL6XZCK.js      [22m[32m848.31 KB[39m
 [2m[[22mMAIN[2m][22m [32mESM[39m [1mout\main\chunk-III2SDYA.js      [22m[32m140.00 B[39m
+[2m[[22mMAIN[2m][22m [32mESM[39m [1mout\main\browserWebmRecorder.js [22m[32m153.00 B[39m
+[2m[[22mMAIN[2m][22m [32mESM[39m [1mout\main\index.js               [22m[32m565.86 KB[39m
+[2m[[22mMAIN[2m][22m [32mESM[39m [1mout\main\chunk-Y3GY3A3W.js      [22m[32m848.31 KB[39m
+[2m[[22mMAIN[2m][22m [32mESM[39m [1mout\main\storageScanWorker.js   [22m[32m731.00 B[39m
 [2m[[22mMAIN[2m][22m [32mESM[39m [1mout\main\chunk-CMOCWRPE.js      [22m[32m899.00 B[39m
-[2m[[22mMAIN[2m][22m [32mESM[39m ⚡️ Build success in 1672ms
-✓ 7683 modules transformed.
+[2m[[22mMAIN[2m][22m [32mESM[39m [1mout\main\chunk-PVN6NRP3.js      [22m[32m981.00 B[39m
+[2m[[22mMAIN[2m][22m [32mESM[39m ⚡️ Build success in 1854ms
+[36mvite v8.0.8 [32mbuilding client environment for production...[36m[39m
+[2Ktransforming...✓ 7684 modules transformed.
 rendering chunks...
 computing gzip size...
 out/renderer/pdfjs/cmaps/CNS2-V.bcmap                                    0.09 kB
@@ -2579,7 +2579,7 @@ out/renderer/assets/qmldir-DH1yuGyg.js                                   0.99 kB
 out/renderer/assets/keyboardShortcuts-CCI3svm9.js                        1.04 kB │ gzip:     0.51 kB │ map:      5.67 kB
 out/renderer/assets/brain-cog-LdGk_-EU.js                                1.04 kB │ gzip:     0.49 kB │ map:      2.64 kB
 out/renderer/assets/hop-CSZqwcdI.js                                      1.05 kB │ gzip:     0.56 kB │ map:      2.30 kB
-out/renderer/assets/resource-manager-CAr8r0Fj.js                         1.10 kB │ gzip:     0.54 kB │ map:      3.56 kB
+out/renderer/assets/resource-manager-DCD-BRpj.js                         1.10 kB │ gzip:     0.54 kB │ map:      3.56 kB
 out/renderer/assets/previewPanePdfContent-bPTD0HIm.js                    1.10 kB │ gzip:     0.63 kB │ map:      1.28 kB
 out/renderer/assets/logger-6KyB0l1l.js                                   1.12 kB │ gzip:     0.57 kB │ map:      5.93 kB
 out/renderer/assets/csv-DBIjHlOt.js                                      1.13 kB │ gzip:     0.36 kB │ map:      1.97 kB
@@ -3031,7 +3031,7 @@ out/renderer/assets/dracula-a87oYfYK.js                                 21.06 kB
 out/renderer/assets/dracula-wGNQqapH.js                                 21.06 kB │ gzip:     3.99 kB │ map:     27.46 kB
 out/renderer/assets/dracula-soft-BcHsTmwm.js                            21.07 kB │ gzip:     4.02 kB │ map:     27.51 kB
 out/renderer/assets/dracula-soft-CdD7w3gG.js                            21.07 kB │ gzip:     4.02 kB │ map:     27.49 kB
-out/renderer/assets/index-D_p6_Ber.js                                   21.30 kB │ gzip:     6.20 kB │ map:     61.62 kB
+out/renderer/assets/index-B3zuQxUf.js                                   21.30 kB │ gzip:     6.20 kB │ map:     61.62 kB
 out/renderer/assets/wit-CLCf0hYL.js                                     21.46 kB │ gzip:     2.87 kB │ map:     30.08 kB
 out/renderer/assets/wit-qFLXQlv3.js                                     21.46 kB │ gzip:     2.87 kB │ map:     30.06 kB
 out/renderer/assets/rose-pine-C1a__eid.js                               21.74 kB │ gzip:     3.86 kB │ map:     28.75 kB
@@ -3281,7 +3281,7 @@ out/renderer/assets/IntlProvider-ZCwMQ5qA.js                           791.42 kB
 out/renderer/assets/previewPaneOfficeLegacyDocContent-BV3S3jjT.js      900.63 kB │ gzip:   261.94 kB │ map:  4,062.94 kB
 out/renderer/assets/pptxRendererPreviewEngine-CLZ76g3e.js            1,042.71 kB │ gzip:   328.59 kB │ map:  2,972.02 kB
 out/renderer/assets/previewPaneOfficeXlsxContent-C1UAbND9.js         2,154.74 kB │ gzip:   697.32 kB │ map:  7,239.51 kB
-out/renderer/assets/styles-BaIRMb67.js                               5,632.67 kB │ gzip: 1,600.77 kB │ map: 20,386.55 kB
+out/renderer/assets/styles-BGdqjySC.js                               5,633.01 kB │ gzip: 1,600.90 kB │ map: 20,387.00 kB
 
 [33m[plugin builtin:vite-reporter] 
 (!) Some chunks are larger than 500 kB after minification. Consider:
@@ -3289,14 +3289,14 @@ out/renderer/assets/styles-BaIRMb67.js                               5,632.67 kB
 - Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
 - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.[39m
 [33m[33m[PLUGIN_TIMINGS] Warning:[0m Your build spent significant time in plugins. Here is a breakdown:
-  - vite:build-import-analysis (35%)
-  - vite:css-post (23%)
-  - vite:terser (19%)
+  - vite:build-import-analysis (34%)
+  - vite:css-post (25%)
+  - vite:terser (17%)
   - vite:asset (14%)
-  - vite:worker (8%)
+  - vite:worker (10%)
 See https://rolldown.rs/options/checks#plugintimings for more details.
 [39m
-[32m✓ built in 26.37s[39m
+[32m✓ built in 40.35s[39m
 [ci][timer] bundle:electron-builder start
 [bundle] > pnpm exec electron-builder --config electron-builder.config.js --win --x64
   • electron-builder  version=26.8.1 os=10.0.26200
@@ -3306,73 +3306,74 @@ See https://rolldown.rs/options/checks#plugintimings for more details.
 To ensure your native dependencies are always matched electron version, simply add script `"postinstall": "electron-builder install-app-deps" to your `package.json`
 [ci][timer] beforePack:restoreTargetNodePtyPrebuild start
 [beforePack] node-pty prebuild restore skipped for win32-x64
-[ci][timer] beforePack:restoreTargetNodePtyPrebuild end duration_ms=0
+[ci][timer] beforePack:restoreTargetNodePtyPrebuild end duration_ms=1
 [ci][timer] beforePack:patchNsisInstallSection start
-[ci][timer] beforePack:patchNsisInstallSection end duration_ms=13
+[ci][timer] beforePack:patchNsisInstallSection end duration_ms=15
   • skipped dependencies rebuild  reason=npmRebuild is set to false
   • packaging       platform=win32 arch=x64 electron=41.0.3 appOutDir=dist\win-unpacked
   • packageManager not detected by file, falling back to environment detection  resolvedPackageManager=pnpm detected=D:\program\ZCode\packages\desktop
   • packageManager not detected by file, falling back to environment detection  resolvedPackageManager=pnpm detected=D:\program\ZCode\packages\desktop
   • detected workspace root for project using process environment  pm=pnpm config=undefined resolved=undefined projectDir=D:\program\ZCode\packages\desktop
   • searching for node modules  pm=pnpm searchDir=D:\program\ZCode\packages\desktop
-[bundle][heartbeat] electron-builder running elapsed_ms=30011 idle_ms=7484
-[bundle][heartbeat] electron-builder running elapsed_ms=60022 idle_ms=37495
+[bundle][heartbeat] electron-builder running elapsed_ms=30015 idle_ms=8551
+[bundle][heartbeat] electron-builder running elapsed_ms=60025 idle_ms=38561
   • dependency not found on disk  dependencies=["buffer-crc32@1.0.0","pngjs@5.0.0","@radix-ui/react-primitive@2.1.4","@radix-ui/react-slot@1.2.4","marked@17.0.6","commander@14.0.3","diff@8.0.4","zod@3.25.76","fs-extra@11.3.4","mime-types@2.1.35","commander@8.3.0","tslib@2.3.0","yargs@15.4.1","immer@10.2.0","diff@8.0.3","@shikijs/types@3.23.0","@shikijs/types@3.23.0","@shikijs/engine-javascript@3.23.0","@shikijs/engine-oniguruma@3.23.0","@shikijs/langs@3.23.0","@shikijs/themes@3.23.0","kleur@3.0.3","execa@9.6.1","commander@11.1.0","which@4.0.0","execa@5.1.1","get-stream@6.0.1","human-signals@2.1.0","is-stream@2.0.1","signal-exit@3.0.7","strip-final-newline@2.0.0","npm-run-path@4.0.1","open@11.0.0","ora@8.2.0","wrap-ansi@7.0.0","semver@6.3.1","ts-morph@26.0.0","zod@3.25.76","mime-db@1.52.0","tslib@2.3.0","readable-stream@2.3.8","y18n@4.0.3","yargs-parser@18.1.3","cliui@6.0.0","find-up@4.1.0","@shikijs/types@3.23.0","cose-base@2.2.0","layout-base@2.0.1","d3-array@2.12.1","d3-shape@1.3.7","internmap@1.0.1","d3-path@1.0.9","is-obj@3.0.0","ast-types@0.16.1","human-signals@8.0.1","strip-final-newline@4.0.0","get-stream@9.0.1","npm-run-path@6.0.0","data-uri-to-buffer@4.0.1","wsl-utils@0.3.1","chalk@5.6.2","log-symbols@6.0.0","picomatch@2.3.2","cookie@1.1.1","path-to-regexp@6.3.0","type-fest@5.5.0","strip-ansi@6.0.1","ansi-styles@4.3.0","semver@6.3.1","@ts-morph/common@0.27.0","semver@6.3.1","ajv@8.18.0","oniguruma-parser@0.12.1","core-util-is@1.0.3","string_decoder@1.1.1","locate-path@5.0.0","commander@7.2.0","@types/unist@2.0.11","resolve-from@4.0.0","which@2.0.2","mimic-fn@2.1.0","onetime@7.0.0","ansi-regex@5.0.1","lru-cache@5.1.1","json-schema-traverse@1.0.0","iconv-lite@0.7.2","p-locate@4.1.0","pkg-types@1.3.1","entities@6.0.1","isexe@2.0.0","yallist@3.1.1","brace-expansion@5.0.5","p-limit@2.3.0","confbox@0.1.8","escape-string-regexp@5.0.0","balanced-match@4.0.4"]
-[bundle][heartbeat] electron-builder running elapsed_ms=90032 idle_ms=26974
-[bundle][heartbeat] electron-builder running elapsed_ms=120036 idle_ms=56978
-[bundle][heartbeat] electron-builder running elapsed_ms=150039 idle_ms=86981
-[bundle][heartbeat] electron-builder running elapsed_ms=180055 idle_ms=116997
-[bundle][heartbeat] electron-builder running elapsed_ms=210063 idle_ms=147005
-[bundle][heartbeat] electron-builder running elapsed_ms=240065 idle_ms=177007
-[bundle][heartbeat] electron-builder running elapsed_ms=270071 idle_ms=207013
-[bundle][heartbeat] electron-builder running elapsed_ms=300086 idle_ms=237028
-[bundle][heartbeat] electron-builder running elapsed_ms=330100 idle_ms=267042
-[bundle][heartbeat] electron-builder running elapsed_ms=360103 idle_ms=297045
-[bundle][heartbeat] electron-builder running elapsed_ms=390105 idle_ms=327047
-[bundle][heartbeat] electron-builder running elapsed_ms=420113 idle_ms=357055
-[bundle][heartbeat] electron-builder running elapsed_ms=450119 idle_ms=387061
-[bundle][heartbeat] electron-builder running elapsed_ms=480130 idle_ms=417072
-[bundle][heartbeat] electron-builder running elapsed_ms=510131 idle_ms=447073
-[bundle][heartbeat] electron-builder running elapsed_ms=540132 idle_ms=477074
-[bundle][heartbeat] electron-builder running elapsed_ms=570133 idle_ms=507075
+[bundle][heartbeat] electron-builder running elapsed_ms=90033 idle_ms=24301
+[bundle][heartbeat] electron-builder running elapsed_ms=120036 idle_ms=54304
+[bundle][heartbeat] electron-builder running elapsed_ms=150048 idle_ms=84316
+[bundle][heartbeat] electron-builder running elapsed_ms=180055 idle_ms=114323
+[bundle][heartbeat] electron-builder running elapsed_ms=210070 idle_ms=144338
+[bundle][heartbeat] electron-builder running elapsed_ms=240071 idle_ms=174339
+[bundle][heartbeat] electron-builder running elapsed_ms=270086 idle_ms=204354
+[bundle][heartbeat] electron-builder running elapsed_ms=300093 idle_ms=234361
+[bundle][heartbeat] electron-builder running elapsed_ms=330095 idle_ms=264363
+[bundle][heartbeat] electron-builder running elapsed_ms=360110 idle_ms=294378
+[bundle][heartbeat] electron-builder running elapsed_ms=390115 idle_ms=324383
+[bundle][heartbeat] electron-builder running elapsed_ms=420125 idle_ms=354393
+[bundle][heartbeat] electron-builder running elapsed_ms=450133 idle_ms=384401
+[bundle][heartbeat] electron-builder running elapsed_ms=480145 idle_ms=414413
+[bundle][heartbeat] electron-builder running elapsed_ms=510155 idle_ms=444423
+[bundle][heartbeat] electron-builder running elapsed_ms=540155 idle_ms=474423
+[bundle][heartbeat] electron-builder running elapsed_ms=570169 idle_ms=504437
+[bundle][heartbeat] electron-builder running elapsed_ms=600172 idle_ms=534440
   • updating asar integrity executable resource  executablePath=dist\win-unpacked\DWeis Next.exe
-  • signing with signtool.exe  path=dist\win-unpacked\resources\tools\ugrep\ugrep.exe
   • signing with signtool.exe  path=dist\win-unpacked\resources\tools\ripgrep\rg.exe
+  • signing with signtool.exe  path=dist\win-unpacked\resources\tools\ugrep\ugrep.exe
 [ci][timer] afterPack:injectHoistedRuntimeModulesIntoAsar start
 [ci][timer] afterPack:scan-missing-runtime-modules start
-[bundle][heartbeat] electron-builder running elapsed_ms=600138 idle_ms=180
-[ci][timer] afterPack:scan-missing-runtime-modules end duration_ms=550
+[ci][timer] afterPack:scan-missing-runtime-modules end duration_ms=587
 [afterPack] missing runtime modules count=1
 [ci][timer] afterPack:asar-extract start
-[bundle][heartbeat] electron-builder running elapsed_ms=630149 idle_ms=29639
-[ci][timer] afterPack:asar-extract end duration_ms=59600
+[bundle][heartbeat] electron-builder running elapsed_ms=630173 idle_ms=13421
+[bundle][heartbeat] electron-builder running elapsed_ms=660183 idle_ms=43431
+[ci][timer] afterPack:asar-extract end duration_ms=53867
 [ci][timer] afterPack:copy-runtime-modules start
-[bundle][heartbeat] electron-builder running elapsed_ms=660158 idle_ms=46
-[ci][timer] afterPack:copy-runtime-modules end duration_ms=146
+[ci][timer] afterPack:copy-runtime-modules end duration_ms=120
 [ci][timer] afterPack:asar-pack start
-[bundle][heartbeat] electron-builder running elapsed_ms=690170 idle_ms=29912
-[ci][timer] afterPack:asar-pack end duration_ms=53654
-[bundle][heartbeat] electron-builder running elapsed_ms=720170 idle_ms=6258
-[ci][timer] afterPack:injectHoistedRuntimeModulesIntoAsar end duration_ms=127763
+[bundle][heartbeat] electron-builder running elapsed_ms=690189 idle_ms=19448
+[bundle][heartbeat] electron-builder running elapsed_ms=720199 idle_ms=49458
+[ci][timer] afterPack:asar-pack end duration_ms=57238
+[ci][timer] afterPack:injectHoistedRuntimeModulesIntoAsar end duration_ms=128970
 [ci][timer] afterPack:stripPackagedSourcemapReferences start
 [ci][timer] afterPack:sourcemap-cleanup:asar-extract start
-[bundle][heartbeat] electron-builder running elapsed_ms=750173 idle_ms=22451
-[bundle][heartbeat] electron-builder running elapsed_ms=780179 idle_ms=52457
-[ci][timer] afterPack:sourcemap-cleanup:asar-extract end duration_ms=66485
-[bundle][heartbeat] electron-builder running elapsed_ms=810190 idle_ms=15982
+[bundle][heartbeat] electron-builder running elapsed_ms=750205 idle_ms=5071
+[bundle][heartbeat] electron-builder running elapsed_ms=780217 idle_ms=35083
+[ci][timer] afterPack:sourcemap-cleanup:asar-extract end duration_ms=61353
+[bundle][heartbeat] electron-builder running elapsed_ms=810224 idle_ms=3737
 [afterPack] stripped sourceMappingURL references=4499 files=4477 maps=0
 [ci][timer] afterPack:sourcemap-cleanup:asar-pack start
-[bundle][heartbeat] electron-builder running elapsed_ms=840192 idle_ms=17338
-[bundle][heartbeat] electron-builder running elapsed_ms=870201 idle_ms=47347
-[ci][timer] afterPack:sourcemap-cleanup:asar-pack end duration_ms=54648
+[bundle][heartbeat] electron-builder running elapsed_ms=840236 idle_ms=9744
+[bundle][heartbeat] electron-builder running elapsed_ms=870244 idle_ms=39752
+[ci][timer] afterPack:sourcemap-cleanup:asar-pack end duration_ms=54621
+[bundle][heartbeat] electron-builder running elapsed_ms=900248 idle_ms=15135
 [afterPack] resources sourcemap cleanup references=0 files=0 maps=0
-[ci][timer] afterPack:stripPackagedSourcemapReferences end duration_ms=164877
+[ci][timer] afterPack:stripPackagedSourcemapReferences end duration_ms=158063
 [ci][timer] afterPack:assertPackagedNativeResourcePolicy start
-[ci][timer] afterPack:assertPackagedNativeResourcePolicy end duration_ms=344
+[ci][timer] afterPack:assertPackagedNativeResourcePolicy end duration_ms=378
 [ci][timer] afterPack:assertPackagedNodePtyPrebuild start
 [ci][timer] afterPack:assertPackagedNodePtyPrebuild end duration_ms=1
 [ci][timer] afterPack:writeWindowsInstallManifest start
-[ci][timer] afterPack:writeWindowsInstallManifest end duration_ms=22
+[ci][timer] afterPack:writeWindowsInstallManifest end duration_ms=16
   • signing with signtool.exe  path=dist\win-unpacked\DWeis Next.exe
   • signing with signtool.exe  path=dist\win-unpacked\resources\app.asar.unpacked\node_modules\ssh2\util\pagent.exe
   • signing with signtool.exe  path=dist\win-unpacked\resources\app.asar.unpacked\node_modules\node-pty\third_party\conpty\1.23.251008001\win10-x64\OpenConsole.exe
@@ -3381,22 +3382,21 @@ To ensure your native dependencies are always matched electron version, simply a
   • signing with signtool.exe  path=dist\win-unpacked\resources\app.asar.unpacked\node_modules\node-pty\prebuilds\win32-x64\conpty\OpenConsole.exe
   • building        target=nsis file=dist\DWeis Next-3.14.3-win-x64.exe archs=x64 oneClick=false perMachine=false
   • signing with signtool.exe  path=dist\win-unpacked\resources\elevate.exe
-[bundle][heartbeat] electron-builder running elapsed_ms=900205 idle_ms=5619
+[bundle][heartbeat] electron-builder running elapsed_ms=930262 idle_ms=25616
   • signing with signtool.exe  path=dist\DWeis Next-3.14.3-win-x64.__uninstaller.exe
   • signing with signtool.exe  path=dist\DWeis Next-3.14.3-win-x64.exe
   • building block map  blockMapFile=dist\DWeis Next-3.14.3-win-x64.exe.blockmap
-[bundle][heartbeat] electron-builder running elapsed_ms=930215 idle_ms=2820
-[ci][timer] bundle:electron-builder end duration_ms=935068
+[ci][timer] bundle:electron-builder end duration_ms=944669
 [ci][timer] bundle:verify-runtime-dependencies start
 [bundle] runtime module not found in workspace, skip verify: @opentelemetry/sdk-metrics; searched=D:\program\ZCode\packages\desktop\node_modules\@opentelemetry\sdk-metrics, D:\program\ZCode\node_modules\@opentelemetry\sdk-metrics, D:\program\ZCode\packages\desktop\node_modules\.pnpm\node_modules\node_modules\@opentelemetry\sdk-metrics, D:\program\ZCode\node_modules\.pnpm\node_modules\node_modules\@opentelemetry\sdk-metrics
 [bundle] runtime module not found in workspace, skip verify: @opentelemetry/exporter-trace-otlp-proto; searched=D:\program\ZCode\packages\desktop\node_modules\@opentelemetry\exporter-trace-otlp-proto, D:\program\ZCode\node_modules\@opentelemetry\exporter-trace-otlp-proto, D:\program\ZCode\packages\desktop\node_modules\.pnpm\node_modules\node_modules\@opentelemetry\exporter-trace-otlp-proto, D:\program\ZCode\node_modules\.pnpm\node_modules\node_modules\@opentelemetry\exporter-trace-otlp-proto
 [bundle] runtime module not found in workspace, skip verify: @opentelemetry/exporter-metrics-otlp-proto; searched=D:\program\ZCode\packages\desktop\node_modules\@opentelemetry\exporter-metrics-otlp-proto, D:\program\ZCode\node_modules\@opentelemetry\exporter-metrics-otlp-proto, D:\program\ZCode\packages\desktop\node_modules\.pnpm\node_modules\node_modules\@opentelemetry\exporter-metrics-otlp-proto, D:\program\ZCode\node_modules\.pnpm\node_modules\node_modules\@opentelemetry\exporter-metrics-otlp-proto
-[ci][timer] bundle:verify-runtime-dependencies end duration_ms=721
+[ci][timer] bundle:verify-runtime-dependencies end duration_ms=624
 [ci][timer] bundle:audit-bundle-size start
 [bundle] > C:\Users\邓嘉权\node-v22.19.0\node.exe D:\program\ZCode\packages\desktop\scripts\audit-bundle-size.mjs --artifact-path D:\program\ZCode\packages\desktop\dist\DWeis Next-3.14.3-win-x64.exe
 Artifact: D:\program\ZCode\packages\desktop\dist\DWeis Next-3.14.3-win-x64.exe
 Type: .exe
 Size: 151.3 MiB
 Limit: 500 MiB
-[ci][timer] bundle:audit-bundle-size end duration_ms=82
+[ci][timer] bundle:audit-bundle-size end duration_ms=81
 BUNDLE_EXIT:0

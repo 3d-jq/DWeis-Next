@@ -280,6 +280,21 @@ export function ensureDefaultPluginMarketplaces(storageRoot: string): KnownMarke
   const known = loadKnownMarketplacesSync(storageRoot);
   const existingIds = new Set(known.map((record) => record.id));
   const now = new Date().toISOString();
+  // DWeis Next 自愈：官方市场曾把 CDN 源置空（无云阶段），旧安装环境里遗留的
+  // known 记录仍是空 url，导致集市只剩本地 seed。这里检测到空 url 时按默认
+  // 配置修正回 CDN 源；用户显式改用其他合法 source 的官方市场不受影响。
+  const repaired = known.map((record) => {
+    const defaultMarketplace = DEFAULT_PLUGIN_MARKETPLACES.find((m) => m.id === record.id);
+    if (!defaultMarketplace) return record;
+    const needsRepair =
+      record.source.source === "url" && record.source.url.trim().length === 0;
+    if (!needsRepair) return record;
+    const { lastRefreshFailure: _ignored, ...rest } = record;
+    return {
+      ...rest,
+      source: defaultMarketplaceSourceFromString(defaultMarketplace.source),
+    };
+  });
   const missing = DEFAULT_PLUGIN_MARKETPLACES.filter(
     (marketplace) => !existingIds.has(marketplace.id),
   ).map(
@@ -293,8 +308,10 @@ export function ensureDefaultPluginMarketplaces(storageRoot: string): KnownMarke
       pluginCount: marketplace.pluginCount,
     }),
   );
-  if (missing.length === 0) return known;
-  const next = [...known, ...missing];
+  if (missing.length === 0 && repaired.every((record, index) => record === known[index])) {
+    return known;
+  }
+  const next = [...repaired, ...missing];
   writeKnownMarketplacesSync(storageRoot, next);
   return next;
 }
