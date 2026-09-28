@@ -1,5 +1,8 @@
 import { cn } from "@/components/lib/utils.js";
-import dweisLogoUrl from "@/assets/provider-icons/logo-dweis.svg";
+import logoTileDark from "@/assets/provider-icons/logo-dweis-tile-dark.svg";
+import logoTileLight from "@/assets/provider-icons/logo-dweis-tile-light.svg";
+import { useZCodeStore } from "@/store/StoreProvider.js";
+import { resolveTheme } from "@/useTheme.js";
 
 export function WindowsTopLeftLogo({
   className,
@@ -8,6 +11,9 @@ export function WindowsTopLeftLogo({
   className?: string;
   imageClassName?: string;
 }) {
+  // DWeis Next：标题栏品牌图标按主题双形态（亮色/默认=白方块+深标志，深色=黑方块+白笔画）。
+  const logoUrl =
+    resolveTheme(useZCodeStore((s) => s.theme)) === "dark" ? logoTileDark : logoTileLight;
   return (
     <div
       className={cn(
@@ -20,7 +26,7 @@ export function WindowsTopLeftLogo({
       )}
     >
       <img
-        src={dweisLogoUrl}
+        src={logoUrl}
         alt="DWeis Next"
         className={cn("pointer-events-none size-5 select-none", imageClassName)}
         draggable={false}

@@ -1,6 +1,9 @@
 import { ArrowRightIcon } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
-import dweisLogoUrl from "@/assets/provider-icons/logo-dweis.svg";
+import logoTileDark from "@/assets/provider-icons/logo-dweis-tile-dark.svg";
+import logoTileLight from "@/assets/provider-icons/logo-dweis-tile-light.svg";
+import { useZCodeStore } from "@/store/StoreProvider.js";
+import { resolveTheme } from "@/useTheme.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { OnboardingWelcomeAsciiVisual } from "@/onboarding/OnboardingWelcomeAsciiVisual.js";
 
@@ -18,7 +21,7 @@ export function OnboardingWelcomeView(props: { onStart: () => void; onOpenMigrat
           <div className="space-y-2">
             {/* 品牌图直接呈现：owl 源图自带圆角与透明边缘，套深色底壳会露一圈黑。 */}
             <img
-              src={dweisLogoUrl}
+              src={resolveTheme(useZCodeStore((s) => s.theme)) === "dark" ? logoTileDark : logoTileLight}
               alt="DWeis Next"
               draggable={false}
               className="size-14 shrink-0 select-none rounded-xl"

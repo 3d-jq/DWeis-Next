@@ -1,5 +1,8 @@
 import { PanelLeftOpen } from "lucide-react";
-import appLogoUrl from "@/assets/provider-icons/logo-dweis.svg";
+import logoTileDark from "@/assets/provider-icons/logo-dweis-tile-dark.svg";
+import logoTileLight from "@/assets/provider-icons/logo-dweis-tile-light.svg";
+import { useZCodeStore } from "@/store/StoreProvider.js";
+import { resolveTheme } from "@/useTheme.js";
 import { Button } from "@/components/ui/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
@@ -33,7 +36,7 @@ export function WorkspaceSidebarCollapsedRail({
               })}
             >
               <img
-                src={appLogoUrl}
+                src={resolveTheme(useZCodeStore((s) => s.theme)) === "dark" ? logoTileDark : logoTileLight}
                 alt="DWeis Next"
                 className="size-5 transition-opacity group-hover:opacity-0"
                 draggable={false}
