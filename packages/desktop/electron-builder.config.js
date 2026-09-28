@@ -840,13 +840,11 @@ export default {
   publish: {
     // DWeis Next 的更新源是自己的 GitHub 仓库：electron-builder 产出 latest.yml，
     // 客户端用 electron-updater 的 github provider 读 release 元数据并下载 asset。
+    // 注意 GithubOptions 是 additionalProperties:false，generic 的
+    // useMultipleRangeRequest 之类字段放这里会让 publish 校验整块失败。
     provider: "github",
     owner: "3d-jq",
     repo: "DWeis-Next",
     releaseType: "draft",
-    // 当前 OSS/CDN 对多 Range 请求返回 206，但 Content-Type 仍是 application/x-msdownload，
-    // electron-updater 会因缺少 multipart/byteranges 直接回退整包下载。关闭 multiple range 后仍走差分，
-    // 只是按单 Range 顺序拉取差异块，避免 Windows 用户更新时从约 15MB 退化成 300MB+ 全量包。
-    useMultipleRangeRequest: false,
   },
 };
