@@ -350,10 +350,24 @@ async function buildZCodeAgentSpawnPreflight(
   };
 }
 
+/**
+ * 打包态桌面host 判断：main 通过 ZCODE_RUNTIME_ENV 下发（production=打包、development=dev）。
+ * 打包态不能走下面的 monorepo dev 解析——workspace 恰好是仓库检出时，源码分支会命中并产出
+ * 没有 storagePreparationEntry 的 command，DatabaseStartupCoordinator 直接
+ * unsupported_runtime，安装包用户打开这个仓库当工作区就起不来。
+ */
+function isPackagedDesktopHostRuntime(): boolean {
+  return resolveZCodeRuntimeEnv(process.env) === "production";
+}
+
 function resolveBundledWorkspaceZCodeAgentCommand(
   context: ZCodeAgentCommandResolverContext,
 ): ZCodeAgentCommand | null {
-  const distEntrypoint = findUpward("apps/zcode-cli/packages/cli/dist/zcode.cjs");
+  if (isPackagedDesktopHostRuntime()) {
+    return null;
+  }
+  // dist 入口名与 CLI 构建产物保持一致（dweis.cjs）；旧名 zcode.cjs 已不存在。
+  const distEntrypoint = findUpward("apps/zcode-cli/packages/cli/dist/dweis.cjs");
   if (distEntrypoint) {
     const useBytecode =
       process.versions.electron && process.env.ZCODE_DESKTOP_AGENT_BYTECODE === "1";
