@@ -14,10 +14,8 @@ import {
 } from "@zcode/shared";
 import { Alert, AlertDescription } from "./components/ui/alert.js";
 import { Button } from "./components/ui/button.js";
-import logoTileDark from "@/assets/provider-icons/logo-dweis-tile-dark.svg";
-import logoTileLight from "@/assets/provider-icons/logo-dweis-tile-light.svg";
+import { resolveBrandLogoSrc } from "@/lib/brandLogoTheme.js";
 import { useZCodeStore } from "@/store/StoreProvider.js";
-import { resolveTheme } from "@/useTheme.js";
 import { useOAuth } from "./hooks/useOAuth.js";
 import { useZCodeIntl } from "./i18n/IntlProvider.js";
 import { LoginApiKeyForm } from "./login/LoginApiKeyForm.js";
@@ -69,16 +67,8 @@ function shouldCompleteLoginFromExistingUser(params: {
 
 function LoginPanel({ active, onComplete }: LoginPanelProps) {
   const { intl } = useZCodeIntl();
-  const {
-    startLogin,
-    cancel,
-    reset,
-    status,
-    error,
-    providers,
-    pendingProvider,
-    refreshProviders,
-  } = useOAuth();
+  const { startLogin, cancel, reset, status, error, providers, pendingProvider, refreshProviders } =
+    useOAuth();
   const user = useZCodeStore((s) => s.user);
   const oauthError = useZCodeStore((s) => s.oauthError);
   const setOAuthError = useZCodeStore((s) => s.setOAuthError);
@@ -433,14 +423,13 @@ function LoginPanelLogo() {
   // 品牌图直接呈现：owl 源图自带圆角与透明边缘，套深色底壳会露一圈黑。
   return (
     <img
-      src={resolveTheme(useZCodeStore((s) => s.theme)) === "dark" ? logoTileDark : logoTileLight}
+      src={resolveBrandLogoSrc()}
       alt="DWeis Next"
       draggable={false}
       className="mb-1 size-16 shrink-0 select-none rounded-2xl"
     />
   );
 }
-
 
 function resolveLoginRetryProvider({
   pendingProvider,

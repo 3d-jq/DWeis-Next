@@ -1,0 +1,2118 @@
+<!doctype html>
+<html
+  lang="zh-cn"
+  dir="ltr"
+  class="scroll-smooth"
+  data-default-appearance="light"
+  data-auto-appearance="false">
+<head>
+  <meta charset="utf-8">
+  
+    <meta http-equiv="content-language" content="zh-CN">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <meta name="theme-color">
+
+  
+  
+    <title>扒一扒 ZCode 静默上传全量 Git 历史的骚操作 &middot; Code is cheap, let&#39;s talk</title>
+    <meta name="title" content="扒一扒 ZCode 静默上传全量 Git 历史的骚操作 &middot; Code is cheap, let&#39;s talk">
+  
+
+  
+  
+    <meta name="description" content="ZCode 登录后会静默打包整仓及完整 Git 历史上云，私钥只在服务端；本文还原上传链路并给出目录锁阻断，对照官方声明与开源源码——开源仓自身历史被抹平，检查点实现证实与整仓上传无关。">
+  
+  
+    <meta name="keywords" content="Security,Privacy,AI Coding,Reverse Engineering,">
+  
+  
+  
+  <link rel="canonical" href="https://blog.ferstar.org/posts/zcode-silent-workspace-snapshot-upload/">
+  
+    
+      
+      
+        <link rel="alternate" hreflang="zh-CN" href="https://blog.ferstar.org/posts/zcode-silent-workspace-snapshot-upload/">
+      
+    
+      
+      
+        <link rel="alternate" hreflang="en" href="https://blog.ferstar.org/en/posts/zcode-silent-workspace-snapshot-upload/">
+      
+    
+  
+  
+    
+      <link rel="alternate" type="text/markdown" href="/posts/zcode-silent-workspace-snapshot-upload/index.md" title="Code is cheap, let's talk" />
+  
+
+  
+  
+    <meta name="author" content="ferstar">
+  
+  
+    
+      
+        
+          <link href="https://github.com/ferstar" rel="me">
+        
+      
+    
+  
+
+  
+  <meta property="og:url" content="https://blog.ferstar.org/posts/zcode-silent-workspace-snapshot-upload/">
+  <meta property="og:site_name" content="Code is cheap, let&#39;s talk">
+  <meta property="og:title" content="扒一扒 ZCode 静默上传全量 Git 历史的骚操作">
+  <meta property="og:description" content="ZCode 登录后会静默打包整仓及完整 Git 历史上云，私钥只在服务端；本文还原上传链路并给出目录锁阻断，对照官方声明与开源源码——开源仓自身历史被抹平，检查点实现证实与整仓上传无关。">
+  <meta property="og:locale" content="zh_CN">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2026-09-18T02:00:00+08:00">
+    <meta property="article:modified_time" content="2026-09-23T22:15:00+08:00">
+    <meta property="article:tag" content="Security">
+    <meta property="article:tag" content="Privacy">
+    <meta property="article:tag" content="AI Coding">
+    <meta property="article:tag" content="Reverse Engineering">
+
+  
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="扒一扒 ZCode 静默上传全量 Git 历史的骚操作">
+  <meta name="twitter:description" content="ZCode 登录后会静默打包整仓及完整 Git 历史上云，私钥只在服务端；本文还原上传链路并给出目录锁阻断，对照官方声明与开源源码——开源仓自身历史被抹平，检查点实现证实与整仓上传无关。">
+
+  
+  
+  
+  
+    
+      
+    
+  
+    
+      
+    
+  
+    
+      
+    
+  
+  
+    
+  
+
+  
+  
+  
+  
+  
+  
+
+  
+
+  
+  
+  
+  
+  
+  
+  
+    
+  
+  
+    
+  
+  
+  <link
+    type="text/css"
+    rel="stylesheet"
+    href="/css/main.bundle.min.3260f961fca469bee2f33bd69eb039373e1945965c7d1893dcc490e29b2f89fc5bb5f91a8775e2a3f1b829f6199dc210916d857f026f7bd9ba59fce2cb796add.css"
+    integrity="sha512-MmD5Yfykab7i8zvWnrA5Nz4ZRZZcfRiT3MSQ4psvifxbtfkah3Xio/G4KfYZncIQkW2FfwJve9m6Wfziy3lq3Q==">
+
+  
+  
+  <script type="06cb262418926d0d0157a6a2-text/javascript" src="/js/appearance.min.6f41174b3a05b680820fe08cadbfa5fb7a7ca347b76a0955cdc68b9d8aca1ce24f0547e138cea33bcc7904d551a90afcb1cc7f2d9fe8557075d501419046c08c.js" integrity="sha512-b0EXSzoFtoCCD&#43;CMrb&#43;l&#43;3p8o0e3aglVzcaLnYrKHOJPBUfhOM6jO8x5BNVRqQr8scx/LZ/oVXB11QFBkEbAjA=="></script>
+  
+  
+  
+  
+  
+    
+    <script type="06cb262418926d0d0157a6a2-text/javascript" src="/js/zen-mode.min.9814dee9614d32aeb56239d118edfe20acd6231424f9b19c2dd48835038414130a5e946c0d1c9087d60e60e31840c9babfd217e3d4b95643dc8d651a71ccdf4a.js" integrity="sha512-mBTe6WFNMq61YjnRGO3&#43;IKzWIxQk&#43;bGcLdSINQOEFBMKXpRsDRyQh9YOYOMYQMm6v9IX49S5VkPcjWUacczfSg=="></script>
+  
+  
+    
+    <script src="/lib/zoom/zoom.min.umd.a527109b68c082a70f3697716dd72a9d5aa8b545cf800cecbbc7399f2ca6f6e0ce3e431f2062b48bbfa47c9ea42822714060bef309be073f49b9c0e30d318d7b.js" integrity="sha512-pScQm2jAgqcPNpdxbdcqnVqotUXPgAzsu8c5nyym9uDOPkMfIGK0i7&#43;kfJ6kKCJxQGC&#43;8wm&#43;Bz9JucDjDTGNew==" type="06cb262418926d0d0157a6a2-text/javascript"></script>
+  
+
+  
+  
+  
+    
+  
+  
+    
+  
+  
+    
+  
+  
+  
+  
+  
+  
+    
+    <script defer type="06cb262418926d0d0157a6a2-text/javascript" id="script-bundle" src="/js/main.bundle.min.4c6b36324987fc05dd8cd58437946294b6f2e315675cef16098738373ac2a0fe600416b00e13a1a8687c872f82868f7a0ece1e4ae0b9ea6ead63721f5e8b6748.js" integrity="sha512-TGs2MkmH/AXdjNWEN5RilLby4xVnXO8WCYc4NzrCoP5gBBawDhOhqGh8hy&#43;Cho96Ds4eSuC56m6tY3IfXotnSA==" data-copy="复制" data-copied="已复制"></script>
+  
+
+  
+  
+
+  
+  
+  
+  
+  <script defer type="06cb262418926d0d0157a6a2-text/javascript" src="/js/mermaid.bundle.fbd117b974ae2784c64dabbeb75fd4af8985e21012349d79ef3bce3076a0e9c6b39e08c5b62e273deb50a520411e4bf5f58385cea7abd2492f4ef21480167677.js" integrity="sha512-&#43;9EXuXSuJ4TGTau&#43;t1/Ur4mF4hASNJ157zvOMHag6cazngjFti4nPetQpSBBHkv19YOFzqer0kkvTvIUgBZ2dw=="></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="manifest" href="/site.webmanifest">
+  
+
+  
+  <script type="application/ld+json">[{"@context":"https://schema.org","@type":"Article","articleSection":"Posts","author":{"@type":"Person","name":"ferstar"},"copyrightYear":"2026","dateCreated":"2026-09-18T02:00:00+08:00","dateModified":"2026-09-23T22:15:00+08:00","datePublished":"2026-09-18T02:00:00+08:00","headline":"扒一扒 ZCode 静默上传全量 Git 历史的骚操作","inLanguage":"zh-CN","keywords":["Security","Privacy","AI Coding","Reverse Engineering"],"mainEntityOfPage":"true","name":"扒一扒 ZCode 静默上传全量 Git 历史的骚操作","url":"https://blog.ferstar.org/posts/zcode-silent-workspace-snapshot-upload/","wordCount":6971},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://blog.ferstar.org/posts/","name":"Posts","position":1},{"@type":"ListItem","item":"https://blog.ferstar.org/posts/zcode-silent-workspace-snapshot-upload/","name":"扒一扒 ZCode 静默上传全量 Git 历史的骚操作","position":2}]}]</script>
+
+  
+  
+    
+
+
+
+
+  
+
+  
+  
+    
+  
+  
+    <link rel="preload" as="image" href="/site-logo.png" fetchpriority="high">
+  
+
+
+<style>
+   
+  :root {
+    --tw-bg-opacity: 1 !important;
+    background-color: rgb(255 255 255 / var(--tw-bg-opacity)) !important;
+    color: rgb(23 23 23) !important;
+  }
+</style>
+
+
+
+  
+  <script defer src="/js/visual-zoom.min.d4e4bf4b0df4634460de87a9eeb370805ccc3a139d4d34716495f4846703ab4d9880b43c80341baffd3ef792279e59bb884f1ce8494f7dfaad1eea8b270087ed.js" integrity="sha512-1OS/Sw30Y0Rg3oep7rNwgFzMOhOdTTRxZJX0hGcDq02YgLQ8gDQbr/0&#43;95Innlm7iE8c6ElPffqtHuqLJwCH7Q==" type="06cb262418926d0d0157a6a2-text/javascript"></script>
+
+
+  
+
+  
+  
+    
+  <script data-cfasync="false">
+    window.addEventListener("load", function () {
+      var attempts = 0;
+      var timer = window.setInterval(function () {
+        if (typeof mermaid === "undefined") {
+          if (++attempts > 150) window.clearInterval(timer);
+          return;
+        }
+
+        var pending = document.querySelector("pre.mermaid:not([data-processed])");
+        if (!pending) {
+          window.clearInterval(timer);
+          return;
+        }
+
+        if (typeof updateMermaidTheme === "function") {
+          updateMermaidTheme();
+        } else if (document.documentElement.classList.contains("dark") && typeof initMermaidDark === "function") {
+          initMermaidDark();
+          mermaid.run();
+        } else if (typeof initMermaidLight === "function") {
+          initMermaidLight();
+          mermaid.run();
+        } else {
+          mermaid.run();
+        }
+        window.clearInterval(timer);
+      }, 100);
+    });
+  </script>
+
+
+  
+
+  
+  
+</head>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  <body class="flex flex-col h-screen m-auto leading-7 max-w-7xl px-6 sm:px-14 md:px-24 lg:px-32 text-lg bg-neutral text-neutral-900 dark:bg-neutral-800 dark:text-neutral bf-scrollbar">
+    <div id="the-top" class="absolute flex self-center">
+      <a
+        class="px-3 py-1 text-sm -translate-y-8 rounded-b-lg bg-primary-200 focus:translate-y-0 dark:bg-neutral-600"
+        href="#main-content">
+        <span class="font-bold text-primary-600 pe-2 dark:text-primary-400">&darr;</span>
+        跳过正文
+      </a>
+    </div>
+    
+    
+      <div class="min-h-[148px]"></div>
+<div class="fixed inset-x-0 z-100">
+  <div
+    id="menu-blur"
+    class="absolute opacity-0 inset-x-0 top-0 h-full single_hero_background nozoom backdrop-blur-2xl shadow-2xl bg-neutral/25 dark:bg-neutral-800/25"></div>
+  <div class="relative m-auto leading-7 max-w-7xl px-6 sm:px-14 md:px-24 lg:px-32">
+    <div class="main-menu flex items-center w-full gap-2 p-1 pl-0">
+  
+    
+    
+      <div>
+        <a href="/" class="flex">
+          <span class="sr-only">Code is cheap, let&rsquo;s talk</span>
+          
+            <img
+              src="/site-logo.png"
+              width="72"
+              height="72"
+              class="logo max-h-20 max-w-20 object-scale-down object-left nozoom"
+              alt="Code is cheap, let&rsquo;s talk"
+              fetchpriority="high"
+              loading="eager">
+          
+        </a>
+      </div>
+    
+  
+  
+    <a href="/" class="text-base font-medium truncate min-w-0 shrink">
+      Code is cheap, let&rsquo;s talk
+    </a>
+  
+  <div class="flex items-center ms-auto">
+    <div class="hidden md:flex">
+      <nav class="flex items-center gap-x-5 h-12">
+  
+    
+      
+  
+    <a
+      href="/posts/"
+      
+      class="flex items-center bf-icon-color-hover"
+      aria-label="归档"
+      title="Posts">
+      
+      
+        <span class="text-base font-medium break-normal">
+          归档
+        </span>
+      
+    </a>
+  
+
+    
+      
+  
+    <a
+      href="/tags/"
+      
+      class="flex items-center bf-icon-color-hover"
+      aria-label="标签"
+      title="Tags">
+      
+      
+        <span class="text-base font-medium break-normal">
+          标签
+        </span>
+      
+    </a>
+  
+
+    
+      
+  
+    <a
+      href="https://github.com/ferstar"
+      
+        target="_blank"
+      
+      class="flex items-center bf-icon-color-hover"
+      aria-label="github"
+      title="">
+      
+        <span >
+          <span class="relative block icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><path fill="currentColor" d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+</span>
+        </span>
+      
+      
+    </a>
+  
+
+    
+      
+  
+    <a
+      href="https://afdian.com/a/ferstar"
+      
+        target="_blank"
+      
+      class="flex items-center bf-icon-color-hover"
+      aria-label="heart"
+      title="">
+      
+        <span >
+          <span class="relative block icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<path fill="currentColor" d="M47.6 300.4L228.3 469.1c7.5 7 17.4 10.9 27.7 10.9s20.2-3.9 27.7-10.9L464.4 300.4c30.4-28.3 47.6-68 47.6-109.5v-5.8c0-69.9-50.5-129.5-119.4-141C347 36.5 300.6 51.4 268 84L256 96 244 84c-32.6-32.6-79-47.5-124.6-39.9C50.5 55.6 0 115.2 0 185.1v5.8c0 41.5 17.2 81.2 47.6 109.5z"/></svg></span>
+        </span>
+      
+      
+    </a>
+  
+
+    
+      
+  
+    <a
+      href="/index.xml"
+      
+      class="flex items-center bf-icon-color-hover"
+      aria-label="rss"
+      title="">
+      
+        <span >
+          <span class="relative block icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path fill="currentColor" d="M0 64C0 46.3 14.3 32 32 32c229.8 0 416 186.2 416 416c0 17.7-14.3 32-32 32s-32-14.3-32-32C384 253.6 226.4 96 32 96C14.3 96 0 81.7 0 64zM128 416c0 35.3-28.7 64-64 64s-64-28.7-64-64s28.7-64 64-64s64 28.7 64 64zM32 160c159.1 0 288 128.9 288 288c0 17.7-14.3 32-32 32s-32-14.3-32-32c0-123.7-100.3-224-224-224c-17.7 0-32-14.3-32-32s14.3-32 32-32z"/></svg></span>
+        </span>
+      
+      
+    </a>
+  
+
+    
+  
+
+  
+  <div class="translation nested-menu">
+    <button class="cursor-pointer flex items-center">
+      <span class="me-1">
+        <span class="relative block icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512">
+    <path fill="currentColor" d="M0 128C0 92.7 28.7 64 64 64H256h48 16H576c35.3 0 64 28.7 64 64V384c0 35.3-28.7 64-64 64H320 304 256 64c-35.3 0-64-28.7-64-64V128zm320 0V384H576V128H320zM178.3 175.9c-3.2-7.2-10.4-11.9-18.3-11.9s-15.1 4.7-18.3 11.9l-64 144c-4.5 10.1 .1 21.9 10.2 26.4s21.9-.1 26.4-10.2l8.9-20.1h73.6l8.9 20.1c4.5 10.1 16.3 14.6 26.4 10.2s14.6-16.3 10.2-26.4l-64-144zM160 233.2L179 276H141l19-42.8zM448 164c11 0 20 9 20 20v4h44 16c11 0 20 9 20 20s-9 20-20 20h-2l-1.6 4.5c-8.9 24.4-22.4 46.6-39.6 65.4c.9 .6 1.8 1.1 2.7 1.6l18.9 11.3c9.5 5.7 12.5 18 6.9 27.4s-18 12.5-27.4 6.9l-18.9-11.3c-4.5-2.7-8.8-5.5-13.1-8.5c-10.6 7.5-21.9 14-34 19.4l-3.6 1.6c-10.1 4.5-21.9-.1-26.4-10.2s.1-21.9 10.2-26.4l3.6-1.6c6.4-2.9 12.6-6.1 18.5-9.8l-12.2-12.2c-7.8-7.8-7.8-20.5 0-28.3s20.5-7.8 28.3 0l14.6 14.6 .5 .5c12.4-13.1 22.5-28.3 29.8-45H448 376c-11 0-20-9-20-20s9-20 20-20h52v-4c0-11 9-20 20-20z"/></svg></span>
+      </span>
+      <span class="text-sm font-medium bf-icon-color-hover" title="扒一扒 ZCode 静默上传全量 Git 历史的骚操作">简体中文</span>
+    </button>
+    <ul class="menuhide">
+      <li class="rounded-xl backdrop-blur shadow-2xl p-2 flex flex-col gap-1">
+        
+          <a href="/posts/zcode-silent-workspace-snapshot-upload/" class="flex items-center bf-icon-color-hover px-3 py-1">
+            <span class="text-sm font-sm" title="扒一扒 ZCode 静默上传全量 Git 历史的骚操作">
+              简体中文
+            </span>
+          </a>
+        
+          <a href="/en/posts/zcode-silent-workspace-snapshot-upload/" class="flex items-center bf-icon-color-hover px-3 py-1">
+            <span class="text-sm font-sm" title="Inside ZCode: Silently Uploading Your Entire Git History to the Cloud">
+              English
+            </span>
+          </a>
+        
+      </li>
+    </ul>
+  </div>
+
+
+  
+
+  
+    <button
+      id="search-button"
+      aria-label="Search"
+      class="text-base bf-icon-color-hover"
+      title="搜索 (/)">
+      <span class="relative block icon"><svg aria-hidden="true" focusable="false" data-prefix="fas" data-icon="search" class="svg-inline--fa fa-search fa-w-16" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path fill="currentColor" d="M505 442.7L405.3 343c-4.5-4.5-10.6-7-17-7H372c27.6-35.3 44-79.7 44-128C416 93.1 322.9 0 208 0S0 93.1 0 208s93.1 208 208 208c48.3 0 92.7-16.4 128-44v16.3c0 6.4 2.5 12.5 7 17l99.7 99.7c9.4 9.4 24.6 9.4 33.9 0l28.3-28.3c9.4-9.4 9.4-24.6.1-34zM208 336c-70.7 0-128-57.2-128-128 0-70.7 57.2-128 128-128 70.7 0 128 57.2 128 128 0 70.7-57.2 128-128 128z"/></svg>
+</span>
+    </button>
+  
+
+  
+</nav>
+
+
+
+    </div>
+    <div class="flex md:hidden">
+      <div class="flex items-center h-14 gap-4">
+  
+    <button
+      id="search-button-mobile"
+      aria-label="Search"
+      class="flex items-center justify-center bf-icon-color-hover"
+      title="搜索 (/)">
+      <span class="relative block icon"><svg aria-hidden="true" focusable="false" data-prefix="fas" data-icon="search" class="svg-inline--fa fa-search fa-w-16" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path fill="currentColor" d="M505 442.7L405.3 343c-4.5-4.5-10.6-7-17-7H372c27.6-35.3 44-79.7 44-128C416 93.1 322.9 0 208 0S0 93.1 0 208s93.1 208 208 208c48.3 0 92.7-16.4 128-44v16.3c0 6.4 2.5 12.5 7 17l99.7 99.7c9.4 9.4 24.6 9.4 33.9 0l28.3-28.3c9.4-9.4 9.4-24.6.1-34zM208 336c-70.7 0-128-57.2-128-128 0-70.7 57.2-128 128-128 70.7 0 128 57.2 128 128 0 70.7-57.2 128-128 128z"/></svg>
+</span>
+    </button>
+  
+
+  
+
+  
+    <input type="checkbox" id="mobile-menu-toggle" autocomplete="off" class="hidden peer">
+    <label for="mobile-menu-toggle" class="flex items-center justify-center cursor-pointer bf-icon-color-hover">
+      <span class="relative block icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path fill="currentColor" d="M0 96C0 78.33 14.33 64 32 64H416C433.7 64 448 78.33 448 96C448 113.7 433.7 128 416 128H32C14.33 128 0 113.7 0 96zM0 256C0 238.3 14.33 224 32 224H416C433.7 224 448 238.3 448 256C448 273.7 433.7 288 416 288H32C14.33 288 0 273.7 0 256zM416 448H32C14.33 448 0 433.7 0 416C0 398.3 14.33 384 32 384H416C433.7 384 448 398.3 448 416C448 433.7 433.7 448 416 448z"/></svg>
+</span>
+    </label>
+
+    <div
+      role="dialog"
+      aria-modal="true"
+      style="scrollbar-gutter: stable;"
+      class="fixed inset-0 z-50 invisible overflow-y-auto px-6 py-20 opacity-0 transition-[opacity,visibility] duration-300 peer-checked:visible peer-checked:opacity-100 bg-neutral-50/97 dark:bg-neutral-900/99
+      bf-scrollbar">
+      <label
+        for="mobile-menu-toggle"
+        class="fixed end-8 top-5 flex items-center justify-center z-50 h-12 w-12 cursor-pointer select-none rounded-full bf-icon-color-hover border bf-border-color bf-border-color-hover bg-neutral-50 dark:bg-neutral-900">
+        <span class="relative block icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><path fill="currentColor" d="M310.6 361.4c12.5 12.5 12.5 32.75 0 45.25C304.4 412.9 296.2 416 288 416s-16.38-3.125-22.62-9.375L160 301.3L54.63 406.6C48.38 412.9 40.19 416 32 416S15.63 412.9 9.375 406.6c-12.5-12.5-12.5-32.75 0-45.25l105.4-105.4L9.375 150.6c-12.5-12.5-12.5-32.75 0-45.25s32.75-12.5 45.25 0L160 210.8l105.4-105.4c12.5-12.5 32.75-12.5 45.25 0s12.5 32.75 0 45.25l-105.4 105.4L310.6 361.4z"/></svg>
+</span>
+      </label>
+      <nav class="mx-auto max-w-md space-y-6">
+        
+  
+    
+    <div class="px-2">
+      <a
+        href="/posts/"
+        aria-label="归档"
+        
+        class="flex items-center gap-4 group bf-icon-color-hover text-neutral-700 dark:text-neutral-200">
+        
+        <span title="Posts" class="text-2xl font-bold tracking-tight">
+          归档
+        </span>
+        
+      </a>
+
+      
+    </div>
+  
+    
+    <div class="px-2">
+      <a
+        href="/tags/"
+        aria-label="标签"
+        
+        class="flex items-center gap-4 group bf-icon-color-hover text-neutral-700 dark:text-neutral-200">
+        
+        <span title="Tags" class="text-2xl font-bold tracking-tight">
+          标签
+        </span>
+        
+      </a>
+
+      
+    </div>
+  
+    
+    <div class="px-2">
+      <a
+        href="https://github.com/ferstar"
+        aria-label="github"
+        
+          target="_blank"
+        
+        class="flex items-center gap-4 group bf-icon-color-hover text-neutral-700 dark:text-neutral-200">
+        
+          <span class="flex items-center justify-center h-8 w-8 text-2xl">
+            <span class="relative block icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><path fill="currentColor" d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+</span>
+          </span>
+        
+        <span title="" class="text-2xl font-bold tracking-tight">
+          
+        </span>
+        
+      </a>
+
+      
+    </div>
+  
+    
+    <div class="px-2">
+      <a
+        href="https://afdian.com/a/ferstar"
+        aria-label="heart"
+        
+          target="_blank"
+        
+        class="flex items-center gap-4 group bf-icon-color-hover text-neutral-700 dark:text-neutral-200">
+        
+          <span class="flex items-center justify-center h-8 w-8 text-2xl">
+            <span class="relative block icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<path fill="currentColor" d="M47.6 300.4L228.3 469.1c7.5 7 17.4 10.9 27.7 10.9s20.2-3.9 27.7-10.9L464.4 300.4c30.4-28.3 47.6-68 47.6-109.5v-5.8c0-69.9-50.5-129.5-119.4-141C347 36.5 300.6 51.4 268 84L256 96 244 84c-32.6-32.6-79-47.5-124.6-39.9C50.5 55.6 0 115.2 0 185.1v5.8c0 41.5 17.2 81.2 47.6 109.5z"/></svg></span>
+          </span>
+        
+        <span title="" class="text-2xl font-bold tracking-tight">
+          
+        </span>
+        
+      </a>
+
+      
+    </div>
+  
+    
+    <div class="px-2">
+      <a
+        href="/index.xml"
+        aria-label="rss"
+        
+        class="flex items-center gap-4 group bf-icon-color-hover text-neutral-700 dark:text-neutral-200">
+        
+          <span class="flex items-center justify-center h-8 w-8 text-2xl">
+            <span class="relative block icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path fill="currentColor" d="M0 64C0 46.3 14.3 32 32 32c229.8 0 416 186.2 416 416c0 17.7-14.3 32-32 32s-32-14.3-32-32C384 253.6 226.4 96 32 96C14.3 96 0 81.7 0 64zM128 416c0 35.3-28.7 64-64 64s-64-28.7-64-64s28.7-64 64-64s64 28.7 64 64zM32 160c159.1 0 288 128.9 288 288c0 17.7-14.3 32-32 32s-32-14.3-32-32c0-123.7-100.3-224-224-224c-17.7 0-32-14.3-32-32s14.3-32 32-32z"/></svg></span>
+          </span>
+        
+        <span title="" class="text-2xl font-bold tracking-tight">
+          
+        </span>
+        
+      </a>
+
+      
+    </div>
+  
+
+        
+  
+
+        
+  
+    <div
+      class="flex flex-wrap items-center [&_span]:text-2xl [&_.translation_button_.icon]:text-4xl! [&_.translation_button_span]:text-base! [&_.translation_.menuhide_span]:text-sm! gap-x-6 ps-2 mt-8 pt-8 border-t bf-border-color">
+      
+  <div class="translation nested-menu">
+    <button class="cursor-pointer flex items-center">
+      <span class="me-1">
+        <span class="relative block icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512">
+    <path fill="currentColor" d="M0 128C0 92.7 28.7 64 64 64H256h48 16H576c35.3 0 64 28.7 64 64V384c0 35.3-28.7 64-64 64H320 304 256 64c-35.3 0-64-28.7-64-64V128zm320 0V384H576V128H320zM178.3 175.9c-3.2-7.2-10.4-11.9-18.3-11.9s-15.1 4.7-18.3 11.9l-64 144c-4.5 10.1 .1 21.9 10.2 26.4s21.9-.1 26.4-10.2l8.9-20.1h73.6l8.9 20.1c4.5 10.1 16.3 14.6 26.4 10.2s14.6-16.3 10.2-26.4l-64-144zM160 233.2L179 276H141l19-42.8zM448 164c11 0 20 9 20 20v4h44 16c11 0 20 9 20 20s-9 20-20 20h-2l-1.6 4.5c-8.9 24.4-22.4 46.6-39.6 65.4c.9 .6 1.8 1.1 2.7 1.6l18.9 11.3c9.5 5.7 12.5 18 6.9 27.4s-18 12.5-27.4 6.9l-18.9-11.3c-4.5-2.7-8.8-5.5-13.1-8.5c-10.6 7.5-21.9 14-34 19.4l-3.6 1.6c-10.1 4.5-21.9-.1-26.4-10.2s.1-21.9 10.2-26.4l3.6-1.6c6.4-2.9 12.6-6.1 18.5-9.8l-12.2-12.2c-7.8-7.8-7.8-20.5 0-28.3s20.5-7.8 28.3 0l14.6 14.6 .5 .5c12.4-13.1 22.5-28.3 29.8-45H448 376c-11 0-20-9-20-20s9-20 20-20h52v-4c0-11 9-20 20-20z"/></svg></span>
+      </span>
+      <span class="text-sm font-medium bf-icon-color-hover" title="扒一扒 ZCode 静默上传全量 Git 历史的骚操作">简体中文</span>
+    </button>
+    <ul class="menuhide">
+      <li class="rounded-xl backdrop-blur shadow-2xl p-2 flex flex-col gap-1">
+        
+          <a href="/posts/zcode-silent-workspace-snapshot-upload/" class="flex items-center bf-icon-color-hover px-3 py-1">
+            <span class="text-sm font-sm" title="扒一扒 ZCode 静默上传全量 Git 历史的骚操作">
+              简体中文
+            </span>
+          </a>
+        
+          <a href="/en/posts/zcode-silent-workspace-snapshot-upload/" class="flex items-center bf-icon-color-hover px-3 py-1">
+            <span class="text-sm font-sm" title="Inside ZCode: Silently Uploading Your Entire Git History to the Cloud">
+              English
+            </span>
+          </a>
+        
+      </li>
+    </ul>
+  </div>
+
+
+
+      
+    </div>
+  
+
+      </nav>
+    </div>
+  
+</div>
+
+
+
+
+
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+  <script type="06cb262418926d0d0157a6a2-text/javascript">
+    (function () {
+      var mainmenu = document.querySelector(".main-menu");
+      if (!mainmenu) return;
+
+      var path = window.location.pathname;
+      var links = mainmenu.querySelectorAll('a[href="' + path + '"]');
+
+      links.forEach(function (link) {
+        var targets = link.querySelectorAll("span");
+        targets.forEach(function (el) {
+          el.classList.add("active");
+        });
+      });
+    })();
+  </script>
+
+
+  </div>
+</div>
+
+
+<script type="06cb262418926d0d0157a6a2-text/javascript" src="/js/background-blur.min.605b3b942818f0ab5a717ae446135ec46b8ee5a2ad12ae56fb90dc2a76ce30c388f9fec8bcc18db15bd47e3fa8a09d779fa12aa9c184cf614a315bc72c6c163d.js" integrity="sha512-YFs7lCgY8KtacXrkRhNexGuO5aKtEq5W&#43;5DcKnbOMMOI&#43;f7IvMGNsVvUfj&#43;ooJ13n6EqqcGEz2FKMVvHLGwWPQ==" data-blur-id="menu-blur"></script>
+
+    
+    <div class="relative flex flex-col grow">
+      <main id="main-content" class="grow">
+        
+  
+  
+  
+  
+  
+
+  <article>
+    
+    
+
+    
+    <header id="single_header" class="mt-5 max-w-prose ">
+      
+        <ol class="text-sm text-neutral-500 dark:text-neutral-400 print:hidden">
+  
+  
+    
+  
+    
+  
+  <li class="hidden">
+    <a class="hover:underline decoration-neutral-300 dark:underline-neutral-600" href="/"
+      >Code is cheap, let&#39;s talk</a
+    ><span class="px-1 text-primary-500">/</span>
+  </li>
+
+  
+  <li class="inline">
+    <a class="hover:underline decoration-neutral-300 dark:underline-neutral-600" href="/posts/"
+      >Posts</a
+    ><span class="px-1 text-primary-500">/</span>
+  </li>
+
+  
+  <li class="hidden">
+    <a class="hover:underline decoration-neutral-300 dark:underline-neutral-600" href="/posts/zcode-silent-workspace-snapshot-upload/"
+      >扒一扒 ZCode 静默上传全量 Git 历史的骚操作</a
+    ><span class="px-1 text-primary-500">/</span>
+  </li>
+
+</ol>
+
+
+      
+      <h1 class="mt-0 text-4xl font-extrabold text-neutral-900 dark:text-neutral">
+        扒一扒 ZCode 静默上传全量 Git 历史的骚操作
+      </h1>
+      <div class="mt-1 mb-6 flex flex-wrap items-center justify-between gap-3 text-base text-neutral-500 dark:text-neutral-400 print:hidden">
+        <div>
+          
+
+
+
+
+
+  
+  
+
+
+
+  
+
+  
+  
+  
+    
+  
+
+  
+
+  
+    
+  
+
+  
+
+  
+
+  
+    
+  
+
+  
+
+  
+
+  
+
+  
+    
+  
+
+  
+    
+  
+
+
+  <div class="flex flex-row flex-wrap items-center">
+    
+    
+      <time datetime="2026-09-18T02:00:00&#43;08:00">2026-09-18</time><span class="px-2 text-primary-500">&middot;</span><span title="预计阅读">14 分钟</span><span class="px-2 text-primary-500">&middot;</span>
+
+
+  
+    
+  
+  
+
+<span class="mb-[2px]">
+  <a
+    href="https://github.com/ferstar/blog/edit/master/content/posts/zcode-silent-workspace-snapshot-upload.md"
+    class="text-lg hover:text-primary-500"
+    rel="noopener noreferrer"
+    target="_blank"
+    title="编辑内容"
+    ><span class="inline-block align-text-bottom"><span class="relative block icon"><svg xmlns="http://www.w3.org/2000/svg" height="1em" viewBox="0 0 512 512"><path fill="currentColor" d="M441 58.9L453.1 71c9.4 9.4 9.4 24.6 0 33.9L424 134.1 377.9 88 407 58.9c9.4-9.4 24.6-9.4 33.9 0zM209.8 256.2L344 121.9 390.1 168 255.8 302.2c-2.9 2.9-6.5 5-10.4 6.1l-58.5 16.7 16.7-58.5c1.1-3.9 3.2-7.5 6.1-10.4zM373.1 25L175.8 222.2c-8.7 8.7-15 19.4-18.3 31.1l-28.6 100c-2.4 8.4-.1 17.4 6.1 23.6s15.2 8.5 23.6 6.1l100-28.6c11.8-3.4 22.5-9.7 31.1-18.3L487 138.9c28.1-28.1 28.1-73.7 0-101.8L474.9 25C446.8-3.1 401.2-3.1 373.1 25zM88 64C39.4 64 0 103.4 0 152V424c0 48.6 39.4 88 88 88H360c48.6 0 88-39.4 88-88V312c0-13.3-10.7-24-24-24s-24 10.7-24 24V424c0 22.1-17.9 40-40 40H88c-22.1 0-40-17.9-40-40V152c0-22.1 17.9-40 40-40H200c13.3 0 24-10.7 24-24s-10.7-24-24-24H88z"/></svg></span></span></a
+  >
+</span><span class="px-2 text-primary-500">&middot;</span><span class="mb-[2px]">
+  <span
+    id="zen-mode-button"
+    class="text-lg hover:text-primary-500"
+    title="啟用阅读模式"
+    data-title-i18n-disable="啟用阅读模式"
+    data-title-i18n-enable="停用阅读模式">
+    <span class="inline-block align-text-bottom"><span class="relative block icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="50px" height="50px">
+    <path fill="currentColor" d="M 12.980469 4 C 9.1204688 4 5.9804688 7.14 5.9804688 11 L 6 26 L 9.9804688 26 L 9.9804688 11 C 9.9804688 9.35 11.320469 8 12.980469 8 L 40.019531 8 C 41.679531 8 43.019531 9.35 43.019531 11 L 43.019531 39 C 43.019531 40.65 41.679531 42 40.019531 42 L 29 42 C 29 43.54 28.420938 44.94 27.460938 46 L 40.019531 46 C 43.879531 46 47.019531 42.86 47.019531 39 L 47.019531 11 C 47.019531 7.14 43.879531 4 40.019531 4 L 12.980469 4 z M 7 28 C 4.794 28 3 29.794 3 32 L 3 42 C 3 44.206 4.794 46 7 46 L 23 46 C 25.206 46 27 44.206 27 42 L 27 32 C 27 29.794 25.206 28 23 28 L 7 28 z M 7 32 L 23 32 L 23.001953 42 L 7 42 L 7 32 z"/>
+</svg></span></span>
+  </span>
+</span>
+
+    
+
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+          
+            <span class="px-2 text-primary-500">&middot;</span>
+            
+              <a class="relative me-2 hover:underline" href="/tags/security/">
+                #Security
+              </a>
+            
+              <a class="relative me-2 hover:underline" href="/tags/privacy/">
+                #Privacy
+              </a>
+            
+              <a class="relative me-2 hover:underline" href="/tags/ai-coding/">
+                #AI Coding
+              </a>
+            
+              <a class="relative me-2 hover:underline" href="/tags/reverse-engineering/">
+                #Reverse Engineering
+              </a>
+            
+          
+        
+      
+    
+
+    
+    
+  </div>
+
+  
+  
+
+
+
+        </div>
+        
+          <div class="article-header-actions">
+            
+  <button
+    type="button"
+    class="copy-markdown-button"
+    data-copy-markdown-url="/posts/zcode-silent-workspace-snapshot-upload/index.md"
+    data-copy-label="复制 Markdown"
+    data-copied-label="已复制"
+    data-error-label="复制失败"
+    aria-label="复制 Markdown">
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path d="M8 7V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h2Zm2 0h3a2 2 0 0 1 2 2v5h2V5h-7v2Zm3 2H6v9h7V9Z" />
+    </svg>
+    <span data-copy-markdown-label>复制 Markdown</span>
+  </button>
+
+  
+    
+    <script defer src="/js/copy-markdown.min.249b2a0b10cc57459f99fc90ab6e7aab9db13f891dc6a2f5b0f10fec68a8ef0368f17d7f3241fa677fff20e90750a306519b4381941057bb6ad1927361c622b7.js" integrity="sha512-JJsqCxDMV0WfmfyQq256q52xP4kdxqL1sPEP7Gio7wNo8X1/MkH6Z3//IOkHUKMGUZtDgZQQV7tq0ZJzYcYitw==" type="06cb262418926d0d0157a6a2-text/javascript"></script>
+  
+
+
+            <div class="sponsor-button-wrapper">
+  <button type="button" class="sponsor-header-button" aria-label="请我喝咖啡">
+    <span class="sponsor-btn-icon">☕</span>
+    <span>请我喝咖啡</span>
+  </button>
+  
+  
+  <div class="sponsor-header-popover">
+    <div class="sponsor-header-popover-title">
+      
+        微信 / 支付宝 赞赏支持
+      
+    </div>
+    
+    <div class="sponsor-header-qr-grid">
+      
+      <div class="sponsor-qr-item" onclick="if (!window.__cfRLUnblockHandlers) return false; openSponsorModal('\/images\/sponsor-wechat.webp')" data-cf-modified-06cb262418926d0d0157a6a2-="">
+        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3C/svg%3E" data-src="/images/sponsor-wechat.webp" alt="WeChat Pay" class="sponsor-qr-img nozoom" width="128" height="128" decoding="async" />
+        <span class="sponsor-qr-label">
+          <span class="sponsor-dot bg-wechat"></span>微信 (点击放大)
+        </span>
+      </div>
+      
+      
+      <div class="sponsor-qr-item" onclick="if (!window.__cfRLUnblockHandlers) return false; openSponsorModal('\/images\/sponsor-alipay.webp')" data-cf-modified-06cb262418926d0d0157a6a2-="">
+        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3C/svg%3E" data-src="/images/sponsor-alipay.webp" alt="Alipay" class="sponsor-qr-img nozoom" width="128" height="128" decoding="async" />
+        <span class="sponsor-qr-label">
+          <span class="sponsor-dot bg-alipay"></span>支付宝 (点击放大)
+        </span>
+      </div>
+    </div>
+
+    <div class="sponsor-header-afdian">
+      <a href="https://afdian.com/a/ferstar" target="_blank" rel="noopener noreferrer" class="sponsor-afdian-link">
+        <span>⚡</span>
+        <span>也可以在爱发电支持 →</span>
+      </a>
+    </div>
+
+    
+    <div class="sponsor-header-arrow"></div>
+  </div>
+</div>
+
+
+<div id="sponsor-lightbox-modal" class="sponsor-lightbox" onclick="if (!window.__cfRLUnblockHandlers) return false; closeSponsorModal()" style="display: none;" data-cf-modified-06cb262418926d0d0157a6a2-="">
+  <div class="sponsor-lightbox-content" onclick="if (!window.__cfRLUnblockHandlers) return false; event.stopPropagation()" data-cf-modified-06cb262418926d0d0157a6a2-="">
+    <img id="sponsor-lightbox-img" src="" alt="Sponsor QR" />
+    <div id="sponsor-lightbox-caption" class="sponsor-lightbox-caption">
+      
+        感谢认可与支持，每一份鼓励都是持续创作的动力 ☕
+      
+    </div>
+    <button type="button" class="sponsor-lightbox-close" onclick="if (!window.__cfRLUnblockHandlers) return false; closeSponsorModal()" aria-label="Close" data-cf-modified-06cb262418926d0d0157a6a2-="">&times;</button>
+  </div>
+</div>
+
+<script type="06cb262418926d0d0157a6a2-text/javascript">
+(function() {
+  function loadSponsorImages() {
+    const wrapper = document.querySelector('.sponsor-button-wrapper');
+    if (!wrapper) return;
+    const lazyImgs = wrapper.querySelectorAll('.sponsor-qr-img[data-src]');
+    lazyImgs.forEach(function(img) {
+      img.src = img.getAttribute('data-src');
+      img.removeAttribute('data-src');
+    });
+  }
+
+  const wrapper = document.querySelector('.sponsor-button-wrapper');
+  if (wrapper) {
+    wrapper.addEventListener('pointerenter', loadSponsorImages, { once: true });
+    wrapper.addEventListener('touchstart', loadSponsorImages, { once: true, passive: true });
+    wrapper.addEventListener('focusin', loadSponsorImages, { once: true });
+  }
+})();
+
+function openSponsorModal(src, customCaption) {
+  const modal = document.getElementById('sponsor-lightbox-modal');
+  const img = document.getElementById('sponsor-lightbox-img');
+  const caption = document.getElementById('sponsor-lightbox-caption');
+  if (modal && img) {
+    img.src = src;
+    if (customCaption && caption) {
+      caption.textContent = customCaption;
+    }
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  }
+}
+
+function closeSponsorModal() {
+  const modal = document.getElementById('sponsor-lightbox-modal');
+  if (modal) {
+    modal.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeSponsorModal();
+});
+</script>
+
+          </div>
+        
+      </div>
+      
+        
+  
+  
+  
+  
+  
+  
+
+  
+
+  
+
+  
+
+  
+
+      
+    </header>
+
+    
+    <section class="mt-0 prose dark:prose-invert flex flex-col lg:flex-row max-w-full">
+      
+        
+        <div class="order-first lg:ml-auto px-0 lg:order-last lg:ps-8 lg:max-w-2xs">
+          <div class="toc ps-5 print:hidden lg:sticky lg:top-[140px]">
+            <details
+  open
+  id="TOCView"
+  class="toc-right mt-0 overflow-y-auto overscroll-contain bf-scrollbar rounded-lg -ms-5 ps-5 pe-2 hidden lg:block">
+  <summary
+    class="block py-1 text-lg font-semibold cursor-pointer bg-neutral-100 text-neutral-800 -ms-5 ps-5 dark:bg-neutral-700 dark:text-neutral-100 lg:hidden">
+    目录
+  </summary>
+  <div
+    class="min-w-[220px] py-2 border-dotted border-s-1 -ms-5 ps-5 dark:border-neutral-600">
+    <nav id="TableOfContents">
+  <ul>
+    <li><a href="#2026-09-23-更新">2026-09-23 更新</a></li>
+    <li><a href="#2026-09-21-更新">2026-09-21 更新</a>
+      <ul>
+        <li><a href="#1-源码审查只留两条-commit-的丐版开源锁-pr关-issue">1. 源码审查：只留两条 Commit 的丐版开源（锁 PR、关 Issue）</a></li>
+        <li><a href="#2-检查点checkpoint机制穿帮源码证实纯属本地-git">2. 检查点（Checkpoint）机制穿帮：源码证实纯属本地 Git</a></li>
+        <li><a href="#3-第三方评估与删桶自证">3. 第三方评估与“删桶自证”</a></li>
+        <li><a href="#4-舆论场中的几点澄清与现实黑色幽默">4. 舆论场中的几点澄清与现实黑色幽默</a></li>
+      </ul>
+    </li>
+    <li><a href="#2026-09-19-更新">2026-09-19 更新</a>
+      <ul>
+        <li><a href="#官方说法">官方说法</a></li>
+        <li><a href="#逆向与实测对照旧版-3123-vs-新版-3140-vs-官方说法">逆向与实测对照（旧版 3.12.3 vs 新版 3.14.0 vs 官方说法）</a></li>
+        <li><a href="#顺便补几句澄清">顺便补几句澄清</a></li>
+        <li><a href="#防御还算不算数">防御还算不算数</a></li>
+        <li><a href="#还没回答的">还没回答的</a></li>
+      </ul>
+    </li>
+    <li><a href="#起点一个卡在-pending-里的-313mb-压缩包">起点：一个卡在 pending 里的 313MB 压缩包</a></li>
+    <li><a href="#它要传到哪从日志到-asar-逆向">它要传到哪：从日志到 asar 逆向</a></li>
+    <li><a href="#最讽刺的部分这把钥匙是服务端的">最讽刺的部分：这把钥匙是服务端的</a></li>
+    <li><a href="#快照里到底装了啥近九成是-git">快照里到底装了啥：近九成是 .git</a></li>
+    <li><a href="#开关的真相你关掉的开关根本管不着它">开关的真相：你关掉的开关根本管不着它</a></li>
+    <li><a href="#隐私政策怎么说的">隐私政策怎么说的</a></li>
+    <li><a href="#防御删是打地鼠直接锁目录">防御：删是打地鼠，直接锁目录</a>
+      <ul>
+        <li><a href="#macos">macOS</a></li>
+        <li><a href="#linux">Linux</a></li>
+        <li><a href="#影响与恢复">影响与恢复</a></li>
+      </ul>
+    </li>
+    <li><a href="#写在最后">写在最后</a></li>
+  </ul>
+</nav>
+  </div>
+</details>
+<details class="toc-inside mt-0 overflow-hidden rounded-lg -ms-5 ps-5 lg:hidden">
+  <summary
+    class="py-1 text-lg font-semibold cursor-pointer bg-neutral-100 text-neutral-800 -ms-5 ps-5 dark:bg-neutral-700 dark:text-neutral-100 lg:hidden">
+    目录
+  </summary>
+  <div
+    class="py-2 border-dotted border-neutral-300 border-s-1 -ms-5 ps-5 dark:border-neutral-600">
+    <nav id="TableOfContents">
+  <ul>
+    <li><a href="#2026-09-23-更新">2026-09-23 更新</a></li>
+    <li><a href="#2026-09-21-更新">2026-09-21 更新</a>
+      <ul>
+        <li><a href="#1-源码审查只留两条-commit-的丐版开源锁-pr关-issue">1. 源码审查：只留两条 Commit 的丐版开源（锁 PR、关 Issue）</a></li>
+        <li><a href="#2-检查点checkpoint机制穿帮源码证实纯属本地-git">2. 检查点（Checkpoint）机制穿帮：源码证实纯属本地 Git</a></li>
+        <li><a href="#3-第三方评估与删桶自证">3. 第三方评估与“删桶自证”</a></li>
+        <li><a href="#4-舆论场中的几点澄清与现实黑色幽默">4. 舆论场中的几点澄清与现实黑色幽默</a></li>
+      </ul>
+    </li>
+    <li><a href="#2026-09-19-更新">2026-09-19 更新</a>
+      <ul>
+        <li><a href="#官方说法">官方说法</a></li>
+        <li><a href="#逆向与实测对照旧版-3123-vs-新版-3140-vs-官方说法">逆向与实测对照（旧版 3.12.3 vs 新版 3.14.0 vs 官方说法）</a></li>
+        <li><a href="#顺便补几句澄清">顺便补几句澄清</a></li>
+        <li><a href="#防御还算不算数">防御还算不算数</a></li>
+        <li><a href="#还没回答的">还没回答的</a></li>
+      </ul>
+    </li>
+    <li><a href="#起点一个卡在-pending-里的-313mb-压缩包">起点：一个卡在 pending 里的 313MB 压缩包</a></li>
+    <li><a href="#它要传到哪从日志到-asar-逆向">它要传到哪：从日志到 asar 逆向</a></li>
+    <li><a href="#最讽刺的部分这把钥匙是服务端的">最讽刺的部分：这把钥匙是服务端的</a></li>
+    <li><a href="#快照里到底装了啥近九成是-git">快照里到底装了啥：近九成是 .git</a></li>
+    <li><a href="#开关的真相你关掉的开关根本管不着它">开关的真相：你关掉的开关根本管不着它</a></li>
+    <li><a href="#隐私政策怎么说的">隐私政策怎么说的</a></li>
+    <li><a href="#防御删是打地鼠直接锁目录">防御：删是打地鼠，直接锁目录</a>
+      <ul>
+        <li><a href="#macos">macOS</a></li>
+        <li><a href="#linux">Linux</a></li>
+        <li><a href="#影响与恢复">影响与恢复</a></li>
+      </ul>
+    </li>
+    <li><a href="#写在最后">写在最后</a></li>
+  </ul>
+</nav>
+  </div>
+</details>
+
+
+<script type="06cb262418926d0d0157a6a2-text/javascript">
+  (function () {
+    'use strict'
+
+    const SCROLL_OFFSET_RATIO = 0.33
+    const TOC_SELECTOR = '#TableOfContents'
+    const ANCHOR_SELECTOR = '.anchor'
+    const TOC_LINK_SELECTOR = 'a[href^="#"]'
+    const NESTED_LIST_SELECTOR = 'li ul'
+    const ACTIVE_CLASS = 'active'
+    let isJumpingToAnchor = false
+
+    function getActiveAnchorId(anchors, offsetRatio) {
+      const threshold = window.scrollY + window.innerHeight * offsetRatio
+      const tocLinks = [...document.querySelectorAll('#TableOfContents a[href^="#"]')]
+      const tocIds = new Set(tocLinks.map(link => link.getAttribute('href').substring(1)))
+
+      if (isJumpingToAnchor) {
+        for (let i = 0; i < anchors.length; i++) {
+          const anchor = anchors[i]
+          if (!tocIds.has(anchor.id)) continue
+          const top = anchor.getBoundingClientRect().top + window.scrollY
+          if (Math.abs(window.scrollY - top) < 100) {
+            return anchor.id
+          }
+        }
+      }
+
+      for (let i = anchors.length - 1; i >= 0; i--) {
+        const top = anchors[i].getBoundingClientRect().top + window.scrollY
+        if (top <= threshold && tocIds.has(anchors[i].id)) {
+          return anchors[i].id
+        }
+      }
+      return anchors.find(anchor => tocIds.has(anchor.id))?.id || ''
+    }
+
+    function updateTOC({ toc, anchors, links, scrollOffset, collapseInactive }) {
+      const activeId = getActiveAnchorId(anchors, scrollOffset)
+      if (!activeId) return
+
+      links.forEach(link => {
+        const isActive = link.getAttribute('href') === `#${activeId}`
+        link.classList.toggle(ACTIVE_CLASS, isActive)
+
+        if (collapseInactive) {
+          const ul = link.closest('li')?.querySelector('ul')
+          if (ul) ul.style.display = isActive ? '' : 'none'
+        }
+      })
+
+      if (collapseInactive) {
+        const activeLink = toc.querySelector(`a[href="#${CSS.escape(activeId)}"]`)
+        let el = activeLink
+        while (el && el !== toc) {
+          if (el.tagName === 'UL') el.style.display = ''
+          if (el.tagName === 'LI') el.querySelector('ul')?.style.setProperty('display', '')
+          el = el.parentElement
+        }
+      }
+    }
+
+    function initTOC() {
+      const toc = document.querySelector(TOC_SELECTOR)
+      if (!toc) return
+
+      const collapseInactive = false
+      const anchors = [...document.querySelectorAll(ANCHOR_SELECTOR)]
+      const links = [...toc.querySelectorAll(TOC_LINK_SELECTOR)]
+
+      if (collapseInactive) {
+        toc.querySelectorAll(NESTED_LIST_SELECTOR).forEach(ul => ul.style.display = 'none')
+      }
+
+      links.forEach(link => {
+        link.addEventListener('click', () => {
+          isJumpingToAnchor = true
+        })
+      })
+
+      const config = {
+        toc,
+        anchors,
+        links,
+        scrollOffset: SCROLL_OFFSET_RATIO,
+        collapseInactive
+      }
+
+      window.addEventListener('scroll', () => updateTOC(config), { passive: true })
+      window.addEventListener('hashchange', () => updateTOC(config), { passive: true })
+
+      updateTOC(config)
+    }
+
+    document.readyState === 'loading'
+      ? document.addEventListener('DOMContentLoaded', initTOC)
+      : initTOC()
+  })()
+</script>
+
+
+          </div>
+        </div>
+      
+
+      <div class="min-w-0 min-h-0">
+        
+
+        <div class="article-content mb-20">
+          <p>本来只是清理磁盘时顺手看一眼 <code>~/.zcode</code> 为什么占了 700 多 MB。断断续续排查下来，确认了一件挺离谱的事：</p>
+<p><strong>只要你在登录状态，ZCode（智谱官方的 AI 编程桌面端）就会在后台静默把整个工作区——包括完整的 <code>.git</code> 历史、LFS 大文件缓存、reflog 以及全局应用配置——打包加密，直接上传到阿里云 OSS。</strong></p>
+<p>更讽刺的是：<strong>加密用的 RSA 公钥是服务端动态下发的，私钥只存在云端。</strong> 你本地生成的那份几百兆的密文，连你自己和客户端本体都解不开。</p>
+<p>这篇文章把排查过程、证据链和最终的一键防御方案完整记录一下。</p>
+<p><em>（注：事件已迎来官方回应与开源进展，9-21 及 9-23 最新源码对账与实测见下方更新；初次阅读可直接顺着下文查看原始排查记录）</em></p>
+
+<h2 class="relative group">2026-09-23 更新
+    <div id="2026-09-23-更新" class="anchor"></div>
+    
+    <span
+        class="absolute top-0 w-6 transition-opacity opacity-0 -start-6 not-prose group-hover:opacity-100 select-none">
+        <a class="text-primary-300 dark:text-neutral-700 !no-underline" href="#2026-09-23-%e6%9b%b4%e6%96%b0" aria-label="锚点">#</a>
+    </span>
+    
+</h2>
+<p>今天（9-23）傍晚，ZCode 客户端推送了 <strong>v3.14.3</strong>，随后公开代码仓库提交了对应 commit（<code>328c1a0 feat: update v3.14.3</code>），开源仓库与发布版本号保持了同步。</p>
+<p>不过需要理性指出：<strong>版本号对齐并不等同于闭源发布版本与开源仓库完全 1:1 对等，未经逐字节对比不能做绝对判定</strong>。这里只呈现针对开源仓库 Diff 以及本机运行状态的客观核验结果：</p>
+<ol>
+<li><strong>开源仓库 Diff 审查</strong>：
+<ul>
+<li>审查了该 commit 包含的 282 个文件变动，此前捕获的 <code>/api/v1/snapshot/upload-credential</code> 与 AES-256-CTR 整仓打包流程依然未见回退；</li>
+<li>检查点实现（<code>gitCheckpointService.ts</code>）仍维持纯本地 Git CLI 增量调用；</li>
+<li>本次新增代码主要集中在多渠道 IM Bot 接入（微信、飞书、钉钉、Telegram 等远程控制能力）及 Workflow 协议优化。</li>
+</ul>
+</li>
+<li><strong>本机客户端运行实测</strong>：
+<ul>
+<li>本机应用已更新至 3.14.3，解包静态资源（<code>app.asar</code>）未发现 <code>repoSnapshot</code> 逻辑；</li>
+<li>动态监控日志与 <code>~/.zcode/v2/checkpoints/</code> 目录，目前未见全仓扫描、打包或新生成 <code>.enc</code> 文件的行为。</li>
+</ul>
+</li>
+</ol>
+<p>每次发版能有公开 Diff 对账，总比盲盒迭代让人踏实。不过对闭源桌面软件来说，代码怎么写是一回事，本地怎么跑是另一回事——后文给出的目录只读锁定，依然建议留着当个保底防御。</p>
+
+<h2 class="relative group">2026-09-21 更新
+    <div id="2026-09-21-更新" class="anchor"></div>
+    
+    <span
+        class="absolute top-0 w-6 transition-opacity opacity-0 -start-6 not-prose group-hover:opacity-100 select-none">
+        <a class="text-primary-300 dark:text-neutral-700 !no-underline" href="#2026-09-21-%e6%9b%b4%e6%96%b0" aria-label="锚点">#</a>
+    </span>
+    
+</h2>
+<p>今天（9-21）上午 9:23，ZCode 官方在 X 上发了<a href="https://x.com/zcode_ai/status/2101844704933621971"  target="_blank" rel="noreferrer">通报声明</a>，同时也放出了所谓的开源核心代码仓库（<a href="https://github.com/zai-org/ZCode"  target="_blank" rel="noreferrer">GitHub: zai-org/ZCode</a>）。随着源码公开以及官方引述的第三方评估结论出炉，此前官方通告里的几处说法，终于有了可以拉出来逐一对账的代码依据。</p>
+
+<h3 class="relative group">1. 源码审查：只留两条 Commit 的丐版开源（锁 PR、关 Issue）
+    <div id="1-源码审查只留两条-commit-的丐版开源锁-pr关-issue" class="anchor"></div>
+    
+    <span
+        class="absolute top-0 w-6 transition-opacity opacity-0 -start-6 not-prose group-hover:opacity-100 select-none">
+        <a class="text-primary-300 dark:text-neutral-700 !no-underline" href="#1-%e6%ba%90%e7%a0%81%e5%ae%a1%e6%9f%a5%e5%8f%aa%e7%95%99%e4%b8%a4%e6%9d%a1-commit-%e7%9a%84%e4%b8%90%e7%89%88%e5%bc%80%e6%ba%90%e9%94%81-pr%e5%85%b3-issue" aria-label="锚点">#</a>
+    </span>
+    
+</h3>
+<p>翻开刚放出来的 Git 仓库，意料之中，果然是一贯的大厂防守刀法：</p>
+<ul>
+<li><strong>历史记录被彻底洗净</strong>：整个仓库一共就两条提交记录——一个空的初始 Commit，加上一个一次性导入 6,973 个文件、103 万行代码的 <code>feat: open source</code>。开源仓库自身的内部开发历史被彻底抹平，既看不到旧版 sidecar 的代码演进，更看不到剥离 <code>repoSnapshot</code> 管道的具体 Commit Diff。而且仓库锁了 PR、关了 Issue，纯属单向投喂式的“开源”。</li>
+<li><strong>开源协议</strong>：Apache-2.0。</li>
+<li><strong>上传链路全量清除</strong>：在源码里搜此前捕获的 <code>/api/v1/snapshot/upload-credential</code>、<code>PostObject</code> 直传 OSS、AES-256-CTR 加密及公钥下发，全被拔得干干净净，没有留存一行残留代码。</li>
+<li><strong>Repo Wiki 彻底淡化</strong>：代码库里除了留着一个外部 Wikipedia 链接，移除了所有关于 Repo Wiki 的实现。现在的代码索引与符号检索，退回为纯本地进程调用内置的 <code>ripgrep 14.1.1</code> 与 <code>bfs 4.1.1</code>——事实证明压根不需要传整仓，本地检索照样跑得好好的。</li>
+<li><strong>求生欲拉满的 NOTICE.md</strong>：更有意思的是根目录下那份长达 2.7 万字节的 <code>NOTICE.md</code>。法务用密不透风的措辞，把每一个对外请求甚至连已被掏空的 Computer Use 占位符都用免责条款严密武装，唯独对“整仓上传”绝口不提。</li>
+</ul>
+
+<h3 class="relative group">2. 检查点（Checkpoint）机制穿帮：源码证实纯属本地 Git
+    <div id="2-检查点checkpoint机制穿帮源码证实纯属本地-git" class="anchor"></div>
+    
+    <span
+        class="absolute top-0 w-6 transition-opacity opacity-0 -start-6 not-prose group-hover:opacity-100 select-none">
+        <a class="text-primary-300 dark:text-neutral-700 !no-underline" href="#2-%e6%a3%80%e6%9f%a5%e7%82%b9checkpoint%e6%9c%ba%e5%88%b6%e7%a9%bf%e5%b8%ae%e6%ba%90%e7%a0%81%e8%af%81%e5%ae%9e%e7%ba%af%e5%b1%9e%e6%9c%ac%e5%9c%b0-git" aria-label="锚点">#</a>
+    </span>
+    
+</h3>
+<p>此前官方说明声称“上传代码库快照是为了用于会话检查点回滚”。源码一放出来，我顺藤摸瓜直接找到了检查点的真实实现（<code>packages/services/src/git/gitCheckpointService.ts</code> 与 <code>gitCheckpointRepo.ts</code>）：</p>
+<ul>
+<li><strong>实现原理</strong>：核心全在本地跑 Git CLI，用 <code>git diff --name-status</code> 和 <code>git diff --numstat</code> 基于 Commit OID 仅在当前 Workspace 范围内算增量改动；</li>
+<li><strong>存储位置</strong>：元数据以 JSON 格式直接存在本机的 <code>~/.zcode/checkpoints/</code>；</li>
+<li><strong>事实印证</strong>：开源源码证实，检查点实现纯粹是基于本地 Git 的增量比对工具，本身完全没有云端依赖，与整仓打包上云毫无关系。此前官方拿“检查点回滚”当理由来解释整仓上传，在源码面前完全站不住脚。</li>
+</ul>
+
+<h3 class="relative group">3. 第三方评估与“删桶自证”
+    <div id="3-第三方评估与删桶自证" class="anchor"></div>
+    
+    <span
+        class="absolute top-0 w-6 transition-opacity opacity-0 -start-6 not-prose group-hover:opacity-100 select-none">
+        <a class="text-primary-300 dark:text-neutral-700 !no-underline" href="#3-%e7%ac%ac%e4%b8%89%e6%96%b9%e8%af%84%e4%bc%b0%e4%b8%8e%e5%88%a0%e6%a1%b6%e8%87%aa%e8%af%81" aria-label="锚点">#</a>
+    </span>
+    
+</h3>
+<p>官方通报里摘要引述了中国信通院（CAICT）与绿盟科技（NSFOCUS）的评估结论（声明称完整报告即将发布）：</p>
+<ul>
+<li><strong>通报结论</strong>：CAICT 确认 <code>zcode-prod</code> OSS 存储桶数据为零，客户端 3.14.0 移除了快照生成与上传工作流；NSFOCUS 确认该存储桶及内部对象已全部删除，未发现外传本地文件的路径。</li>
+<li><strong>客观评价</strong>：能主动把桶清空并彻底销毁，确实是应有的止损动作。但在技术与时间线逻辑上，<strong>哪怕未来出具完整的第三方静态核验报告，也只能证明“存储桶在 9-20 之后确实被删了”，客观上无法倒推 9-18 之前流转进去的数据到底有没有被解密、同步或备份</strong>。历史数据的生命周期，始终无法靠事后单次审计来倒推自证。</li>
+</ul>
+
+<h3 class="relative group">4. 舆论场中的几点澄清与现实黑色幽默
+    <div id="4-舆论场中的几点澄清与现实黑色幽默" class="anchor"></div>
+    
+    <span
+        class="absolute top-0 w-6 transition-opacity opacity-0 -start-6 not-prose group-hover:opacity-100 select-none">
+        <a class="text-primary-300 dark:text-neutral-700 !no-underline" href="#4-%e8%88%86%e8%ae%ba%e5%9c%ba%e4%b8%ad%e7%9a%84%e5%87%a0%e7%82%b9%e6%be%84%e6%b8%85%e4%b8%8e%e7%8e%b0%e5%ae%9e%e9%bb%91%e8%89%b2%e5%b9%bd%e9%bb%98" aria-label="锚点">#</a>
+    </span>
+    
+</h3>
+<p><a href="https://x.com/ferstar_org/status/2100805861002355154"  target="_blank" rel="noreferrer">原推</a>阅读量破了 160 万后，流量正逐渐降温，顺带澄清几个有意思的插曲：</p>
+<ol>
+<li><strong>我并非“社区开发者”，更不是什么“外网黑客”</strong>：官方通报里笼统地写着“感谢社区开发者提出问题”（实际上别说 @ 我了，哪怕隔空点名致谢都没有），公关降级修辞罢了。我压根不是这项目的贡献者，只是个自掏腰包买了 Coding Plan 搬砖、发现商业代码被未授权偷运后摆抓包证据的普通一线工程师。至于网传的“神秘黑客”、“逆向大佬”，全属扯淡，排查过程无非是看磁盘、看路由日志和解包。至于少数扣帽子说“给外网递刀子”的声音，更是荒唐——发现自己商业代码资产裸奔时，站出来自保是基本的职业本能。如果指出房间里的大象是“递刀子”，难道保持沉默任由代码被偷运才算支持？真正的技术生态从来不是靠捂盖子捂出来的。</li>
+<li><strong>那个被传为“凌晨两点发文”的真实故事</strong>：各处转发里，几乎所有人都按本文开头的时间，当我是“凌晨两点熬夜发文”。其实这恰好是“<strong>尽信 AI 则不如无 AI</strong>”的绝佳现实讽刺——我的真实 Git 提交记录清清楚楚写着 <code>Fri Sep 18 10:35:05 2026 +0800</code>，是大白天上午 10 点半提交的。之所以 Front Matter 挂着 <code>02:00:00</code>，纯粹是因为写完文章后偷懒让 AI 帮我生成 Hugo 元数据，AI 脑补了这个时间，而我当时急着验证路由阻断没仔细核对。本意是写文章提醒大家切勿盲信 AI 的后台行为，自己却反手被 AI 编的时间戳坑了一道，引得全网脑补了一出“深夜突袭”的大戏。乐呵之余，这大概是近期最接地气的一个提醒：任何时候偷懒全盘信了 AI，它都能冷不丁坑你一把。</li>
+</ol>
+
+<h2 class="relative group">2026-09-19 更新
+    <div id="2026-09-19-更新" class="anchor"></div>
+    
+    <span
+        class="absolute top-0 w-6 transition-opacity opacity-0 -start-6 not-prose group-hover:opacity-100 select-none">
+        <a class="text-primary-300 dark:text-neutral-700 !no-underline" href="#2026-09-19-%e6%9b%b4%e6%96%b0" aria-label="锚点">#</a>
+    </span>
+    
+</h2>
+<p>原文发出后引发广泛关注，9-18 当天 17:44，官方在用户群发出了说明通告（IT之家等媒体随后于傍晚跟进报道）。下面只做客观对照，后面的原文排查记录不改。</p>
+
+<h3 class="relative group">官方说法
+    <div id="官方说法" class="anchor"></div>
+    
+    <span
+        class="absolute top-0 w-6 transition-opacity opacity-0 -start-6 not-prose group-hover:opacity-100 select-none">
+        <a class="text-primary-300 dark:text-neutral-700 !no-underline" href="#%e5%ae%98%e6%96%b9%e8%af%b4%e6%b3%95" aria-label="锚点">#</a>
+    </span>
+    
+</h3>
+<p>官方于 9-18 17:44 发出说明，公开报道可参考 <a href="https://www.ithome.com/1/004/310.htm"  target="_blank" rel="noreferrer">IT之家</a>。要点如下：</p>
+<ul>
+<li>问题出在「代码库索引」，用来做本地索引、会话检查点回滚，以及 Repo Wiki；</li>
+<li>Repo Wiki 在云端生成页面时「可能」触发仓库数据上传；</li>
+<li>Wiki 生成后，相关上传数据会立即销毁、不会保存；</li>
+<li>上线初期默认开启，部分用户受影响，问题「已经修复」；</li>
+<li>近期开源 ZCode，并引入第三方审查；全体用户额外一次周额度重置。</li>
+</ul>
+<p>官方对「存在上传行为」已无异议。真正存疑的是上传范围、控制开关，以及云端所称的「立即销毁」如何验证。</p>
+
+<h3 class="relative group">逆向与实测对照（旧版 3.12.3 vs 新版 3.14.0 vs 官方说法）
+    <div id="逆向与实测对照旧版-3123-vs-新版-3140-vs-官方说法" class="anchor"></div>
+    
+    <span
+        class="absolute top-0 w-6 transition-opacity opacity-0 -start-6 not-prose group-hover:opacity-100 select-none">
+        <a class="text-primary-300 dark:text-neutral-700 !no-underline" href="#%e9%80%86%e5%90%91%e4%b8%8e%e5%ae%9e%e6%b5%8b%e5%af%b9%e7%85%a7%e6%97%a7%e7%89%88-3123-vs-%e6%96%b0%e7%89%88-3140-vs-%e5%ae%98%e6%96%b9%e8%af%b4%e6%b3%95" aria-label="锚点">#</a>
+    </span>
+    
+</h3>
+<p>为了避免混淆不同版本下的实际表现，这里将捕获问题时的旧版（3.12.3）、最新升级的 3.14.0 逆向排查结果与官方说法逐一拉平对比：</p>
+<table>
+  <thead>
+      <tr>
+          <th>维度</th>
+          <th>官方说法 (9-18 17:44)</th>
+          <th>3.12.3 旧版客户端实测与逆向 (问题版本)</th>
+          <th>3.14.0 最新版客户端实测 (修复版本)</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td><strong>传了什么</strong></td>
+          <td>仓库数据（用于 Wiki）</td>
+          <td>整仓快照，近 87% 是 <code>.git</code>，含 objects / LFS / reflog</td>
+          <td>该上传链路代码已被彻底移除，仅保留本地 checkpoint</td>
+      </tr>
+      <tr>
+          <td><strong>触发时机</strong></td>
+          <td>Repo Wiki 生成页面时「可能」上传</td>
+          <td>sidecar 伴随登录常驻；<code>captureBeforePrompt</code>（每次提问前）与 <code>repo-wiki-update</code> 均无条件触发</td>
+          <td>上传 sidecar 逻辑已拆除，不再触发打包上云</td>
+      </tr>
+      <tr>
+          <td><strong>关不关得掉</strong></td>
+          <td>未说明有关闭上传的开关</td>
+          <td>关掉「优化体验」与「仓库快照索引」后，后台依然打包并尝试直传 OSS</td>
+          <td>代码层已物理删除上传管线</td>
+      </tr>
+      <tr>
+          <td><strong>云端处理</strong></td>
+          <td>生成后立即销毁</td>
+          <td>外部无法验证（且与官方声称的“会话检查点回滚”机制在工程逻辑上自相矛盾）</td>
+          <td>云端 <code>upload-credential</code> 接口已下线（返回 404）</td>
+      </tr>
+      <tr>
+          <td><strong>存量数据</strong></td>
+          <td>称 Wiki 生成后不保存</td>
+          <td>538 文件的小公开仓快照已被服务端正式接收入库，存量私钥与解密权限未作说明</td>
+          <td>存量已上传数据是否物理销毁依然无法从外部证实</td>
+      </tr>
+  </tbody>
+</table>
+<p>补一条原文没写清的：313MB 那个商业项目卡在 <code>pending</code>（失败 564 次），<strong>没有传成功</strong>。另有一个很小的公开仓库工作区，538 个文件、压缩加密后约 15KB，状态是服务端已接收。所以「有没有真传出去」——至少这一次传出去了。</p>
+<p>Windows 上别人也复现了同一套目录和状态文件，还有多份无失败记录、看起来已经入库的小仓，见 <a href="https://www.nodeseek.com/post-935260-1"  target="_blank" rel="noreferrer">NodeSeek</a>；另一份本机对照见 <a href="https://blog.silencestar.com/posts/zcode-repo-snapshot/"  target="_blank" rel="noreferrer">silencestar</a>。</p>
+<p>9-18 当天存过 <a href="https://zcode.z.ai/cn/privacy"  target="_blank" rel="noreferrer">官方隐私政策</a> 快照，页面仍标注更新于 2026-06-15，当时通篇没写整仓快照或云同步。</p>
+
+<h3 class="relative group">顺便补几句澄清
+    <div id="顺便补几句澄清" class="anchor"></div>
+    
+    <span
+        class="absolute top-0 w-6 transition-opacity opacity-0 -start-6 not-prose group-hover:opacity-100 select-none">
+        <a class="text-primary-300 dark:text-neutral-700 !no-underline" href="#%e9%a1%ba%e4%be%bf%e8%a1%a5%e5%87%a0%e5%8f%a5%e6%be%84%e6%b8%85" aria-label="锚点">#</a>
+    </span>
+    
+</h3>
+<ol>
+<li><strong>313MB 的商业项目到底传上去没</strong>：再明确一下，那个 313MB 的商业项目因为体积超标失败了 564 次，一直死死卡在本地 <code>pending</code>，<strong>压根没传成功</strong>。我家里跑的是 OpenWrt 路由，拉了连接跟踪和流量日志反复对过，这几百兆加密包根本没出局域网。</li>
+<li><strong>真不是什么「逆向高手」，全靠丐版 MBA 立功</strong>：看到有人给我扣「逆向大佬」的帽子，大可不必。整件事的起点非常朴素——完全得托苹果比金子还金贵的存储，我那台丐版 256G 的 MacBook Air 空间天天捉襟见肘，清磁盘时扫到 <code>~/.zcode</code> 莫名其妙吞了 700 多 MB 空间，直觉不对劲才顺手 unpack 了 <code>app.asar</code> 去翻翻到底在搞什么鬼（要是在我另一台 2TB 盘的 Arch Linux 上，我才懒得管区区几百兆的占用）。况且就现在 coding agent 的逆向和代码还原水平，大街上随便拉一个 agent 出来把帖子和源码甩过去都能给你分析得头头是道，人人都是逆向工程师，真谈不上什么独门绝技，纯属工程师的基本排查本能。</li>
+<li><strong>最打脸的戏剧性</strong>：其实我自己本就是 GLM Coding Max 的长期订阅支持者。更讽刺的是，9-17 晚上我还在技术群里热心跟群友安利 ZCode，结果不到半天就当场打脸，自己顺藤摸瓜抓到了这个静默打包全仓的骚操作。</li>
+</ol>
+
+<h3 class="relative group">防御还算不算数
+    <div id="防御还算不算数" class="anchor"></div>
+    
+    <span
+        class="absolute top-0 w-6 transition-opacity opacity-0 -start-6 not-prose group-hover:opacity-100 select-none">
+        <a class="text-primary-300 dark:text-neutral-700 !no-underline" href="#%e9%98%b2%e5%be%a1%e8%bf%98%e7%ae%97%e4%b8%8d%e7%ae%97%e6%95%b0" aria-label="锚点">#</a>
+    </span>
+    
+</h3>
+<p>算。虽然 3.14.0 拔除了代码且网关 404，但客户端随时具备热更新能力。下面「锁目录」那节依然作为绊线保留，Windows 等价做法 NodeSeek 那篇写了 ACL。</p>
+
+<h3 class="relative group">还没回答的
+    <div id="还没回答的" class="anchor"></div>
+    
+    <span
+        class="absolute top-0 w-6 transition-opacity opacity-0 -start-6 not-prose group-hover:opacity-100 select-none">
+        <a class="text-primary-300 dark:text-neutral-700 !no-underline" href="#%e8%bf%98%e6%b2%a1%e5%9b%9e%e7%ad%94%e7%9a%84" aria-label="锚点">#</a>
+    </span>
+    
+</h3>
+<ol>
+<li>「立即销毁」如何从外部证明？云端存量已上传的加密快照是否已彻底物理清除、谁保留了私钥解密权。</li>
+<li>官方声称的“检查点回滚”与“立即销毁”前后逻辑冲突，云端到底留存了什么。</li>
+<li>开源会不会带上被捕获的旧版上传 sidecar，而不只是最新一次 commit。<em>（9-21 源码确认：未带历史，仅 2 条 commit 彻底抹平，见文首 9-21 更新）</em></li>
+</ol>
+<p><em>（注：开源对账已在文首 9-21 节更新）</em></p>
+
+<h2 class="relative group">起点：一个卡在 pending 里的 313MB 压缩包
+    <div id="起点一个卡在-pending-里的-313mb-压缩包" class="anchor"></div>
+    
+    <span
+        class="absolute top-0 w-6 transition-opacity opacity-0 -start-6 not-prose group-hover:opacity-100 select-none">
+        <a class="text-primary-300 dark:text-neutral-700 !no-underline" href="#%e8%b5%b7%e7%82%b9%e4%b8%80%e4%b8%aa%e5%8d%a1%e5%9c%a8-pending-%e9%87%8c%e7%9a%84-313mb-%e5%8e%8b%e7%bc%a9%e5%8c%85" aria-label="锚点">#</a>
+    </span>
+    
+</h2>
+<p><code>~/.zcode</code> 是 ZCode 的本地数据根目录。当时扫出来的目录体积分布大概这样：</p>
+<ul>
+<li><code>cli/</code>：约 257MB（本地会话数据库、执行日志）</li>
+<li><code>computer-use/</code>：约 130MB（应用本体和运行依赖）</li>
+<li><code>v2/checkpoints/</code>：约 303MB（也就是这次的主角）</li>
+</ul>
+<p>点进 <code>v2/checkpoints/</code>，里面躺着一个 313MB 的 <code>.enc</code> 加密文件，还有一份状态文件：</p>
+<div class="highlight-wrapper"><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-json" data-lang="json"><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&#34;workspacePath&#34;</span><span class="p">:</span> <span class="s2">&#34;/Users/ferstar/myprojects/&lt;某商业项目&gt;&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&#34;lastCompressedSize&#34;</span><span class="p">:</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&#34;encryptedSizeBytes&#34;</span><span class="p">:</span> <span class="mi">313070842</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&#34;workspaceSizeBytes&#34;</span><span class="p">:</span> <span class="mi">345549173</span>
+</span></span><span class="line"><span class="cl">  <span class="p">},</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&#34;kind&#34;</span><span class="p">:</span> <span class="s2">&#34;baseline&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&#34;failureCount&#34;</span><span class="p">:</span> <span class="mi">564</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span></span></span></code></pre></div></div>
+<p>意思很直白：</p>
+<ol>
+<li>客户端扫了我本地打开的商业项目，排除了 <code>node_modules</code> 等少量目录后，把剩下的 345MB 内容打包加密成了 313MB 的压缩包，标记为 <code>baseline</code>（全量快照）；</li>
+<li>状态显示它尝试上传失败了 564 次，所以一直卡在本地 <code>pending/</code> 目录里等着重试。</li>
+</ol>
+<p>整个项目总共 10GB，排除掉依赖后剩下的 345MB 几乎全是核心资产。</p>
+
+<h2 class="relative group">它要传到哪：从日志到 asar 逆向
+    <div id="它要传到哪从日志到-asar-逆向" class="anchor"></div>
+    
+    <span
+        class="absolute top-0 w-6 transition-opacity opacity-0 -start-6 not-prose group-hover:opacity-100 select-none">
+        <a class="text-primary-300 dark:text-neutral-700 !no-underline" href="#%e5%ae%83%e8%a6%81%e4%bc%a0%e5%88%b0%e5%93%aa%e4%bb%8e%e6%97%a5%e5%bf%97%e5%88%b0-asar-%e9%80%86%e5%90%91" aria-label="锚点">#</a>
+    </span>
+    
+</h2>
+<p>日志里没有直接打出具体的上传地址，于是顺手把客户端的 <code>app.asar</code> 扒开看代码。整条上传链路还原出来如下：</p>
+<pre class="not-prose mermaid">
+sequenceDiagram
+    participant C as ZCode 客户端
+    participant S as zcode.z.ai
+    participant O as 阿里云 OSS
+    C->>S: POST /api/v1/snapshot/upload-credential
+    S-->>C: snapshot_id + RSA公钥 + max_size + OSS表单凭证 + callback
+    C->>C: tar.gz 打包 → AES-256-CTR 加密 → RSA-OAEP 包裹密钥
+    C->>O: PostObject 表单直传 tar.gz.enc
+    O->>S: callback 回调确认接收
+</pre>
+
+<p>整个流程分两步：</p>
+<ol>
+<li><strong>先找协调服务器要凭证</strong>：客户端请求 <code>https://zcode.z.ai</code>（代码里的 <code>VITE_ZCODE_ENDPOINT_ORIGIN</code>），服务端返回 OSS 表单签名（<code>policy</code>、<code>x-oss-signature</code>）、动态分配的 Object Key、大小限制，以及本次加密要用的公钥；</li>
+<li><strong>表单直传 OSS</strong>：客户端在本地打包并流式加密后，<strong>根本不经过智谱自己的业务服务器，直接走 HTTP POST 表单把 <code>tar.gz.enc</code> 甩给阿里云 OSS</strong>。传完之后由 OSS 服务端触发 callback 通知智谱后端登记。</li>
+</ol>
+<p>抓包看了下 ZCode 运行时的连接，进程常驻的 HTTPS 连接刚好就是 <code>zcode.z.ai</code> 的解析 IP 外加两个阿里云 OSS 节点。</p>
+
+<h2 class="relative group">最讽刺的部分：这把钥匙是服务端的
+    <div id="最讽刺的部分这把钥匙是服务端的" class="anchor"></div>
+    
+    <span
+        class="absolute top-0 w-6 transition-opacity opacity-0 -start-6 not-prose group-hover:opacity-100 select-none">
+        <a class="text-primary-300 dark:text-neutral-700 !no-underline" href="#%e6%9c%80%e8%ae%bd%e5%88%ba%e7%9a%84%e9%83%a8%e5%88%86%e8%bf%99%e6%8a%8a%e9%92%a5%e5%8c%99%e6%98%af%e6%9c%8d%e5%8a%a1%e7%ab%af%e7%9a%84" aria-label="锚点">#</a>
+    </span>
+    
+</h2>
+<p>客户端用的加密是标准的信封加密（Envelope Encryption）：</p>
+<div class="highlight-wrapper"><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-javascript" data-lang="javascript"><span class="line"><span class="cl"><span class="nx">keyId</span><span class="o">:</span> <span class="nb">String</span><span class="p">(</span><span class="nx">i</span><span class="p">.</span><span class="nx">encryption</span><span class="p">.</span><span class="nx">key_version</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl"><span class="nx">keyWrapAlgorithm</span><span class="o">:</span> <span class="s2">&#34;rsa-oaep-sha256&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl"><span class="nx">publicKeySpkiPem</span><span class="o">:</span> <span class="nx">Ylt</span><span class="p">(</span><span class="nx">i</span><span class="p">.</span><span class="nx">encryption</span><span class="p">.</span><span class="nx">public_key</span><span class="p">)</span></span></span></code></pre></div></div>
+<ul>
+<li>文件内容用随机生成的对称密钥走 AES-256-CTR 加密；</li>
+<li>对称密钥用 RSA-OAEP-SHA256 包裹，公钥就是上面从服务端动态拿到的。</li>
+</ul>
+<p>关键就在这把 RSA 公钥：<strong>它是服务端在下发上传凭证时临时给的，私钥从头到尾只在云端。</strong> 我拿本机的所有私钥去解 envelope 里的密钥，毫无悬念全都失败。</p>
+<p>这意味着：你硬盘上那份 313MB 的密文，你打不开，ZCode 客户端自己也打不开，全天下只有智谱后端的私钥能解。</p>
+<p>如果这玩意真是为了给用户做断点恢复或者跨设备同步，密钥理应绑在本地（像 Git 或者 Time Machine 一样）。<strong>一把只有服务端能解开的钥匙，目的只有一个：确保服务端单方面能看。</strong></p>
+
+<h2 class="relative group">快照里到底装了啥：近九成是 .git
+    <div id="快照里到底装了啥近九成是-git" class="anchor"></div>
+    
+    <span
+        class="absolute top-0 w-6 transition-opacity opacity-0 -start-6 not-prose group-hover:opacity-100 select-none">
+        <a class="text-primary-300 dark:text-neutral-700 !no-underline" href="#%e5%bf%ab%e7%85%a7%e9%87%8c%e5%88%b0%e5%ba%95%e8%a3%85%e4%ba%86%e5%95%a5%e8%bf%91%e4%b9%9d%e6%88%90%e6%98%af-git" aria-label="锚点">#</a>
+    </span>
+    
+</h2>
+<p>密文虽然解不开，但快照生成时留下的 Manifest（文件清单）是明明白白写在本地的。拉出这份包含 42,411 个文件的清单统计了一下：</p>
+<table>
+  <thead>
+      <tr>
+          <th>内容</th>
+          <th>体积</th>
+          <th>占比</th>
+          <th>包含的信息</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td><code>.git/lfs/</code></td>
+          <td>196.1 MB</td>
+          <td>56.8%</td>
+          <td>LFS 缓存，项目历史下拉过的所有大文件和二进制资产</td>
+      </tr>
+      <tr>
+          <td><code>.git/objects/</code></td>
+          <td>102.2 MB</td>
+          <td>29.6%</td>
+          <td>完整的 Git 历史对象库（Commit、Tree、Blob）</td>
+      </tr>
+      <tr>
+          <td><code>.git/logs/</code></td>
+          <td>0.6 MB</td>
+          <td>0.2%</td>
+          <td>reflog 轨迹，本地所有分支操作和未推送记录</td>
+      </tr>
+      <tr>
+          <td>其余源码与文档</td>
+          <td>~46.2 MB</td>
+          <td>13.4%</td>
+          <td><code>src/</code>、各类配置文件和业务代码</td>
+      </tr>
+  </tbody>
+</table>
+<p><code>.git</code> 一个目录就占了整整 <strong>86.6%</strong>。</p>
+<p>也就是说，只要这个包传上去了，云端拿到的绝不只是你当前工作区的代码，而是<strong>这个仓库自打创建以来的全部历史底裤</strong>：</p>
+<ul>
+<li>哪怕早就被覆盖删掉的敏感配置和历史 key；</li>
+<li>本地还没推远端的分支名（直接暴露业务未公开的研发动向）；</li>
+<li><code>.git/config</code> 里配的内部自建 GitLab 域名和仓库路径。</li>
+</ul>
+<p>另外代码里还带了一个 <code>repo_snapshot_extra_manifest</code>，会把你的 ZCode 全局配置文件（比如 <code>settings.behavior.json</code>）算完哈希，跨工作区打包，随每次快照一起传上云端。</p>
+
+<h2 class="relative group">开关的真相：你关掉的开关根本管不着它
+    <div id="开关的真相你关掉的开关根本管不着它" class="anchor"></div>
+    
+    <span
+        class="absolute top-0 w-6 transition-opacity opacity-0 -start-6 not-prose group-hover:opacity-100 select-none">
+        <a class="text-primary-300 dark:text-neutral-700 !no-underline" href="#%e5%bc%80%e5%85%b3%e7%9a%84%e7%9c%9f%e7%9b%b8%e4%bd%a0%e5%85%b3%e6%8e%89%e7%9a%84%e5%bc%80%e5%85%b3%e6%a0%b9%e6%9c%ac%e7%ae%a1%e4%b8%8d%e7%9d%80%e5%ae%83" aria-label="锚点">#</a>
+    </span>
+    
+</h2>
+<p>很多人第一反应是去设置里找开关关掉。我把设置项和代码逻辑逐个对了一遍：</p>
+<table>
+  <thead>
+      <tr>
+          <th>开关</th>
+          <th>你以为它管</th>
+          <th>实际管</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td><strong>优化体验</strong> (<code>optimizeAgentExperienceEnabled</code>)</td>
+          <td>数据采集 / 遥测上传</td>
+          <td><strong>只管要不要拿你的数据去训练模型</strong>。关了照样抓快照上传</td>
+      </tr>
+      <tr>
+          <td><strong>仓库快照索引</strong> (<code>repoSnapshotIndexingEnabled</code>)</td>
+          <td>快照功能本身</td>
+          <td><strong>只管服务端拿了快照后要不要建索引</strong>。关了本地打包上传一点不落</td>
+      </tr>
+  </tbody>
+</table>
+<p>看客户端组装代码更直白：负责快照捕获和上传的 sidecar 是在启动时<strong>无条件实例化的</strong>。代码里根本没有任何针对用户配置的 if 判断，唯一的要求就是 <code>tokenProvider</code> 能拿到登录后的 JWT。</p>
+<p><strong>一句话：只要你登录了账号，这个上传机制就是常开的，而且 UI 里没有任何开关能把它关掉。</strong></p>
+<p>抓取触发点有两个：一个是 <code>captureBeforePrompt</code>（每次发 Prompt 前），另一个是任务结束时标记 <code>repo-wiki-update</code>。翻看日志，单个活跃会话里最多能产生 62 次快照捕获。</p>
+
+<h2 class="relative group">隐私政策怎么说的
+    <div id="隐私政策怎么说的" class="anchor"></div>
+    
+    <span
+        class="absolute top-0 w-6 transition-opacity opacity-0 -start-6 not-prose group-hover:opacity-100 select-none">
+        <a class="text-primary-300 dark:text-neutral-700 !no-underline" href="#%e9%9a%90%e7%a7%81%e6%94%bf%e7%ad%96%e6%80%8e%e4%b9%88%e8%af%b4%e7%9a%84" aria-label="锚点">#</a>
+    </span>
+    
+</h2>
+<p>翻了下 ZCode 的隐私政策，里面明确写了会收集“对话中提交的文本、文件和代码”——这属于 AI 助手调模型推理的常规操作，各家都一样。</p>
+<p>但通篇<strong>只字未提会把整个工作区连同完整 Git 历史静默打包上传</strong>。官方文档、FAQ 和更新日志里对此也完全没有任何说明。</p>
+<p>能对得上的只有一句万能套话：“优化计划默认关闭，不主动加入不会将输入用于训练”。</p>
+
+<h2 class="relative group">防御：删是打地鼠，直接锁目录
+    <div id="防御删是打地鼠直接锁目录" class="anchor"></div>
+    
+    <span
+        class="absolute top-0 w-6 transition-opacity opacity-0 -start-6 not-prose group-hover:opacity-100 select-none">
+        <a class="text-primary-300 dark:text-neutral-700 !no-underline" href="#%e9%98%b2%e5%be%a1%e5%88%a0%e6%98%af%e6%89%93%e5%9c%b0%e9%bc%a0%e7%9b%b4%e6%8e%a5%e9%94%81%e7%9b%ae%e5%bd%95" aria-label="锚点">#</a>
+    </span>
+    
+</h2>
+<p>刚发现这个 pending 包时我顺手把它删了，结果半小时内它又重新抓了一次——新的 313MB 压缩包，失败计数从 564 蹦到 565。上传器发现本地文件没了，直接重新打包一个。纯靠手动删就是打地鼠。</p>
+<p>最直接有效的办法是在文件系统层加不变锁，从内核层面禁止写入这个目录：</p>
+
+<h3 class="relative group">macOS
+    <div id="macos" class="anchor"></div>
+    
+    <span
+        class="absolute top-0 w-6 transition-opacity opacity-0 -start-6 not-prose group-hover:opacity-100 select-none">
+        <a class="text-primary-300 dark:text-neutral-700 !no-underline" href="#macos" aria-label="锚点">#</a>
+    </span>
+    
+</h3>
+<div class="highlight-wrapper"><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># 清空并锁定 checkpoints 目录</span>
+</span></span><span class="line"><span class="cl">rm -rf ~/.zcode/v2/checkpoints
+</span></span><span class="line"><span class="cl">mkdir -p ~/.zcode/v2/checkpoints
+</span></span><span class="line"><span class="cl">chflags uchg ~/.zcode/v2/checkpoints
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1"># 验证：应该输出 Operation not permitted</span>
+</span></span><span class="line"><span class="cl">touch ~/.zcode/v2/checkpoints/test</span></span></code></pre></div></div>
+
+<h3 class="relative group">Linux
+    <div id="linux" class="anchor"></div>
+    
+    <span
+        class="absolute top-0 w-6 transition-opacity opacity-0 -start-6 not-prose group-hover:opacity-100 select-none">
+        <a class="text-primary-300 dark:text-neutral-700 !no-underline" href="#linux" aria-label="锚点">#</a>
+    </span>
+    
+</h3>
+<div class="highlight-wrapper"><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># 清空并锁定 checkpoints 目录</span>
+</span></span><span class="line"><span class="cl">rm -rf ~/.zcode/v2/checkpoints
+</span></span><span class="line"><span class="cl">mkdir -p ~/.zcode/v2/checkpoints
+</span></span><span class="line"><span class="cl">sudo chattr +i ~/.zcode/v2/checkpoints
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1"># 验证：应该输出 Operation not permitted</span>
+</span></span><span class="line"><span class="cl">touch ~/.zcode/v2/checkpoints/test</span></span></code></pre></div></div>
+
+<h3 class="relative group">影响与恢复
+    <div id="影响与恢复" class="anchor"></div>
+    
+    <span
+        class="absolute top-0 w-6 transition-opacity opacity-0 -start-6 not-prose group-hover:opacity-100 select-none">
+        <a class="text-primary-300 dark:text-neutral-700 !no-underline" href="#%e5%bd%b1%e5%93%8d%e4%b8%8e%e6%81%a2%e5%a4%8d" aria-label="锚点">#</a>
+    </span>
+    
+</h3>
+<ul>
+<li><strong>阻断效果</strong>：快照逻辑在尝试写目录时直接被系统内核拦截，没有产物，后续向 OSS 的直传自然无从谈起；</li>
+<li><strong>功能影响</strong>：ZCode 的“检查点回滚 / 时间线”功能不可用（本来也是拿全量代码上云换的）。日常的代码补全、对话、工具调用完全正常，日志里被吞掉的 IO 报错不影响使用；</li>
+<li><strong>想恢复</strong>：执行 <code>chflags nouchg ~/.zcode/v2/checkpoints</code>（macOS）或 <code>sudo chattr -i ~/.zcode/v2/checkpoints</code>（Linux）即可。</li>
+</ul>
+
+<h2 class="relative group">写在最后
+    <div id="写在最后" class="anchor"></div>
+    
+    <span
+        class="absolute top-0 w-6 transition-opacity opacity-0 -start-6 not-prose group-hover:opacity-100 select-none">
+        <a class="text-primary-300 dark:text-neutral-700 !no-underline" href="#%e5%86%99%e5%9c%a8%e6%9c%80%e5%90%8e" aria-label="锚点">#</a>
+    </span>
+    
+</h2>
+<p>用 AI 工具，模型推理必然要吃代码上下文，这个在用的时候大家心里都有数。但这事越线的地方很明确：</p>
+<p>一是<strong>数据范围</strong>。推理给的是当前任务相关的上下文，而快照是把整个仓库连同几年的 Git 提交历史全部打包端走。</p>
+<p>二是<strong>架构姿态</strong>。如果真是给用户做断点恢复或跨端同步，解密密钥理应在用户本地。一把只有服务端能解的钥匙、零披露的隐私政策、关不掉的默认行为、删了还自动重传的执拗——这摆明了不是备份，更像采集。</p>
+<p>工具没有原罪，但红线应该由使用者自己划。既然软件里关不掉，那就用操作系统的锁把它关进笼子里。</p>
+
+          
+          
+          
+        </div>
+        
+        
+
+        
+
+        
+  
+  
+    <h2 class="mt-8 text-2xl font-extrabold mb-10">相关文章</h2>
+    <section class="w-full grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+      
+        
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+  
+    
+    
+      
+    
+      
+    
+      
+    
+  
+
+  
+  
+    
+    
+  
+
+  
+  
+    
+  
+
+
+
+<article
+  class="article-link--related relative min-h-full min-w-full overflow-hidden rounded-lg border border-neutral-300 dark:border-neutral-600">
+  
+  
+  <div class="p-4">
+    <header>
+      <a
+        
+          href="/posts/1password-to-self-hosted-vaultwarden/"
+        
+        class="not-prose before:absolute before:inset-0 decoration-primary-500 dark:text-neutral text-xl font-bold text-neutral-800 hover:underline hover:underline-offset-2">
+        <h2>
+          1Password 又涨价了，我把密码库迁到了自建 Vaultwarden
+          
+        </h2>
+      </a>
+    </header>
+    <div class="text-sm text-neutral-500 dark:text-neutral-400">
+      
+
+
+
+
+
+
+
+  
+
+  
+  
+  
+    
+  
+
+  
+
+  
+    
+  
+
+  
+
+  
+
+  
+    
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+
+  <div class="flex flex-row flex-wrap items-center">
+    
+    
+      <time datetime="2026-08-08T10:00:00&#43;08:00">2026-08-08</time><span class="px-2 text-primary-500">&middot;</span><span title="预计阅读">6 分钟</span>
+    
+
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+          
+            <span class="px-2 text-primary-500">&middot;</span>
+            
+              <a class="relative me-2 hover:underline" href="/tags/1password/">
+                #1Password
+              </a>
+            
+              <a class="relative me-2 hover:underline" href="/tags/vaultwarden/">
+                #Vaultwarden
+              </a>
+            
+              <a class="relative me-2 hover:underline" href="/tags/bitwarden/">
+                #Bitwarden
+              </a>
+            
+              <a class="relative me-2 hover:underline" href="/tags/self-hosting/">
+                #Self-Hosting
+              </a>
+            
+              <a class="relative me-2 hover:underline" href="/tags/security/">
+                #Security
+              </a>
+            
+          
+        
+      
+    
+
+    
+    
+  </div>
+
+  
+  
+
+
+
+    </div>
+    
+  </div>
+  <div class="px-6 pt-4 pb-2"></div>
+</article>
+
+      
+    </section>
+  
+
+
+      </div>
+
+    </section>
+
+    
+    <footer class="pt-8 max-w-prose  print:hidden">
+      
+  
+    
+    
+    
+    <div class="pt-8">
+      <hr class="border-dotted border-neutral-300 dark:border-neutral-600">
+      <div class="flex justify-between pt-3">
+        <span class="flex flex-col">
+          
+            <a
+              class="flex text-neutral-700 hover:text-primary-600 dark:text-neutral dark:hover:text-primary-400"
+              href="/posts/the-illusion-of-agent-saas/">
+              <span class="leading-6">
+                <span class="inline-block rtl:rotate-180">&larr;</span>&ensp;从一堆 Agent 演示日志说起：为什么说‘套壳 Agent 就能做 SaaS’是个荒谬的幻想
+              </span>
+            </a>
+            
+              <span class="ms-6 mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+                <time datetime="2026-09-03T15:10:00&#43;08:00">2026-09-03</time>
+              </span>
+            
+          
+        </span>
+        <span class="flex flex-col items-end">
+          
+            <a
+              class="flex text-right text-neutral-700 hover:text-primary-600 dark:text-neutral dark:hover:text-primary-400"
+              href="/posts/local-first-agent-execution-boundary-runseal/">
+              <span class="leading-6">
+                做 RunSeal 的初衷：别再让本地 Agent 裸奔跑命令了&ensp;<span class="inline-block rtl:rotate-180">&rarr;</span>
+              </span>
+            </a>
+            
+              <span class="me-6 mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+                <time datetime="2026-09-26T19:00:00&#43;08:00">2026-09-26</time>
+              </span>
+            
+          
+        </span>
+      </div>
+    </div>
+  
+
+
+      
+    </footer>
+  </article>
+
+        
+
+
+  
+
+
+
+
+
+
+<div
+  id="scroll-to-top"
+  class="fixed bottom-6 end-6 z-50 transform translate-y-4 opacity-0 duration-200">
+  <a
+    href="#the-top"
+    class="pointer-events-auto flex h-12 w-12 items-center justify-center rounded-full bg-neutral/50 text-xl text-neutral-700 hover:text-primary-600 dark:bg-neutral-800/50 dark:text-neutral dark:hover:text-primary-400"
+    aria-label="返回顶部"
+    title="返回顶部">
+    &uarr;
+  </a>
+</div>
+
+      </main><footer id="site-footer" class="py-10 print:hidden">
+  
+  
+    
+  
+  <div class="flex items-center justify-between">
+    
+    
+      <p class="text-sm text-neutral-500 dark:text-neutral-400">
+          © 2026 ferstar · <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh"  target="_blank" rel="noreferrer">CC BY-NC-SA 4.0</a>
+      </p>
+    
+
+    
+    
+      <p class="text-xs text-neutral-500 dark:text-neutral-400">
+        
+        
+        由 <a class="hover:underline hover:decoration-primary-400 hover:text-primary-500"
+          href="https://gohugo.io/" target="_blank" rel="noopener noreferrer">Hugo</a> &amp; <a class="hover:underline hover:decoration-primary-400 hover:text-primary-500"
+          href="https://blowfish.page/" target="_blank" rel="noopener noreferrer">Blowfish</a> 强力驱动
+      </p>
+    
+  </div>
+  
+    <script type="06cb262418926d0d0157a6a2-text/javascript">
+      mediumZoom(document.querySelectorAll("img:not(.nozoom)"), {
+        margin: 24,
+        background: "rgba(0,0,0,0.5)",
+        scrollOffset: 0,
+      });
+    </script>
+  
+  
+  
+    
+  <p class="mt-4 text-center text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
+    除非另有声明，文章由 AI 执笔，ferstar 审定并授权发布。
+  </p>
+
+
+  
+</footer>
+<div
+  id="search-wrapper"
+  class="invisible fixed inset-0 flex h-screen w-screen cursor-default flex-col bg-neutral-500/50 p-4 backdrop-blur-sm dark:bg-neutral-900/50 sm:p-6 md:p-[10vh] lg:p-[12vh] z-500"
+  data-url="https://blog.ferstar.org/">
+  <div
+    id="search-modal"
+    class="flex flex-col w-full max-w-3xl min-h-0 mx-auto border rounded-md shadow-lg top-20 border-neutral-200 bg-neutral dark:border-neutral-700 dark:bg-neutral-800">
+    <header class="relative z-10 flex items-center justify-between flex-none px-2">
+      <form class="flex items-center flex-auto min-w-0">
+        <div class="flex items-center justify-center w-8 h-8 text-neutral-400">
+          <span class="relative block icon"><svg aria-hidden="true" focusable="false" data-prefix="fas" data-icon="search" class="svg-inline--fa fa-search fa-w-16" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path fill="currentColor" d="M505 442.7L405.3 343c-4.5-4.5-10.6-7-17-7H372c27.6-35.3 44-79.7 44-128C416 93.1 322.9 0 208 0S0 93.1 0 208s93.1 208 208 208c48.3 0 92.7-16.4 128-44v16.3c0 6.4 2.5 12.5 7 17l99.7 99.7c9.4 9.4 24.6 9.4 33.9 0l28.3-28.3c9.4-9.4 9.4-24.6.1-34zM208 336c-70.7 0-128-57.2-128-128 0-70.7 57.2-128 128-128 70.7 0 128 57.2 128 128 0 70.7-57.2 128-128 128z"/></svg>
+</span>
+        </div>
+        <input
+          type="search"
+          id="search-query"
+          class="flex flex-auto h-12 mx-1 bg-transparent appearance-none focus:outline-dotted focus:outline-2 focus:outline-transparent"
+          placeholder="搜索"
+          tabindex="0">
+      </form>
+      <button
+        id="close-search-button"
+        class="flex items-center justify-center w-8 h-8 text-neutral-700 hover:text-primary-600 dark:text-neutral dark:hover:text-primary-400"
+        title="关闭 (Esc)">
+        <span class="relative block icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><path fill="currentColor" d="M310.6 361.4c12.5 12.5 12.5 32.75 0 45.25C304.4 412.9 296.2 416 288 416s-16.38-3.125-22.62-9.375L160 301.3L54.63 406.6C48.38 412.9 40.19 416 32 416S15.63 412.9 9.375 406.6c-12.5-12.5-12.5-32.75 0-45.25l105.4-105.4L9.375 150.6c-12.5-12.5-12.5-32.75 0-45.25s32.75-12.5 45.25 0L160 210.8l105.4-105.4c12.5-12.5 32.75-12.5 45.25 0s12.5 32.75 0 45.25l-105.4 105.4L310.6 361.4z"/></svg>
+</span>
+      </button>
+    </header>
+    <section class="flex-auto px-2 overflow-auto">
+      <ul id="search-results">
+        
+      </ul>
+    </section>
+  </div>
+</div>
+
+    </div>
+  <!-- Cloudflare Pages Analytics --><script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "c2014519245e4a17a0254533dabd735a"}' type="06cb262418926d0d0157a6a2-text/javascript"></script><!-- Cloudflare Pages Analytics --><script src="/cdn-cgi/scripts/7d0fa10a/cloudflare-static/rocket-loader.min.js" data-cf-settings="06cb262418926d0d0157a6a2-|49" defer></script></body>
+  
+</html>

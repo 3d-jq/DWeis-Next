@@ -1,9 +1,6 @@
 import type { ReactNode } from "react";
-import logoTileDark from "@/assets/provider-icons/logo-dweis-tile-dark.svg";
-import logoTileLight from "@/assets/provider-icons/logo-dweis-tile-light.svg";
+import { resolveBrandLogoSrc } from "@/lib/brandLogoTheme.js";
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeStore } from "@/store/StoreProvider.js";
-import { resolveTheme } from "@/useTheme.js";
 
 interface RootStartupLoadingProps {
   label: string;
@@ -31,8 +28,7 @@ export function RootStartupLoading({ label, children, busy = true }: RootStartup
 /** 初始化与引导共用品牌图标：owl 源图自带圆角与透明边缘，直接呈现，不套深色壳。 */
 export function DWeisStartupLogoBadge() {
   // DWeis Next：按主题双形态（亮色/默认=白方块+深标志，深色=黑方块+白笔画）。
-  const logoUrl =
-    resolveTheme(useZCodeStore((s) => s.theme)) === "dark" ? logoTileDark : logoTileLight;
+  const logoUrl = resolveBrandLogoSrc();
   return (
     <img
       src={logoUrl}
