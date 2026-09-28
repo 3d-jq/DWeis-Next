@@ -351,6 +351,7 @@ export async function addMarketplace(input: {
     loaded = await loadMarketplaceFromSource(input.source, input.storageRoot, {
       persist: false,
       signal: operationSignal,
+      marketplaceId: input.trustedId ?? input.expectedId,
     });
     throwIfPluginOperationAborted(operationSignal);
     if (isOfficialMarketplaceId(loaded.manifest.name) && loaded.manifest.name !== input.trustedId) {
@@ -895,6 +896,7 @@ export async function validateMarketplaceSource(input: {
     loaded = await loadMarketplaceFromSource(input.source, input.storageRoot, {
       persist: false,
       signal: input.signal,
+      marketplaceId: input.expectedId,
     });
     if (input.expectedId && loaded.manifest.name !== input.expectedId) {
       diagnostics.push({
@@ -1508,7 +1510,7 @@ function createManifestFromMarketplaceEntry(
 async function loadMarketplaceFromSource(
   source: MarketplaceSource,
   storageRoot: string,
-  options: { persist: boolean; signal?: AbortSignal },
+  options: { persist: boolean; signal?: AbortSignal; marketplaceId?: string },
 ): Promise<LoadMarketplaceResult> {
   throwIfPluginOperationAborted(options.signal);
   switch (source.source) {
@@ -1539,6 +1541,17 @@ async function loadMarketplaceFromSource(
       return { manifest, sourceRoot: source.path };
     }
     case "url": {
+      // DWeis Next 无云绑定：官方市场的默认 source 是空 url（本地 bundled seed 清单）。
+      // 空 url 不发起网络请求，回退读取本地已合并的 official manifest
+      // （bootstrap 的 bundled 分片 + 历史缓存分片在 storage 内合并的 marketplace.json）。
+      if (!source.url.trim()) {
+        const marketplaceId = options.marketplaceId ?? "";
+        if (isOfficialMarketplaceId(marketplaceId)) {
+          const local = loadMarketplaceManifestSync(storageRoot, marketplaceId);
+          if (local) return { manifest: local };
+        }
+        throw new Error(`Marketplace source url is empty: ${marketplaceId || "(unknown)"}`);
+      }
       const parsed = await requestMarketplaceJson(source.url, source.headers, options.signal);
       return { manifest: parseRequiredMarketplaceManifest(parsed) };
     }

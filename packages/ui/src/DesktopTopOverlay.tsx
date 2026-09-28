@@ -10,6 +10,10 @@ import {
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { UpdateStatusButton } from "@/UpdateStatusButton.js";
 import { DesktopTopOverlayActionButton } from "@/DesktopTopOverlayActionButton.js";
+import { resolveTheme } from "@/useTheme.js";
+import { useZCodeStore } from "@/store/StoreProvider.js";
+import logoTileDark from "@/assets/provider-icons/logo-dweis-tile-dark.svg";
+import logoTileLight from "@/assets/provider-icons/logo-dweis-tile-light.svg";
 import {
   createWindowsCaptionControlsStyle,
   WINDOWS_CAPTION_CONTROLS_RIGHT_INSET_VAR,
@@ -35,7 +39,6 @@ interface DesktopTopOverlayProps {
   canGoBack: boolean;
   canGoForward: boolean;
   showNewTaskButton?: boolean;
-  appLogoUrl: string;
   platform: IPlatformService;
   onToggleSidebar: () => void;
   onCreateTask: () => void;
@@ -65,7 +68,6 @@ export function DesktopTopOverlay({
   canGoBack: _canGoBack,
   canGoForward: _canGoForward,
   showNewTaskButton,
-  appLogoUrl,
   platform,
   onToggleSidebar,
   onCreateTask,
@@ -75,6 +77,10 @@ export function DesktopTopOverlay({
   newTaskDisabledReason,
 }: DesktopTopOverlayProps) {
   const { intl } = useZCodeIntl();
+  const appTheme = useZCodeStore((state) => state.theme);
+  // DWeis Next：侧边栏品牌图标按主题双形态——亮色/默认=白色方块 + 深色标志，
+  // 深色=黑色方块 + 白色笔画（与启动动画同一规则）。
+  const sidebarLogoUrl = resolveTheme(appTheme) === "dark" ? logoTileDark : logoTileLight;
   const SidebarToggleIcon = isSidebarVisible ? PanelLeftClose : PanelLeftOpen;
   const isLinuxDesktop = Boolean(isDesktop && !isMacDesktop && !isWindowsDesktop);
   const usesCustomCaptionArea = isWindowsDesktop || isLinuxDesktop;
@@ -140,7 +146,7 @@ export function DesktopTopOverlay({
               onClick={onToggleSidebar}
             >
               <img
-                src={appLogoUrl}
+                src={sidebarLogoUrl}
                 alt="DWeis Next"
                 className="size-5 transition-opacity duration-150 group-hover:opacity-0"
                 draggable={false}

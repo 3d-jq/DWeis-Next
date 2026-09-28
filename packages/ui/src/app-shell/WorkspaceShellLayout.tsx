@@ -266,7 +266,6 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
   fileChangeFindNavigationRequestId,
   fileChangeFindQuery,
   onFileChangeFindMatchCountChange,
-  appLogoUrl,
   platform,
   reloadSessionDisabled,
   reloadSessionPending,
@@ -1906,7 +1905,6 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
             canGoBack={canGoBack}
             canGoForward={canGoForward}
             showNewTaskButton={showTopOverlayNewTaskButton}
-            appLogoUrl={appLogoUrl}
             platform={platform}
             onToggleSidebar={handleToggleSidebar}
             onCreateTask={handleCreateTaskInChat}
