@@ -80,3 +80,4 @@ bundle-eb.log
 .tmp_*.py
 .tmp_*.mjs
 .tmp-asar/
+bundle-final.log
