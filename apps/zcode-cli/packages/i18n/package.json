@@ -16,11 +16,11 @@
     "clean": "node ../../scripts/clean-dist.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint src",
-    "lint:fix": "oxlint --write src"
+    "lint:fix": "oxlint --write src",
+    "test": "node ../../../../scripts/run-node-tests.mjs ."
   },
   "dependencies": {
     "@zcode/contracts": "workspace:*"
   },
-  "devDependencies": {
-  }
+  "devDependencies": {}
 }
