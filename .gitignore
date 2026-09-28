@@ -74,3 +74,8 @@ packages/desktop/.e2e-network-capture/
 
 bundle-desktop*.log
 bundle-dweis*.log
+bundle-eb.log
+.tmp_*.bat
+.tmp_*.cjs
+.tmp_*.py
+.tmp_*.mjs
