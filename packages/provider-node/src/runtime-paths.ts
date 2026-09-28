@@ -1,7 +1,11 @@
-export const ZCODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV = "ZCODE_BUILTIN_PROVIDER_CONFIG_FILE";
+// DWeis Next 环境契约：provider 配置的「显式路径」由本产品自己的 env 命名空间承载。
+// 之前复用 ZCode 的 ZCODE_* 变量名，等于把插入点暴露给任何在本机跑过的 ZCode
+// 进程——它写入的那个值会被我们的 CLI 入口原样透传，agent 于是读到另一份装机的
+// 空模板缓存。换成 DWEIS_* 之后，外部注入在变量名上就不匹配，隔离不再依赖过滤。
+export const ZCODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV = "DWEIS_BUILTIN_PROVIDER_CONFIG_FILE";
 export const ZCODE_BUILTIN_PROVIDER_BUNDLED_CONFIG_FILE_ENV =
-  "ZCODE_BUILTIN_PROVIDER_BUNDLED_CONFIG_FILE";
-export const ZCODE_PERSONAL_PROVIDER_CONFIG_FILE_ENV = "ZCODE_PERSONAL_PROVIDER_CONFIG_FILE";
+  "DWEIS_BUILTIN_PROVIDER_BUNDLED_CONFIG_FILE";
+export const ZCODE_PERSONAL_PROVIDER_CONFIG_FILE_ENV = "DWEIS_PERSONAL_PROVIDER_CONFIG_FILE";
 export const PERSONAL_PROVIDER_CONFIG_FILE_NAME = "provider_config.json";
 
 export interface NodeProviderRuntimePaths {

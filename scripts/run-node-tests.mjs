@@ -27,7 +27,9 @@ function createResolvePlugin(packageDir) {
     setup(build) {
       build.onResolve({ filter: /^[^./]/ }, (args) => {
         if (args.kind === "entry-point") return null;
-        if (args.path.startsWith("@zcode/")) return null;
+        // @zcode/* 是 workspace TS 源码，需要打包；`#` 开头的是 package.json
+        // imports 子路径（如 #src/...），同样交给 esbuild 按包内规则解析。
+        if (args.path.startsWith("@zcode/") || args.path.startsWith("#")) return null;
         if (args.path === "electron" && existsSync(electronStub)) {
           return { path: electronStub };
         }

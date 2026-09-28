@@ -1,12 +1,5 @@
 /* eslint-disable max-lines -- Electron Builder config keeps related packaging hooks together so build order stays explicit. */
-import {
-  chmodSync,
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readdirSync,
-  rmSync,
-} from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import {
   copyFile as copyFileAsync,
   cp as cpAsync,
@@ -82,12 +75,12 @@ import {
 
 const buildMetadata = getBuildMetadata();
 const targetPlatform = getTargetPlatform();
-// DWeis Next 修复：打进 resources/config 的 builtin provider config 只读仓库的
-// config/provider/zcode-builtin.json。运行时 env 里的
-// ZCODE_BUILTIN_PROVIDER_CONFIG_FILE 指向本机 Active 缓存，构建期读它会把旧缓存
-// （可能是另一份 ZCode 装机的配置）随包发出。这里显式置空。
+// DWeis Next：打进 resources/config 的 builtin provider config 只读仓库的
+// config/provider/zcode-builtin.json。配置源开关是 DWEIS_BUILTIN_PROVIDER_CONFIG_FILE
+// （DWeis 自己的 env 契约）；另一份 ZCode 装机写入的 ZCODE_* 变量已不再是输入。
+// 这里再显式置空本产品的开关，保证任何机器上打出的包都用仓库配置。
 const builtinProviderConfig = await loadBuiltinProviderConfig({
-  env: { ...process.env, ZCODE_BUILTIN_PROVIDER_CONFIG_FILE: "" },
+  env: { ...process.env, DWEIS_BUILTIN_PROVIDER_CONFIG_FILE: "" },
 });
 const desktopProductIdentity = resolveDesktopProductIdentity({
   ...process.env,

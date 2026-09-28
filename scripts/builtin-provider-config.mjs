@@ -45,7 +45,9 @@ export async function loadBuiltinProviderConfig({ root = repositoryRoot, env = p
   const environment = await resolveBuiltinProviderBuildEnvironment({ root, env });
   const sourcePath = resolve(
     root,
-    env.ZCODE_BUILTIN_PROVIDER_CONFIG_FILE?.trim() || "config/provider/zcode-builtin.json",
+    // 与运行时同一套 DWEIS_* 契约：只有 DWeis 自己的构建能指定配置源；
+    // ZCode 遗留的 ZCODE_* 变量在这里不再是输入，另一份装机污染不到我们的构建。
+    env.DWEIS_BUILTIN_PROVIDER_CONFIG_FILE?.trim() || "config/provider/zcode-builtin.json",
   );
   try {
     const content = await readFile(sourcePath, "utf8");

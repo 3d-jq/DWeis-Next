@@ -27,6 +27,9 @@ import { resolvePlatformKeyForPackagedApp } from "../../scripts/target-platform.
 import {
   getAppConfigDir,
   getDataBaseDir,
+  ZCODE_BUILTIN_PROVIDER_BUNDLED_CONFIG_FILE_ENV,
+  ZCODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV,
+  ZCODE_PERSONAL_PROVIDER_CONFIG_FILE_ENV,
   ZCODE_CUA_BUNDLED_HELPER_APP_PATH_ENV,
   ZCODE_WINDOWS_APP_INSTALL_DIR_ENV,
 } from "@zcode/services/node";
@@ -426,6 +429,19 @@ export function buildHostProcessEnv(hostProcessLocalEnv: Record<string, string>)
     isPackaged: packagedDesktop,
     isPreview: isPreviewPackagedRuntime,
   });
+  // DWeis Next 环境隔离：builtin/personal provider 配置的「显式路径」只能由本进程
+  // 自己决定——main 通过 init 消息下发 zcodeBuiltinProviderConfigFilePath，CLI 入口
+  // 再用随包配置加 ~/.dweis 缓存自行解析。父进程树里若被另一份 ZCode 装机注入了
+  // ZCODE_BUILTIN_PROVIDER_CONFIG_FILE，CLI 的 prepareCliProviderRuntimeEnv 会把它和
+  // personal 路径一起原样透传，agent 于是读到那份外部缓存（模板为空）而误报
+  // 「去配置供应商」。在 host/agent 边界删掉这三个键，外部注入永远进不来。
+  for (const key of [
+    ZCODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV,
+    ZCODE_BUILTIN_PROVIDER_BUNDLED_CONFIG_FILE_ENV,
+    ZCODE_PERSONAL_PROVIDER_CONFIG_FILE_ENV,
+  ]) {
+    delete inheritedEnv[key];
+  }
   // 三层里有两层不写这个键，空对象无法覆盖 inheritedEnv，所以先无条件删掉继承值再按决策 spread 回去。
   // 少了这一行，production 包和 dev 的非法取值都会原样穿透到 Host。
   delete inheritedEnv[ZCODE_DYNAMIC_WORKFLOW_MODE_ENV];

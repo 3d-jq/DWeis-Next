@@ -18,7 +18,9 @@ import {
 
 export {
   materializeZCodeBuiltinProviderConfig,
+  ZCODE_BUILTIN_PROVIDER_BUNDLED_CONFIG_FILE_ENV,
   ZCODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV,
+  ZCODE_PERSONAL_PROVIDER_CONFIG_FILE_ENV,
 } from "@zcode/provider-node";
 
 export { createFileService } from "./file/fileService.js";
