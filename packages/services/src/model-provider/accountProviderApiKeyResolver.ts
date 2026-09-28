@@ -1,5 +1,4 @@
-import { BIGMODEL_PROVIDER_ID, resolveBigModelApiOrigin, ZAI_PROVIDER_ID } from "@zcode/shared";
-import { ZAI_API_HOST } from "../providers/api/apiEndpoints.js";
+import { BIGMODEL_PROVIDER_ID, resolveBigModelApiOrigin } from "@zcode/shared";
 import {
   DEFAULT_ORG_NAME,
   DEFAULT_PROJECT_NAME,
@@ -67,26 +66,15 @@ export class AccountProviderApiKeyResolver {
     accessToken: string,
   ): Promise<string | null> {
     try {
+      // DWeis Next 只保留 BigModel 直连 Key 的账号侧解析；Z.AI 账号链路已摘除。
       if (provider === BIGMODEL_PROVIDER_ID) {
         return await this.resolveBizApiKey(resolveBigModelApiOrigin(process.env), accessToken);
-      }
-
-      if (provider === ZAI_PROVIDER_ID) {
-        // 必须 await，才能由当前 catch 将复制明文 Key 失败收敛为无可用凭据。
-        return await this.resolveZaiApiKey(accessToken);
       }
     } catch {
       return null;
     }
 
     return null;
-  }
-
-  private async resolveZaiApiKey(oauthAccessToken: string): Promise<string | null> {
-    // Provider Connection 已把 Z.AI access token 持久化为业务 token。
-    return this.resolveBizApiKey(ZAI_API_HOST, `Bearer ${oauthAccessToken}`, {
-      requireSecretKey: true,
-    });
   }
 
   private async resolveBizApiKey(

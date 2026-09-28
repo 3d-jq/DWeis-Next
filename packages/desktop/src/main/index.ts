@@ -8,10 +8,7 @@ import {
   onLocalDatabaseStartupReady,
   configureDatabaseStartupQuit,
 } from "./databaseStartupRelay.js";
-import {
-  createDesktopContextPromptRollout,
-  createElectronDesktopContextPromptConfigFetcher,
-} from "./desktopContextPromptRollout.js";
+import { createDesktopContextPromptRollout } from "./desktopContextPromptRollout.js";
 import { buildBrowserViewCloseTabNotification } from "./browserView/browserCloseTabNotification.js";
 import { BrowserGuestManager } from "./browserView/browserGuestManager.js";
 import { createElectronBrowserWebmRecorder } from "./browserView/electronBrowserWebmRecorder.js";
@@ -172,7 +169,6 @@ import {
   listRegisteredHostAgentProcessIds,
   setBrowserUseGuestWebContentsIdsProvider,
 } from "./resourceManagerWindow.js";
-import { createDesktopHelpConfigReader } from "./desktopHelpConfig.js";
 import { registerPlatformIpcHandlers } from "./desktopMainIpcPlatform.js";
 import {
   loadCliMcpFromUserDirectory,
@@ -686,16 +682,15 @@ app.on("browser-window-created", (_event, win) => {
 // 本地 workspace 的 Host 生命周期只由 desktopWindowLifecycle / desktopHostProcess 管理。
 
 // 帮助配置是公开读取，不能复用下面附带账号鉴权的灰度响应缓存。
-const readHelpConfig = createDesktopHelpConfigReader({
-  appVersion: ZCODE_VERSION || app.getVersion(),
-  resolveEndpointOrigin: resolveCurrentZCodeEndpointOrigin,
-});
-// 同一个 /api/v1/client/configs fetcher 供两个灰度 rollout 共用（请求参数与鉴权完全一致，
-// 各自独立缓存/去重，服务端按 data.configs.<key> 区分功能）。
-const electronClientConfigsFetcher = createElectronDesktopContextPromptConfigFetcher({
-  appVersion: ZCODE_VERSION || app.getVersion(),
-  resolveEndpointOrigin: resolveCurrentZCodeEndpointOrigin,
-});
+// DWeis Next：help/feedback 配置原本从 zcode.z.ai 拉取，本产品没有那台服务器。
+// 这里只保留本地 config/default.json 一条来源（openFeedback/openCommunity 内部
+// 仍会读本地配置，remote 传 undefined 即走本地默认值）。
+const readHelpConfig = () => Promise.resolve(undefined);
+// DWeis Next：桌面上下文提示词的开关原本来自 zcode.z.ai 的 /api/v1/client/configs
+// 灰度下发。那台服务器与本产品无关，改成本地常开——该能力由本仓库自己维护，
+// 没有远端可以关掉它，失败也不再可能拖慢 Host 启动。
+const electronClientConfigsFetcher = () =>
+  Promise.resolve({ enabled: true, config_version: "local" });
 desktopContextPromptRollout = createDesktopContextPromptRollout({
   fetchConfig: electronClientConfigsFetcher,
   logger,
