@@ -79,3 +79,4 @@ bundle-eb.log
 .tmp_*.cjs
 .tmp_*.py
 .tmp_*.mjs
+.tmp-asar/
