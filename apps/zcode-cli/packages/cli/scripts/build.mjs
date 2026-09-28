@@ -219,7 +219,11 @@ export const buildCli = async ({
   await stageBuiltinProviderConfig({
     root: resolve(rootDirectory, "../.."),
     directory: resolve(cliDirectory, "dist/provider"),
-    env,
+    // DWeis Next 修复：随包 builtin provider config 只读仓库的
+    // config/provider/zcode-builtin.json。运行时 env 里的
+    // ZCODE_BUILTIN_PROVIDER_CONFIG_FILE 指向本机 Active 缓存，构建期读它会把
+    // 旧缓存（可能是另一份 ZCode 装机的配置）随包发出。这里显式置空。
+    env: { ...env, ZCODE_BUILTIN_PROVIDER_CONFIG_FILE: "" },
   });
 
   await build({

@@ -102,7 +102,12 @@ async function runBootstrapWithRemoteBuild() {
   if (existsSync(resolve(repoRoot, "apps/zcode-cli/packages/cli/dist/dweis.cjs"))) {
     await stageBuiltinProviderConfig({
       root: repoRoot,
-      env: pnpmRunEnv,
+      // DWeis Next 修复：stage 只读仓库的 config/provider/zcode-builtin.json。
+      // ZCODE_BUILTIN_PROVIDER_CONFIG_FILE 是运行时的 Active 缓存路径开关；构建期读它
+      // 会把本机旧 Active 缓存（可能是另一份 ZCode 装机的运行时配置）打进随包产物，
+      // 导致桌面 agent 的 provider registry 为空、UI 误报"去配置供应商"。
+      // 这里显式置空，避免运行时开关污染构建。
+      env: { ...pnpmRunEnv, ZCODE_BUILTIN_PROVIDER_CONFIG_FILE: "" },
       directory: resolve(repoRoot, "apps/zcode-cli/packages/cli/dist/provider"),
     });
     console.log("[build-desktop-agent-cli] reuse existing zcode-cli desktop agent bundle");
