@@ -119,19 +119,19 @@ function assertSafeRuntimePath(filePath: string): void {
 function cacheBaseDirectory(): string {
   const home = homedir();
   if (platform() === "darwin" && home) {
-    return join(home, "Library", "Caches", "zcode", "sea-assets");
+    return join(home, "Library", "Caches", "dweis", "sea-assets");
   }
   if (platform() === "win32") {
     return join(
       process.env.LOCALAPPDATA ?? join(home || tmpdir(), "AppData", "Local"),
-      "zcode",
+      "dweis",
       "Cache",
       "sea-assets",
     );
   }
   return join(
     process.env.XDG_CACHE_HOME ?? join(home || tmpdir(), ".cache"),
-    "zcode",
+    "dweis",
     "sea-assets",
   );
 }

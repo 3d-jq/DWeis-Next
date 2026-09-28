@@ -1,5 +1,5 @@
-export const CLI_COMMAND_NAME = "zcode";
-export const CLI_PROCESS_NAME = "zcode-cli";
+export const CLI_COMMAND_NAME = "dweis";
+export const CLI_PROCESS_NAME = "dweis-cli";
 
 interface ProcessTitleTarget {
   title: string;
