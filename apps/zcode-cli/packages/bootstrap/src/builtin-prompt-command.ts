@@ -69,9 +69,9 @@ function buildInitAgentsPrompt(params: {
     : "";
 
   return [
-    "You are running ZCode's built-in /init command.",
+    "You are running DWeis Next's built-in /init command.",
     "",
-    "Your task is to create or update a concise workspace instruction file for future ZCode agents.",
+    "Your task is to create or update a concise workspace instruction file for future DWeis Next agents.",
     "",
     "Target:",
     `- Workspace directory: ${params.workingDirectory}`,
