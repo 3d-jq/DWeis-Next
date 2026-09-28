@@ -1,25 +1,20 @@
 import type { ZCodeEnv } from "./env.js";
 
+// DWeis Next 不绑定智谱/Z.ai 云端：zai 域（OAuth 登录页、商务 API、client id）
+// 不再有默认地址/默认 id。显式配置的调用方自己传 env，缺省直接报错，
+// 避免悄悄回落到别人的服务上。
 export const DEFAULT_ZCODE_ENDPOINT_ORIGIN = "https://zcode.z.ai";
 export const DEFAULT_BIGMODEL_API_ORIGIN = "https://bigmodel.cn";
-export const DEFAULT_ZAI_OAUTH_ORIGIN = "https://chat.z.ai";
-export const DEFAULT_ZAI_BUSINESS_BASE_URL = "https://api.z.ai";
-export const DEFAULT_ZAI_OAUTH_CLIENT_ID = "client_P8X5CMWmlaRO9gyO-KSqtg";
+
+const ZAI_ENDPOINT_UNSET_MESSAGE =
+  "ZAI endpoint is not configured: DWeis Next ships no Z.ai defaults";
 
 // 构建仅注入公开链接；Node 调用方仍可显式传 env，避免读取另一进程的配置。
 declare const __ZCODE_ENDPOINT_ENV__: Record<string, string | undefined> | undefined;
 export function pickProductEndpointEnv(
   env: Record<string, string | undefined>,
 ): Record<string, string> {
-  const keys = [
-    "ZCODE_BASE_URL",
-    "ZCODE_ENDPOINT_ORIGIN",
-    "BIGMODEL_API_BASE_URL",
-    "ZAI_OAUTH_ORIGIN",
-    "ZAI_BUSINESS_BASE_URL",
-    "ZAI_OAUTH_CLIENT_ID",
-    "ZAI_OAUTH_APP_ID",
-  ];
+  const keys = ["ZCODE_BASE_URL", "ZCODE_ENDPOINT_ORIGIN", "BIGMODEL_API_BASE_URL"];
   return Object.fromEntries(
     keys.flatMap((key) => (env[key]?.trim() ? [[key, env[key]!.trim()]] : [])),
   );
@@ -70,9 +65,6 @@ export interface RuntimeProductEndpointConfig {
   zcodeEnv: ZCodeEnv;
   zcodeEndpointOrigin: string;
   zcodeEndpointUrls: ZCodeEndpointUrls;
-  zaiOAuthOrigin: string;
-  zaiBusinessBaseUrl: string;
-  zaiOAuthClientId: string;
   bigModelApiOrigin: string;
 }
 
@@ -190,27 +182,26 @@ export function buildBigModelCodingPlanTeamManageUrl(
 export function resolveZaiOAuthOrigin(
   env: RuntimeZaiEndpointEnv = readProductEndpointEnv(),
 ): string {
-  return normalizeZCodeEndpointOrigin(
-    readRuntimeEnvValue(env, "ZAI_OAUTH_ORIGIN") ?? DEFAULT_ZAI_OAUTH_ORIGIN,
-  );
+  const configured = readRuntimeEnvValue(env, "ZAI_OAUTH_ORIGIN");
+  if (!configured) throw new Error(ZAI_ENDPOINT_UNSET_MESSAGE);
+  return normalizeZCodeEndpointOrigin(configured);
 }
 
 export function resolveZaiBusinessBaseUrl(
   env: RuntimeZaiEndpointEnv = readProductEndpointEnv(),
 ): string {
-  return normalizeZCodeEndpointOrigin(
-    readRuntimeEnvValue(env, "ZAI_BUSINESS_BASE_URL") ?? DEFAULT_ZAI_BUSINESS_BASE_URL,
-  );
+  const configured = readRuntimeEnvValue(env, "ZAI_BUSINESS_BASE_URL");
+  if (!configured) throw new Error(ZAI_ENDPOINT_UNSET_MESSAGE);
+  return normalizeZCodeEndpointOrigin(configured);
 }
 
 export function resolveZaiOAuthClientId(
   env: RuntimeZaiEndpointEnv = readProductEndpointEnv(),
 ): string {
-  return (
-    readRuntimeEnvValue(env, "ZAI_OAUTH_CLIENT_ID") ??
-    readRuntimeEnvValue(env, "ZAI_OAUTH_APP_ID") ??
-    DEFAULT_ZAI_OAUTH_CLIENT_ID
-  );
+  const configured =
+    readRuntimeEnvValue(env, "ZAI_OAUTH_CLIENT_ID") ?? readRuntimeEnvValue(env, "ZAI_OAUTH_APP_ID");
+  if (!configured) throw new Error(ZAI_ENDPOINT_UNSET_MESSAGE);
+  return configured;
 }
 
 export function buildRuntimeZaiBusinessUrl(
@@ -231,9 +222,6 @@ export function resolveRuntimeProductEndpointConfig(
     zcodeEnv,
     zcodeEndpointOrigin,
     zcodeEndpointUrls: buildZCodeEndpointUrls(zcodeEndpointOrigin),
-    zaiOAuthOrigin: resolveZaiOAuthOrigin(env),
-    zaiBusinessBaseUrl: resolveZaiBusinessBaseUrl(env),
-    zaiOAuthClientId: resolveZaiOAuthClientId(env),
     bigModelApiOrigin: resolveBigModelApiOrigin(env),
   };
 }

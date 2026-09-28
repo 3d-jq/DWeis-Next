@@ -1795,17 +1795,15 @@ app.whenReady().then(async () => {
   logWindowsBundledRuntimeIntegrityDiagnostic();
 
   // 启动自动更新检查（后台执行，不阻塞主界面）
-  // DWeis Next：默认没有官方更新服务器，自动更新默认关闭——否则会打到上游
-  // zcode.z.ai 的 feed，把 fork 更新回上游 ZCode。自托管分发需要更新能力时，
-  // 用 ZCODE_UPDATE_FEED_URL / --zcode-update-feed-url 指向自有 feed 后 updater
-  // 才会启用（打包产物按既有安全策略忽略该覆盖，需要在构建期决定 feed）。
-  // 未启用时「检查更新」菜单保持可见但置灰，不再向任何远端发起版本检查。
+  // DWeis Next 的更新源是自己的 GitHub 仓库（3d-jq/DWeis-Next），打包产物默认启用。
+  // 开发联调仍可用 ZCODE_UPDATE_FEED_URL / --zcode-update-feed-url 指向自有 feed，
+  // 但打包产物安全策略不变：忽略该覆盖，只认仓库 feed。
   const dweisUpdateFeedSource = resolveUpdateFeedSourceFromStartupConfig({
     argv: process.argv,
     env: process.env,
   });
   void initAutoUpdater({
-    enabled: ZCODE_PRODUCT_FLAVOR === "production" && dweisUpdateFeedSource !== undefined,
+    enabled: ZCODE_PRODUCT_FLAVOR === "production",
     onBeforeQuitAndInstall: async () => {
       await prepareAppQuit("auto-update quitAndInstall", "update-install");
       if (process.platform === "win32") {
@@ -1814,7 +1812,6 @@ app.whenReady().then(async () => {
     },
     settingService: mainSettingService,
     locale: currentApplicationLocale,
-    resolveEndpointOrigin: resolveCurrentZCodeEndpointOrigin,
     updateFeedSource: dweisUpdateFeedSource,
   });
 
@@ -1989,7 +1986,6 @@ app.whenReady().then(async () => {
 
   logger.info("[startup] 创建主窗口");
   await primaryWindowCoordinator.ensurePrimaryWindow("app-ready");
-
 
   // 启动后检测 CPU 架构是否匹配（如 Apple 芯片误装 x64 版本经 Rosetta 转译运行），
   // 命中后异步弹框提示安装原生架构版本，不阻塞主界面。

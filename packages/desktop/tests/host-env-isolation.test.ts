@@ -54,3 +54,13 @@ test("ZCode 注入的旧变量名在本产品里没有读取方", () => {
     assert.doesNotMatch(String(value), /[\\/]\.zcode[\\/]/u);
   }
 });
+
+test("host env 不再携带 ZAI_* 域凭据与地址", () => {
+  // 账号/套餐/支付链路已摘除，桌面侧不再向 host/agent 注入智谱域的
+  // OAuth origin、商务 API 与 client id；zai 域在 shared 侧也没有默认值。
+  const env = buildHostProcessEnv({});
+
+  assert.equal(env.ZAI_OAUTH_ORIGIN, undefined);
+  assert.equal(env.ZAI_BUSINESS_BASE_URL, undefined);
+  assert.equal(env.ZAI_OAUTH_CLIENT_ID, undefined);
+});

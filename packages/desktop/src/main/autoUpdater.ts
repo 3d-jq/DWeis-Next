@@ -2,12 +2,10 @@
 import type { ISettingService } from "@zcode/services";
 import {
   DEFAULT_LOCALE,
-  DEFAULT_ZCODE_ENDPOINT_ORIGIN,
   desktopMenuMessageIds,
   formatDesktopMenuMessage,
   getDesktopMenuMessage,
   PlatformChannels,
-  resolveRuntimeZCodeEndpointOrigin,
   ZCODE_VERSION,
   type ElectronReleaseChannel,
   type Locale,
@@ -19,11 +17,13 @@ import { app, BrowserWindow, ipcMain, Menu } from "electron";
 import pkg, { CancellationToken } from "electron-updater";
 import semver from "semver";
 import { logger } from "./logger.js";
-import { getElectronReleasePlatform, ManifestUpdateProvider } from "./manifestUpdateProvider.js";
 const { autoUpdater } = pkg;
 
 export const CHECK_FOR_UPDATE_MENU_ID = "check-for-update";
 const AUTO_UPDATE_POLL_INTERVAL_MS = 60 * 60 * 1000;
+// 更新源固定为自己的仓库；dev 覆盖走 ZCODE_UPDATE_FEED_URL / --zcode-update-feed-url。
+const DWEIS_UPDATE_REPO_OWNER = "3d-jq";
+const DWEIS_UPDATE_REPO_NAME = "DWeis-Next";
 const UPDATE_FEED_URL_ENV = "ZCODE_UPDATE_FEED_URL";
 const UPDATE_FEED_URL_SWITCH = "--zcode-update-feed-url";
 const DEV_AUTO_UPDATE_ENV = "ZCODE_AUTO_UPDATE_DEV";
@@ -115,7 +115,6 @@ interface InitAutoUpdaterOptions {
   locale?: Locale;
   updateFeedSource?: RuntimeUpdateFeedSource;
   deviceMid?: string;
-  resolveEndpointOrigin?: () => string | Promise<string>;
 }
 
 let quitAndInstallInFlight = false;
@@ -751,26 +750,21 @@ async function syncAutoUpdateCheckChannelFromSettings(
   activeAutoUpdateCheckChannel = nextChannel;
 }
 
-function applyManifestUpdateProvider(options: InitAutoUpdaterOptions): void {
+function applyGitHubUpdateProvider(options: InitAutoUpdaterOptions): void {
+  // DWeis Next 的更新源是自己的 GitHub 仓库，不再走智谱云的 manifest API。
+  // develop 覆盖只对开发构建生效；打包产物固定用仓库 feed。
   const manifestUrl = options.updateFeedSource?.url.trim();
+  const feed = manifestUrl
+    ? { provider: "generic" as const, url: manifestUrl }
+    : { provider: "github" as const, owner: DWEIS_UPDATE_REPO_OWNER, repo: DWEIS_UPDATE_REPO_NAME };
   autoUpdater.setFeedURL({
-    provider: "custom",
-    updateProvider: ManifestUpdateProvider,
-    endpointOrigin: DEFAULT_ZCODE_ENDPOINT_ORIGIN,
-    ...(manifestUrl ? { manifestUrl } : {}),
-    releasePlatform: getElectronReleasePlatform(),
-    deviceMid: "",
-    resolveEndpointOrigin:
-      options.resolveEndpointOrigin ?? (() => resolveRuntimeZCodeEndpointOrigin(process.env)),
-    resolveReleaseChannel: async () => {
-      availableUpdateChannel = await resolveUpdateReleaseChannel(options.settingService);
-      return availableUpdateChannel;
-    },
+    ...feed,
+    releaseType: "asset",
   });
   logger.info(
     manifestUrl
-      ? `[auto-update] service manifest provider applied platform=${getElectronReleasePlatform()} manifestUrl=${redactUpdateFeedUrlForLog(manifestUrl)}`
-      : `[auto-update] service manifest provider applied platform=${getElectronReleasePlatform()}`,
+      ? `[auto-update] dev feed override applied manifestUrl=${redactUpdateFeedUrlForLog(manifestUrl)}`
+      : `[auto-update] github feed applied repo=${DWEIS_UPDATE_REPO_OWNER}/${DWEIS_UPDATE_REPO_NAME}`,
   );
 }
 
@@ -1507,7 +1501,7 @@ export async function initAutoUpdater(options: InitAutoUpdaterOptions = {}): Pro
   // 这里仅在 Windows 关闭“退出即自动安装”，要求用户显式点更新；其他平台保持原有行为，避免改动既有升级链路。
   autoUpdater.autoInstallOnAppQuit = process.platform !== "win32";
   autoUpdater.logger = logger;
-  applyManifestUpdateProvider(options);
+  applyGitHubUpdateProvider(options);
 
   const triggerCheckForUpdates = (reason: string) => {
     if (checkForUpdatesInFlight) {

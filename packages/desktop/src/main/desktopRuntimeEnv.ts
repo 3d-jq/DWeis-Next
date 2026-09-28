@@ -15,9 +15,6 @@ import {
   resolveRuntimeZCodeEndpointOrigin,
   readProductEndpointEnv,
   pickProductEndpointEnv,
-  resolveZaiBusinessBaseUrl,
-  resolveZaiOAuthClientId,
-  resolveZaiOAuthOrigin,
   normalizeDynamicWorkflowMode,
   readZCodeAgentTelemetryEnv,
   sanitizeZCodeRuntimeEnv,
@@ -221,9 +218,8 @@ function applySelectedZCodeEnvLinks(env: Record<string, string>): Record<string,
     ...pickProductEndpointEnv(endpointEnv),
     ...env,
     ZCODE_BASE_URL: env.ZCODE_BASE_URL ?? resolveRuntimeZCodeEndpointOrigin(endpointEnv),
-    ZAI_OAUTH_ORIGIN: env.ZAI_OAUTH_ORIGIN ?? resolveZaiOAuthOrigin(endpointEnv),
-    ZAI_BUSINESS_BASE_URL: env.ZAI_BUSINESS_BASE_URL ?? resolveZaiBusinessBaseUrl(endpointEnv),
-    ZAI_OAUTH_CLIENT_ID: env.ZAI_OAUTH_CLIENT_ID ?? resolveZaiOAuthClientId(endpointEnv),
+    // DWeis Next 不再注入 ZAI_* ：账号/套餐/支付链路已摘除，智谱域的
+    // OAuth origin、商务 API 与 client id 都没有默认值，也不会从桌面下发。
   };
 }
 
@@ -439,6 +435,17 @@ export function buildHostProcessEnv(hostProcessLocalEnv: Record<string, string>)
     ZCODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV,
     ZCODE_BUILTIN_PROVIDER_BUNDLED_CONFIG_FILE_ENV,
     ZCODE_PERSONAL_PROVIDER_CONFIG_FILE_ENV,
+  ]) {
+    delete inheritedEnv[key];
+  }
+  // zai 域同理：账号/套餐/支付链路已摘除，shared 侧也不再给 ZAI_* 默认值。
+  // 父进程树里（例如另一份 ZCode 装机）可能已经写好了 OAuth origin、商务 API
+  // 与 client id，一并删掉，保证 host/agent 的环境与父进程无关。
+  for (const key of [
+    "ZAI_OAUTH_ORIGIN",
+    "ZAI_BUSINESS_BASE_URL",
+    "ZAI_OAUTH_CLIENT_ID",
+    "ZAI_OAUTH_APP_ID",
   ]) {
     delete inheritedEnv[key];
   }
