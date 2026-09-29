@@ -285,7 +285,9 @@ export function resolveSharedZCodeCredentialsPath(
   }
 
   const env = options.env ?? process.env;
-  const baseDir = options.baseDir ?? env[DWEIS_DATA_BASE_DIR_ENV_KEY] ?? homedir();
+  // 空串/纯空白必须回落 homedir：Windows 下 `set DWEIS_DATA_BASE_DIR=` 会产生空串，
+  // 直接穿透会让凭据落到 resolveUserPath("") 解析出的 cwd。
+  const baseDir = options.baseDir ?? (env[DWEIS_DATA_BASE_DIR_ENV_KEY]?.trim() || homedir());
   return join(resolveUserPath(baseDir), ".dweis", "v2", "credentials.json");
 }
 

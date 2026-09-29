@@ -24,3 +24,15 @@ test("凭据路径认 DWeis 自己的数据根变量", () => {
 
   assert.equal(path, join("D:/dweis-data", ".dweis", "v2", "credentials.json"));
 });
+
+// Windows 下 `set DWEIS_DATA_BASE_DIR=` 产生空串、误输入产生纯空白，
+// 两种都必须回落 homedir：空串穿透会把凭据写到 cwd，空白会拼出坏路径。
+test("凭据路径把空串与纯空白数据根回落到 homedir", () => {
+  for (const value of ["", "   "]) {
+    const path = resolveSharedZCodeCredentialsPath({
+      env: { [DWEIS_DATA_BASE_DIR_ENV_KEY]: value },
+    });
+
+    assert.equal(path, join(homedir(), ".dweis", "v2", "credentials.json"));
+  }
+});

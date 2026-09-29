@@ -71,7 +71,7 @@ pnpm dev:desktop:test
 
 `pnpm dev:desktop` 默认等同于 `pnpm dev:desktop:prod`。启动脚本会准备本地运行资源、
 构建桌面 Agent，再启动 Electron 和源码监听。需要独立开发数据目录时设置
-`ZCODE_DATA_BASE_DIR`。
+`DWEIS_DATA_BASE_DIR`。
 
 ### 配置
 
@@ -80,15 +80,15 @@ pnpm dev:desktop:test
 
 | 配置                                 | 用途                                             |
 | ------------------------------------ | ------------------------------------------------ |
-| `ZCODE_DATA_BASE_DIR`                | 应用数据基目录，数据写入其下的 `.dweis/`         |
-| `ZCODE_BUILTIN_PROVIDER_CONFIG_FILE` | 本地 Provider 配置文件路径；未设置时使用内置配置 |
+| `DWEIS_DATA_BASE_DIR`                | 应用数据基目录，数据写入其下的 `.dweis/`         |
+| `DWEIS_BUILTIN_PROVIDER_CONFIG_FILE` | 本地 Provider 配置文件路径；未设置时使用内置配置 |
 | `ZCODE_UPDATE_FEED_URL`              | 自有更新源；未设置时自动更新保持关闭             |
 
 ### CLI
 
 ```bash
 pnpm --filter @zcode/cli dev
-node apps/zcode-cli/packages/cli/dist/zcode.cjs --help
+node apps/zcode-cli/packages/cli/dist/dweis.cjs --help
 ```
 
 ### 检查与验证

@@ -77,7 +77,7 @@ pnpm dev:desktop:test
 
 `pnpm dev:desktop` defaults to `pnpm dev:desktop:prod`. The launcher prepares local
 runtime assets, builds the desktop agent, then starts Electron with source watching.
-Set `ZCODE_DATA_BASE_DIR` for an isolated data directory.
+Set `DWEIS_DATA_BASE_DIR` for an isolated data directory.
 
 ### Configuration
 
@@ -86,15 +86,15 @@ Copy [.env.example](.env.example) to `.env` as needed; local overrides go to
 
 | Setting                              | Purpose                                                      |
 | ------------------------------------ | ------------------------------------------------------------ |
-| `ZCODE_DATA_BASE_DIR`                | App data base directory; data lives under `.dweis/`          |
-| `ZCODE_BUILTIN_PROVIDER_CONFIG_FILE` | Local provider config file; falls back to the bundled config |
+| `DWEIS_DATA_BASE_DIR`                | App data base directory; data lives under `.dweis/`          |
+| `DWEIS_BUILTIN_PROVIDER_CONFIG_FILE` | Local provider config file; falls back to the bundled config |
 | `ZCODE_UPDATE_FEED_URL`              | Your own update feed; auto-update stays off unless set       |
 
 ### CLI
 
 ```bash
 pnpm --filter @zcode/cli dev
-node apps/zcode-cli/packages/cli/dist/zcode.cjs --help
+node apps/zcode-cli/packages/cli/dist/dweis.cjs --help
 ```
 
 ### Checks
