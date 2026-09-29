@@ -128,6 +128,12 @@ export function resolveZCodeRuntimeEnv(
 // (mirrors feat; the agent-side plugin host verifies the broker authority via this env var).
 export const ZCODE_CUA_PLUGIN_AUTHORITY_ENV_KEY = "ZCODE_CUA_PLUGIN_AUTHORITY";
 
+// DWeis Next 数据根目录契约。以前复用 ZCode 的 ZCODE_DATA_BASE_DIR——那是旧
+// ZCode 装机给自己子进程注入的变量，谁继承到它，DWeis Next 的数据根就被扳到
+// 别的目录，引导记录/模型配置/设置在两个根之间漂移，表现为「引导和配置模型
+// 界面反复出现」。换到 DWEIS_* 命名空间后，外部注入在变量名上不再匹配。
+export const DWEIS_DATA_BASE_DIR_ENV_KEY = "DWEIS_DATA_BASE_DIR";
+
 interface CapturedCuaBrokerCredentials {
   socket: string;
   pluginAuthority: string;
