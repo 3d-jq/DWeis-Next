@@ -18,12 +18,12 @@ function collectCatalogValues(content: string): Map<string, string> {
   return values;
 }
 
-function* walkTsFiles(dir: string): Generator<string> {
+function* walkFiles(dir: string, extension: string): Generator<string> {
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) {
-      yield* walkTsFiles(full);
-    } else if (entry.endsWith(".ts")) {
+      yield* walkFiles(full, extension);
+    } else if (entry.endsWith(extension)) {
       yield full;
     }
   }
@@ -47,14 +47,27 @@ test("UI i18n 文案不含 ZCode 品牌残留", () => {
   }
 });
 
-test("桌面主进程硬编码的 label/title/tooltip 不含 ZCode", () => {
-  const mainDir = join(repoRoot, "packages/desktop/src/main");
+test("主进程/渲染进程硬编码的 label/title/tooltip/text/documentTitle 不含 ZCode", () => {
+  // 曾漏掉的两处形态：HTML 模板里的文本节点（强更弹窗 brand-title）与
+  // text/documentTitle 属性（CUA 操作浮层、权限面板窗口标题）。
   const userVisibleLabel =
-    /(?:label|title|tooltip)\s*:\s*("[^"\n]*ZCode[^"\n]*"|`[^`\n]*ZCode[^`\n]*`)/gu;
-  for (const file of walkTsFiles(mainDir)) {
-    const content = readFileSync(file, "utf8");
-    for (const match of content.matchAll(userVisibleLabel)) {
-      assert.fail(`${file}: 用户可见文案含 ZCode → ${match[1]}`);
+    /(?:label|title|tooltip|text|documentTitle)\s*:\s*("[^"\n]*ZCode[^"\n]*"|`[^`\n]*ZCode[^`\n]*`)/gu;
+  const htmlTextNode = />\s*ZCode\b[^<]*</gu;
+  for (const dir of [
+    join(repoRoot, "packages/desktop/src/main"),
+    join(repoRoot, "packages/desktop/src/renderer"),
+  ]) {
+    for (const file of walkFiles(dir, ".ts")) {
+      const content = readFileSync(file, "utf8");
+      for (const match of content.matchAll(userVisibleLabel)) {
+        assert.fail(`${file}: 用户可见文案含 ZCode → ${match[1]}`);
+      }
+    }
+    for (const file of walkFiles(dir, ".html")) {
+      const content = readFileSync(file, "utf8");
+      for (const match of content.matchAll(htmlTextNode)) {
+        assert.fail(`${file}: HTML 文本节点含 ZCode → ${match[0].trim()}`);
+      }
     }
   }
 });

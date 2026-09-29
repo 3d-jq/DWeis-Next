@@ -12,9 +12,11 @@ export const INDICATOR_CARD_TOP_OFFSET = 12;
 export const INDICATOR_SHADOW_INSET = { top: 6, right: 8, bottom: 12, left: 8 } as const;
 
 function indicatorCopy(locale: Locale): { text: string; width: number } {
+  // 品牌改为 DWeis Next 后文案比 ZCode 多 5 个拉丁字符，13px/600 字重下
+  // 按约 35px 增量放宽卡片，nowrap 文案不能被裁切。
   return locale === "zh-CN"
-    ? { text: "ZCode 正在操作电脑", width: 234 }
-    : { text: "ZCode is controlling your computer", width: 308 };
+    ? { text: "DWeis Next 正在操作电脑", width: 274 }
+    : { text: "DWeis Next is controlling your computer", width: 350 };
 }
 
 export function indicatorWindowSize(locale: Locale): { width: number; height: number } {

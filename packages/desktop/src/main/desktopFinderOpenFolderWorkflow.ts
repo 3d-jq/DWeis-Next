@@ -1,12 +1,17 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
 import type { Locale } from "@zcode/shared";
 
 const WORKFLOW_NAME = "Open in DWeis Next.workflow";
-const WORKFLOW_BUNDLE_ID = "dev.zcode.app.finder-open-workflow";
-const WORKFLOW_VERSION = "5";
+// 上游 ZCode 的同名服务仍在用这个 bundle id；换 DWeis 自己的 id，
+// 避免与本机可能残留的 ZCode 安装互相覆盖注册。
+const WORKFLOW_BUNDLE_ID = "dev.dweis.app.finder-open-workflow";
+// bundle id 变更后必须提号，否则已安装的旧 plist 不会被重写。
+const WORKFLOW_VERSION = "6";
+// 从 ZCode 升级的机器上，上游的这个服务仍执行 zcode://workspace/open。
+const LEGACY_ZCODE_WORKFLOW_NAME = "Open in ZCode.workflow";
 const SERVICES_MENU_LABELS: Record<Locale, string> = {
   "zh-CN": "在DWeis Next中打开",
   "en-US": "Open in DWeis Next",
@@ -264,6 +269,22 @@ export function installFinderOpenFolderWorkflow(options: {
   const documentWorkflowPath = join(contentsDir, "document.wflow");
   const resourcesDocumentWorkflowPath = join(resourcesDir, "document.wflow");
 
+  // 升级机上残留的上游服务仍把目录交给本机 ZCode；装 DWeis 服务时同步移除，
+  // 否则 Finder 会同时出现两个「打开方式」入口，旧的还能被点到。
+  const legacyWorkflowDir = join(servicesDir, LEGACY_ZCODE_WORKFLOW_NAME);
+  let legacyRemoved = false;
+  if (existsSync(legacyWorkflowDir)) {
+    try {
+      rmSync(legacyWorkflowDir, { recursive: true, force: true });
+      legacyRemoved = true;
+    } catch (error) {
+      options.logger.warn("[finder-open-folder] 旧 ZCode 服务清理失败", {
+        error: error instanceof Error ? error.message : String(error),
+        workflowPath: legacyWorkflowDir,
+      });
+    }
+  }
+
   try {
     mkdirSync(resourcesDir, { recursive: true });
 
@@ -278,13 +299,14 @@ export function installFinderOpenFolderWorkflow(options: {
       workflowContent,
     );
 
-    if (infoChanged || workflowChanged || resourcesWorkflowChanged) {
+    if (infoChanged || workflowChanged || resourcesWorkflowChanged || legacyRemoved) {
       // Finder 系统服务展示名来自 workflow 的 Info.plist。
       // 语言切换后必须重写 plist 并刷新 Services 索引，否则系统菜单会继续显示旧语言。
       (options.refreshServicesIndex ?? refreshMacServicesIndex)();
       options.logger.info("[finder-open-folder] Finder 服务已安装或更新", {
         locale: options.locale,
         workflowPath: workflowDir,
+        ...(legacyRemoved ? { legacyRemoved } : {}),
       });
     }
   } catch (error) {

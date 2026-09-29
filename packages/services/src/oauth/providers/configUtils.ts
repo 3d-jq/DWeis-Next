@@ -4,7 +4,9 @@ import {
   buildRuntimeZCodeEndpointUrls,
 } from "@zcode/shared";
 
-const DESKTOP_OAUTH_CALLBACK_URI = "zcode://oauth/callback";
+// 桌面深链只处理 dweis: scheme（desktopDeepLinkUrl），回调必须与注册的 scheme 一致，
+// 否则浏览器回调会被交给本机 ZCode。
+const DESKTOP_OAUTH_CALLBACK_URI = "dweis://oauth/callback";
 
 export function readEnv(env: NodeJS.ProcessEnv, key: string): string | undefined {
   const value = env[key];

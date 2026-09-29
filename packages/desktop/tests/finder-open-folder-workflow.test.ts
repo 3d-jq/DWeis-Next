@@ -1,6 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { installFinderOpenFolderWorkflow } from "../src/main/desktopFinderOpenFolderWorkflow.js";
@@ -63,6 +71,29 @@ test("非 macOS 平台不写任何 workflow", () => {
       refreshServicesIndex: () => {},
     });
     assert.equal(existsSync(join(homeDir, "Library")), false);
+  } finally {
+    rmSync(homeDir, { recursive: true, force: true });
+  }
+});
+
+test("安装时移除上游 ZCode 的旧右键服务，bundle id 用 DWeis 自己的", () => {
+  // 升级机上旧服务仍执行 zcode://workspace/open，不清掉会出现两个「打开方式」。
+  const homeDir = mkdtempSync(join(tmpdir(), "dweis-finder-"));
+  try {
+    const legacyDir = join(homeDir, "Library/Services/Open in ZCode.workflow/Contents");
+    mkdirSync(legacyDir, { recursive: true });
+    writeFileSync(join(legacyDir, "document.wflow"), "<plist/>");
+
+    const workflowPath = installInto(homeDir);
+
+    assert.equal(existsSync(join(homeDir, "Library/Services/Open in ZCode.workflow")), false);
+    const plist = readFileSync(
+      join(homeDir, "Library/Services/Open in DWeis Next.workflow/Contents/Info.plist"),
+      "utf8",
+    );
+    assert.match(plist, /dev\.dweis\.app\.finder-open-workflow/u);
+    assert.doesNotMatch(plist, /dev\.zcode\.app/u);
+    assert.ok(existsSync(workflowPath));
   } finally {
     rmSync(homeDir, { recursive: true, force: true });
   }

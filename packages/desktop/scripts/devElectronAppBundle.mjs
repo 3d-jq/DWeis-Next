@@ -1,9 +1,11 @@
 import { access, cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
-export const DEV_ELECTRON_PROTOCOL_SCHEME = "zcode";
-export const DEV_ELECTRON_APP_NAME = "ZCode Dev";
-export const DEV_ELECTRON_APP_BUNDLE_ID = "dev.zcode.app.development";
+// dev bundle 与打包应用保持同一套身份：scheme 必须是 dweis（应用注册与解析的都是
+// dweis:，写 zcode 会让 dev 深链不可用、还反向抢占上游 ZCode 的协议）。
+export const DEV_ELECTRON_PROTOCOL_SCHEME = "dweis";
+export const DEV_ELECTRON_APP_NAME = "DWeis Next Dev";
+export const DEV_ELECTRON_APP_BUNDLE_ID = "dev.dweis.app.development";
 // 副本布局版本，见 prepareDevElectronAppBundle 中的指纹说明。
 export const DEV_ELECTRON_BUNDLE_FORMAT = 2;
 
