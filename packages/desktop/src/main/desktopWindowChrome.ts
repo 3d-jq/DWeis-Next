@@ -149,11 +149,12 @@ export function buildDesktopWindowVisualOptions() {
       backgroundColor: "#00000000",
       // Windows 窗口操作由 renderer 绘制，禁用原生标题栏，避免出现两套按钮。
       frame: false,
-      backgroundMaterial: "acrylic" as const,
       // DWeis Next：窗口创建即显示会在页面首帧前露出透明/亚克力材质，
       // 暗色模式下观感是「先闪一段桌面底色，再出现暗色图标」两段。
       // 先隐藏并让 Chromium 离屏完成首帧，dom-ready 时再 show——
       // 用户看到的第一帧就是主题底色 + 图标。
+      // 注意：acrylic 不能在创建时设置——show:false + acrylic 组合在显示时
+      // 会渲染成不透明白底（Electron 已知问题），材质在 show 之后补设。
       show: false as const,
       paintWhenInitiallyHidden: true as const,
     };
@@ -612,9 +613,14 @@ export function createBrowserWindow(options: {
   if (process.platform === "win32") {
     // show:false 的兜底：dom-ready 正常会在 lifecycle 里 show()；页面加载异常
     // （崩溃/加载失败）时也不能让窗口永久不可见。
-    window.setTimeout(() => {
+    setTimeout(() => {
       if (!win.isDestroyed() && !win.isVisible() && !win.isMinimized()) {
         win.show();
+        try {
+          win.setBackgroundMaterial("acrylic");
+        } catch {
+          // 材质设置失败只影响观感。
+        }
       }
     }, 4000);
   }

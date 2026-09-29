@@ -126,6 +126,13 @@ export function createWindow(options: {
     if (process.platform === "win32" && !win.isDestroyed()) {
       win.show();
       win.focus();
+      // show:false 创建时不能带 acrylic（show:false + acrylic 显示时会渲染成
+      // 不透明白底）；首帧已经画好，这里在显示后补回原设计的亚克力材质。
+      try {
+        win.setBackgroundMaterial("acrylic");
+      } catch {
+        // 材质设置失败只影响观感，不能阻断显示。
+      }
     }
 
     const oldChild = options.windowHostProcessMap.get(wcId);
