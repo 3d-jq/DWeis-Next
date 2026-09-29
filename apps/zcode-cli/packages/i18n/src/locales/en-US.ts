@@ -46,7 +46,6 @@ Options:
   --target-replace Replace any existing session goal set by --target
   -c, --continue        Resume the latest session for the current directory
   --json           Print machine-readable JSON where supported
-  --no-browser     Print the OAuth URL without opening a browser
   --no-color       Disable ANSI colors
   --verbose        Print extra diagnostic detail
 

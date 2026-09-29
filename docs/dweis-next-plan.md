@@ -109,7 +109,7 @@ ui store/hooks 依赖），方法签名保持不变，只把实现替换为本�
 - `apps/zcode-cli/packages/telemetry`：删除 `otlp-exporter.ts` 及 bootstrap 内死代码
   （`createPreparedOwner` / deviceMid 状态文件链），修复依赖摘除后遗留的 7 个类型错误。
 - CLI `official-coding-plan-gateway.ts` 维持 cb4757f 的停用状态（恒直连、无出网）；
-  `coding-plan-api-key.ts` 属 OAuth 登录链路，随「OAuth / 账号登录」行一并处理。
+  `coding-plan-api-key.ts` 已随「OAuth / 账号登录」下线一并删除（90b6699）。
 - `officialMcpCredentialSource` 凭证注入源随额度查询摘除；MCP 调用身份头不受影响。
 
 **验收**：根 `pnpm typecheck` 0 错误；desktop typecheck main 82 / preload 3 /
@@ -126,7 +126,7 @@ scheduler 1 / host 0（与基线一致）；`apps/zcode-cli` turbo typecheck 27/
 | 分类 | 文件 | 删除后的影响 |
 | --- | --- | --- |
 | OAuth / 账号登录 | ✅ 已完成（2026-09-27，见下方「进展」）：`oauth/providers/` 的 `zaiProviderConfig.ts`、`zaiProviderAdapter.ts`、`bigmodelProviderConfig.ts`、`bigmodelProviderAdapter.ts` 已删；`packages/web/src/auth/webZaiOAuthConfig.ts` 随「只留桌面端」一并删除（web 登录/分享回调与其耦合，单独摘除会做无用功）；`model-provider-family.ts` 的 `rootDomain` 字段与 `resolveModelProviderFamilyIdByBaseURL` 死代码已删，其余字段按「保留契约」暂留（见下方说明） | OAuth 运行时配置恒空、adapter 恒空，任何登录尝试快速失败；设置页预设区/Coding Plan 导航的静态 spec 源置空，无账号登录入口 |
-| CodingPlan / 会员额度 | ✅ 已完成（2026-09-27，见上方「进展」）：`packages/services/src/coding-plan-subscription/` 两 provider、`usage-stats/providers/` 集群已删；`apps/zcode-cli/packages/adapters` 的 `official-coding-plan-gateway.ts` 已于 cb4757f 停用，`auth/coding-plan-api-key.ts` 待 OAuth 行一并处理 | 会员额度查询与续费入口消失，网络层不再出网。UI 侧"升级"按钮此前已按"设置中是否存在账号类供应商"门控，自托管下已不显示 |
+| CodingPlan / 会员额度 | ✅ 已完成（2026-09-27，见上方「进展」）：`packages/services/src/coding-plan-subscription/` 两 provider、`usage-stats/providers/` 集群已删；`apps/zcode-cli/packages/adapters` 的 `official-coding-plan-gateway.ts` 已于 cb4757f 停用，`auth/coding-plan-api-key.ts` 已随 90b6699 的 /login 下线一并删除 | 会员额度查询与续费入口消失，网络层不再出网。UI 侧"升级"按钮此前已按"设置中是否存在账号类供应商"门控，自托管下已不显示 |
 | 对话分享 | ✅ 已完成（2026-09-27，见下方「进展」）：services 侧删除 `conversation-share/` 网络实现簇 7 个文件（service/httpClient/artifactSource/ArtifactDiscovery/publicProjection/sharedContextFormatter/integrity），仅保留契约文件 `conversationShare.ts`（接口 + 错误类型 + 现成的 `createUnsupportedConversationShareService` 门禁）；本地与 remote 宿主装配统一走门禁。`packages/web/src/share/` 落地页随「只留桌面端」整包删除（与 webZaiOAuthConfig 同批） | 分享上传/从链接导入（双向都出 Z.ai 网）全部不可达；UI 分享入口本按登录态门控（`user` 恒空），随 OAuth 摘除自动消失 |
 | 远端 provider 配置同步 | ✅ 已完成（2026-09-27，见下方「进展」）：删除 `zcode-builtin-download.ts`、`zcode-builtin-remote-synchronizer.ts`、`endpoint-scoped-zcode-builtin-source.ts` 与 services 侧 `zcodeBuiltinRemoteConfig.ts`；`zcode-builtin-release.ts`（本地源的类型/编解码）、`-cache-paths`（本地路径）、`-materializer`（本地文件物化）、`-provider-config-source`（本地 bundled/Active 读取）按「保留契约」留下，服务纯本地读路径 | 内置供应商/模型列表改为**纯本地** `config/provider/zcode-builtin.json`。新增模型、新供应商模板不再自动更新，需手改 json；换来的是离线可用、配置不会被远程改动 |
 | 远端 CDN / 远程资源 | 🔄 与「只留桌面端」合并处理：`remoteCdn.ts` 生产态仍服务于官方插件包/node 运行时下载（打包产物不含 mock-cdn，直接删会断插件安装）；`desktopMainIpcRemote.ts` 属远程 workspace 链路 | 插件市场默认源已置空（走本地 seed）；运行时下载链路的最终处置随整包重构决定 |

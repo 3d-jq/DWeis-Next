@@ -46,7 +46,6 @@ export const zhCN: ZCodeCopy = {
   --target-replace 替换 --target 已存在的 goal
   -c, --continue        恢复当前目录最近的 session
   --json           在支持的命令中输出机器可读 JSON
-  --no-browser     不打开浏览器，只打印 OAuth URL
   --no-color       禁用 ANSI 颜色
   --verbose        打印更多诊断信息
 

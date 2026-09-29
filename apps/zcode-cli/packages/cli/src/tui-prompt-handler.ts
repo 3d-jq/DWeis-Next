@@ -144,11 +144,8 @@ export function createTuiSubmitPrompt(
         projectConfigPath: deps.projectConfigPath,
         providerRegistry: providerRegistryRuntime.runtime.registryService,
         configuredDefaultModelSelection,
-        ...(providerRegistryRuntime.providerRuntimeHeadersPort
-          ? {
-              providerRuntimeHeadersPort: providerRegistryRuntime.providerRuntimeHeadersPort,
-            }
-          : {}),
+        // providerRuntimeHeadersPort 已随 /login 账号隧道下线从 runtime 返回类型移除，
+        // 条件展开恒为 false 且类型非法；headers 端口由 workspace-model-runtime 的默认值兜底。
         resume: sessionId !== undefined,
         runtimeConfig: {
           ...(modeState.override ? { mode: modeState.override } : {}),

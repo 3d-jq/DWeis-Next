@@ -85,6 +85,18 @@ export const runPrompt = async (
   if (slashCommand?.type === "known" && slashCommand.name === "skill" && !slashCommand.skillName) {
     return await runSkillsCommand(ctx, options, deps, []);
   }
+  // /login、/logout 已随账号隧道下线。旧脚本仍可能带 API key 调用（如
+  // /login zai-coding-plan-api-key <key>），必须显式拒绝并退出，不能落到
+  // 下方当普通 prompt 转发——否则凭据会写进会话历史并发给模型提供商。
+  if (
+    slashCommand?.type === "unknown" &&
+    (slashCommand.rawName === "login" || slashCommand.rawName === "logout")
+  ) {
+    ctx.stderr.write(
+      `Command /${slashCommand.rawName} has been removed. Configure a provider with an API key in the app settings instead.\n`,
+    );
+    return 1;
+  }
   const runtimePrompt =
     slashCommand?.type === "known" && slashCommand.name === "skill"
       ? buildManualSkillPrompt(slashCommand.skillName, slashCommand.task)
@@ -202,11 +214,8 @@ export const runPrompt = async (
       permissionBroker: createHeadlessPermissionBroker(),
       providerRegistry: providerRegistryRuntime.runtime.registryService,
       configuredDefaultModelSelection: providerRegistryRuntime.configuredDefaultModelSelection,
-      ...(providerRegistryRuntime.providerRuntimeHeadersPort
-        ? {
-            providerRuntimeHeadersPort: providerRegistryRuntime.providerRuntimeHeadersPort,
-          }
-        : {}),
+      // providerRuntimeHeadersPort 已随 /login 账号隧道下线从 runtime 返回类型移除，
+      // 条件展开恒为 false 且类型非法；headers 端口由 workspace-model-runtime 的默认值兜底。
       resume: sessionId !== undefined,
       runtimeConfig: {
         ...(mode ? { mode } : {}),

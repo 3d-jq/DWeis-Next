@@ -36,7 +36,10 @@ export async function prepareCliProviderRuntimeEnv(
 
   const explicitZCodeBuiltin = options.env[ZCODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV]?.trim();
   const explicitPersonal = options.env[ZCODE_PERSONAL_PROVIDER_CONFIG_FILE_ENV]?.trim();
-  const dataBaseDir = options.dataBaseDir ?? options.env.DWEIS_DATA_BASE_DIR?.trim() ?? homedir();
+  // 空串/纯空白必须回落 homedir，否则 `join("", ".dweis", ...)` 产出相对路径，
+  // provider cache 会跟着 cwd 漂移；trim 后的空串不是 nullish，不能只用 ??。
+  const dataBaseDir =
+    options.dataBaseDir ?? (options.env.DWEIS_DATA_BASE_DIR?.trim() || homedir());
   if (explicitZCodeBuiltin && explicitPersonal) {
     return {
       [ZCODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV]: explicitZCodeBuiltin,
@@ -99,13 +102,7 @@ function requiresProviderRuntime(argv: readonly string[]): boolean {
 
   const command = argv[0];
   if (command === undefined || command.startsWith("-")) return true;
-  return (
-    command === "tui" ||
-    command === "app-server" ||
-    command === "agent-server" ||
-    command === "login" ||
-    command === "logout"
-  );
+  return command === "tui" || command === "app-server" || command === "agent-server";
 }
 
 async function resolveBundledZCodeBuiltinProviderConfig(input: {
