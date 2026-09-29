@@ -34,13 +34,15 @@ export const onboardingDecisionSchema = z.object({
 
 const onboardingRecordFileV1Schema = z.object({
   version: z.literal(1),
-  deviceMid: z.string().min(1),
+  // DWeis Next 无遥测：deviceMid 恒为空串。min(1) 会让每次读取都判
+  // 「文件无效、当作不存在」，引导记录永远读不回来 → 引导每次启动重现。
+  deviceMid: z.string(),
   entries: z.array(onboardingRecordEntrySchema),
 });
 
 const onboardingRecordFileV2Schema = z.object({
   version: z.literal(2),
-  deviceMid: z.string().min(1),
+  deviceMid: z.string(),
   entries: z.array(onboardingRecordEntrySchema),
   decisions: z.array(onboardingDecisionSchema),
 });
