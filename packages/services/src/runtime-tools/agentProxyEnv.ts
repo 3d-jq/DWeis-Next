@@ -89,9 +89,10 @@ export function buildAgentRuntimeEnv(input: {
  * origin 必然不同，任一 origin 的官方 MCP 都会被其中一侧 fail closed 拒绝，日志表现却酷似
  * 插件 url 配错。单源实现救不了分叉的输入，因此必须把输入也统一。
  *
- * 为什么注入 `ZCODE_BASE_URL` 而不是只给信任判定加参数：agent 侧有 4 处调用
- * `resolveRuntimeZCodeEndpointOrigin`（信任判定、provider 路由来源头、model-config、
- * auth-login），它们都读同一个 env，一处注入即可全部对齐；只修信任判定会把另外 3 处的分叉留下。
+ * 为什么注入 `ZCODE_BASE_URL` 而不是只给信任判定加参数：agent 侧有 3 处调用
+ * `resolveRuntimeZCodeEndpointOrigin`（信任判定、provider 路由来源头、model-config；
+ * auth-login 已随账号隧道下线），它们都读同一个 env，一处注入即可全部对齐；
+ * 只修信任判定会把另外 2 处的分叉留下。
  *
  * 幂等性：传入的是 host **已解析完成**的最终值。agent 继承 host 的 process.env，其 env 派生
  * 结果本就等于 host 的 env 派生结果，再叠加 override 就是这里的值；production 下 host 忽略

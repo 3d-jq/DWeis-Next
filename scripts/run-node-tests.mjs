@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { join, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 import esbuild from "esbuild";
 
 // 仓库没有单测框架；这里用 esbuild（CLI/desktop 既有依赖）把 TS 测试连同被
@@ -9,11 +9,22 @@ import esbuild from "esbuild";
 // 且源码用 `.js` 后缀 import 同目录 `.ts` 文件，Node 原生 type stripping 两者都做不到。
 // 测试一律从被测包的 src 相对路径导入，保证跑的是当前源码而不是上一次 tsc 产物。
 
+// 遍历发现：同时认 `tests/` 与 `test/` 两种历史目录名并递归下钻，
+// 否则 packages/services/test、packages/ui/test 这类上游遗留测试会被静默跳过。
 function collectTestFiles(testsDir) {
-  return readdirSync(testsDir, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && /\.test\.(ts|mts|js|mjs)$/u.test(entry.name))
-    .map((entry) => join(testsDir, entry.name))
-    .sort();
+  const files = [];
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(full);
+      } else if (/\.test\.(ts|mts|js|mjs)$/u.test(entry.name)) {
+        files.push(full);
+      }
+    }
+  };
+  walk(testsDir);
+  return files;
 }
 
 // 只打包 workspace TS 源码（@zcode/* 全部是 workspace:* 依赖），真实 npm 依赖
@@ -30,6 +41,10 @@ function createResolvePlugin(packageDir) {
         // @zcode/* 是 workspace TS 源码，需要打包；`#` 开头的是 package.json
         // imports 子路径（如 #src/...），同样交给 esbuild 按包内规则解析。
         if (args.path.startsWith("@zcode/") || args.path.startsWith("#")) return null;
+        // `@/` 是包内 tsconfig paths 别名（packages/ui → ./src/*）。标 external 会把
+        // 裸的 "@/lib/..." 留给 Node 解析并报 ERR_MODULE_NOT_FOUND，必须交还 esbuild
+        // 按 tsconfig 解析。
+        if (args.path.startsWith("@/")) return null;
         if (args.path === "electron" && existsSync(electronStub)) {
           return { path: electronStub };
         }
@@ -65,14 +80,17 @@ function runTests(packageDir, testArtifacts) {
 
 async function runPackageTests(packageDirArg) {
   const packageDir = resolve(packageDirArg);
-  const testsDir = join(packageDir, "tests");
+  // 上游同时用过 tests/ 与 test/ 两种目录名，都要收；两者都不存在才跳过。
+  const testsRoots = ["tests", "test"]
+    .map((name) => join(packageDir, name))
+    .filter((root) => existsSync(root));
 
-  if (!existsSync(testsDir)) {
+  if (testsRoots.length === 0) {
     console.log(`[tests] ${packageDir} 无 tests 目录，跳过`);
     return 0;
   }
 
-  const testFiles = collectTestFiles(testsDir);
+  const testFiles = testsRoots.flatMap(collectTestFiles).sort();
   if (testFiles.length === 0) {
     console.log(`[tests] ${packageDir} 无测试文件，跳过`);
     return 0;
@@ -82,15 +100,16 @@ async function runPackageTests(packageDirArg) {
   rmSync(outDir, { recursive: true, force: true });
   mkdirSync(outDir, { recursive: true });
 
-  const testArtifacts = testFiles.map((testFile) =>
-    join(
-      outDir,
-      testFile
-        .split(/[\\/]/u)
-        .pop()
-        .replace(/\.(ts|mts)$/u, ".mjs"),
-    ),
-  );
+  // 递归发现后可能同名（tests/a/foo.test.ts 与 tests/b/foo.test.ts），
+  // 产物名用相对路径拍平，避免互相覆盖。
+  const testArtifacts = testFiles.map((testFile) => {
+    const relativeName = relative(packageDir, testFile)
+      .split(/[\\/]/u)
+      .slice(1)
+      .join("__")
+      .replace(/\.(ts|mts)$/u, ".mjs");
+    return join(outDir, relativeName);
+  });
 
   try {
     for (const [index, testFile] of testFiles.entries()) {
@@ -116,7 +135,10 @@ if (packageDirs.length === 0) {
   process.exit(1);
 }
 
+// 不在首个失败包就退出：一次跑完所有包，报告全部失败面。
+let failedStatus = 0;
 for (const packageDir of packageDirs) {
   const status = await runPackageTests(packageDir);
-  if (status !== 0) process.exit(status);
+  if (status !== 0 && failedStatus === 0) failedStatus = status;
 }
+if (failedStatus !== 0) process.exit(failedStatus);

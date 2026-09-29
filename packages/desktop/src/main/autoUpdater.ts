@@ -114,7 +114,6 @@ interface InitAutoUpdaterOptions {
   settingService?: SettingServiceLike;
   locale?: Locale;
   updateFeedSource?: RuntimeUpdateFeedSource;
-  deviceMid?: string;
 }
 
 let quitAndInstallInFlight = false;
@@ -759,7 +758,9 @@ function applyGitHubUpdateProvider(options: InitAutoUpdaterOptions): void {
     : { provider: "github" as const, owner: DWEIS_UPDATE_REPO_OWNER, repo: DWEIS_UPDATE_REPO_NAME };
   autoUpdater.setFeedURL({
     ...feed,
-    releaseType: "asset",
+    // 不传 releaseType：该字段的合法值只有 draft/prerelease/release，
+    // 旧值 "asset" 不在枚举内且 electron-updater 运行时不读取，属死配置；
+    // release 的发布形态由 electron-builder 的 publish 配置决定。
   });
   logger.info(
     manifestUrl

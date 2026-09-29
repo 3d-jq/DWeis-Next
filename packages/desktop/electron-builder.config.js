@@ -705,9 +705,9 @@ export default {
       : []),
     {
       // agent 运行时资产，打包到 resources/glm。
-      // 桌面端内置的是 agent 的 JS bundle（glm/zcode.cjs，由 prepare:agent-bundle 生成），
-      // Host 进程用 app 自带的 Electron Node runtime（ELECTRON_RUN_AS_NODE）执行 `zcode.cjs app-server --stdio`，
-      // 不再随包内置独立 Node 二进制。远端 SSH/WSL 仍走原生二进制（无 Electron）。
+      // 桌面端内置的是 agent 的 JS bundle（glm/dweis.cjs，由 prepare:agent-bundle 生成），
+      // Host 进程用 app 自带的 Electron Node runtime（ELECTRON_RUN_AS_NODE）执行 `dweis.cjs app-server --stdio`，
+      // 不再随包内置独立 Node 二进制。
       from: `bundled-agents/${targetPlatform.key}/glm`,
       to: "glm",
       filter: ["**/*", "!**/*.map"],
@@ -845,6 +845,9 @@ export default {
     provider: "github",
     owner: "3d-jq",
     repo: "DWeis-Next",
+    // electron-updater 的 github provider 只读已发布 release（/releases/latest
+    // 忽略 draft）。停在 draft 的发布客户端永远轮询不到更新——发布流程必须在
+    // 上传后把 draft 发布为正式 release，或把这里改成 "release"。
     releaseType: "draft",
   },
 };
