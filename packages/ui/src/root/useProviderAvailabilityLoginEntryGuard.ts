@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { UserInfo } from "@zcode/shared";
 import type { ModelSelectionView } from "@zcode/services";
 import { resolveProviderAvailabilityState } from "@/lib/modelProviderAvailability.js";
+import { shouldOpenStartupLoginEntry } from "@/lib/startupLoginEntry.js";
 import { logger } from "@/logger.js";
 
 interface ProviderAvailabilityLoginEntryGuardResult {
@@ -54,7 +55,14 @@ export function useProviderAvailabilityLoginEntryGuard({
         : modelSelectionView;
       const availability = resolveProviderAvailabilityState({ modelSelectionView: refreshedView });
       const { hasUsableProvider, providerCount } = availability;
-      const shouldOpenLoginEntry = !providerFamilyDomain || (!user && !hasUsableProvider);
+      // DWeis Next：不再要求 providerFamilyDomain——那是云登录写入的字段，
+      // 本产品永远是 null，旧条件导致配好模型也每次启动都弹欢迎页。
+      // 是否需要欢迎页只由「有无已登录用户 + 有无可用 Provider」决定。
+      const shouldOpenLoginEntry = shouldOpenStartupLoginEntry({
+        hasUser: Boolean(user),
+        hasUsableProvider,
+      });
+      void providerFamilyDomain;
 
       // 未登录且没有可用模型配置时必须引导用户连接账号或填写 API Key。
       // 启动检查、API Key 设置回流等入口统一走这里，避免各处复制判断后语义分叉。

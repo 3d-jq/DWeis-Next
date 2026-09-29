@@ -40,7 +40,7 @@
     "architecture:report": "node scripts/architecture/architecture-check.mjs report",
     "architecture:baseline:update": "node scripts/architecture/architecture-check.mjs baseline:update",
     "architecture:context": "node scripts/architecture/architecture-check.mjs context",
-    "test": "node scripts/run-node-tests.mjs packages/desktop apps/zcode-cli/packages/core apps/zcode-cli/packages/i18n"
+    "test": "node scripts/run-node-tests.mjs packages/desktop apps/zcode-cli/packages/core apps/zcode-cli/packages/i18n packages/ui"
   },
   "dependencies": {
     "border-beam": "^1.0.1",
