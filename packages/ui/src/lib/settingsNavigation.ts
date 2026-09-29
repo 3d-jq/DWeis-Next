@@ -42,10 +42,7 @@ const HIDDEN_SETTINGS_SECTIONS = new Set<SettingsSectionId>([
   // 工作区搜索（.zcodeignore）设置入口先隐藏：规则文件仍生效并可手动编辑，
   // 编辑页代码保留，放开时从这里移除即可。
   "workspaceFileSearch",
-  // computerUse 不再隐藏（DWeis Next 放开）：上游 v3.14.3 在这里硬隐藏该分区，
-  // 而「输入框显示电脑操作按钮」的开关（默认 true）又只在该分区里，形成
-  // 分区看不见 → 开关永远翻不动 → 按钮永远不出现的死锁；本 fork 的 CUA
-  // 能力链路完整，按产品决策放开入口。
+  "computerUse",
 ]);
 
 interface SettingsSectionIntentEventDetail {
