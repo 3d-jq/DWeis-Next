@@ -1,0 +1,13 @@
+{
+  "name": "@zcode/zcode-cua-plugin",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DWeis Next 电脑控制官方插件：skill + 驱动型 MCP server（@zcode/computer-use-mcp）+ trycua 驱动运行时闭包。",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs"
+  },
+  "devDependencies": {
+    "@zcode/computer-use-mcp": "workspace:*"
+  }
+}

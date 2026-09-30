@@ -72,9 +72,12 @@ export const OFFICIAL_BROWSER_USE_REQUIRED_SEED_PATHS = [
 ] as const;
 
 const OFFICIAL_CUA_REQUIRED_SEED_PATHS = [
-  "docs/computer-use.md",
-  "scripts/computer-use-client.mjs",
+  // 驱动型 server 三件套：MCP server 产物、模型指引 skill、引擎运行时标记
+  // （node_modules 只在 runtimeTopLevelPaths 声明后才进 seed 白名单，这里钉住
+  // 闭包确实被携带，缺驱动时宁可不注册也不给用户半套工具面）。
+  "dist/mcp/server.js",
   "skills/computer-use/SKILL.md",
+  "node_modules/@trycua/cua-driver/package.json",
 ] as const;
 
 // zcode-guide 原本没有 requiredSeedPaths，seed 丢文件时会静默装出一个
@@ -325,8 +328,8 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
   },
   {
     // 产品决策：电脑控制回退为默认关闭，需用户在设置页显式开启。
-    // 因此这里不声明 defaultEnabled——computer-use 携带 MCP server 与系统 Helper 依赖，
-    // 默认开启意味着每个新用户首启即注入整套工具集并拉起 Helper。
+    // 因此这里不声明 defaultEnabled——开启会注入整套 computer-use 工具集并加载
+    // trycua 驱动平台二进制（几十 MB 进程内驻留），默认关闭让首启零开销。
     // 「defaultEnabled 仅限内容型插件」的旧约定随之恢复完整。
     // 判定式是 enabledPlugins[id] ?? defaultEnabled：曾在设置页手动开过的用户已落盘
     // 显式 true，不受本次默认值变更影响。改回默认开启时，需同步
@@ -334,11 +337,11 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
     // isZCodeCuaInternalFeatureEnabled（打包层默认 true）与输入框入口 hidden 默认值的联动语义。
     name: "computer-use",
     hostMcpServerNames: ["node_repl"],
-    // 用户露出名统一为「Computer Use / 电脑控制」。包名与 producer 仓库仍保持 zcode-cua，
-    // 以兼容原生 Helper identity；EN 描述基线走 manifest
+    // 用户露出名统一为「Computer Use / 电脑控制」。DWeis Next 用驱动型引擎
+    // （@trycua/cua-driver）替代上游 Helper；EN 描述基线走 manifest
     // description，这里只放 zh-CN 覆盖；resolveLocalizedText 在 en-US 时回退到 manifest。
     listing: {
-      author: ZAI_AUTHOR,
+      author: { name: "DWeis Next" },
       category: "productivity",
       displayName: "Computer Use",
       displayName_i18n: { "zh-CN": "电脑控制" },
@@ -355,11 +358,12 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       "../../../zcode-cua-plugin",
     ],
     requiredSeedPaths: OFFICIAL_CUA_REQUIRED_SEED_PATHS,
-    // 当前 CUA 为不可用占位包，无需复制 native runtime；避免把本地旧依赖继续带入缓存。
-    runtimeTopLevelPaths: [],
-    // 这里的 version 追踪上游 zcode-cua runtime 版本，使插件 UI 展示、缓存路径、
-    // marketplace 条目都对齐；具体版本由原子 producer bump 工作流维护。
-    version: "0.6.3",
+    // 携带 @trycua 驱动闭包（含平台 .node 二进制）进 seed 缓存：server.js 从缓存根
+    // 被 plugin-host 加载，运行期向上解析必须在插件根命中驱动。
+    runtimeTopLevelPaths: ["node_modules"],
+    // 本 fork 自有版本（1.0.0 起）：不再追踪上游 zcode-cua runtime 版本，
+    // 缓存目录、marketplace 条目与 plugin.json 必须与这里一致。
+    version: "1.0.0",
   },
 ];
 

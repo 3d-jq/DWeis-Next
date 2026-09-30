@@ -1,0 +1,8 @@
+{
+  "name": "computer-use",
+  "version": "1.0.0",
+  "description": "Desktop computer control for DWeis Next: observe and operate the local screen through the computer-use MCP tools, driven by the trycua cua-driver engine.",
+  "author": { "name": "DWeis Next" },
+  "license": "Apache-2.0",
+  "skills": "skills"
+}

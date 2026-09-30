@@ -14,6 +14,7 @@ import {
   ZCODE_CUA_PLUGIN_AUTHORITY_ENV_KEY,
   ZCODE_PLUGIN_ID_ENV_KEY,
 } from "@zcode/shared";
+import { DWEIS_CUA_DRIVER_SERVER_ENV_KEY } from "./app/built-in-computer-use.js";
 
 export { ZCODE_CUA_BROKER_SOCKET_ENV_KEY as ZCODE_CUA_BROKER_SOCKET_ENV } from "@zcode/shared";
 // CLI 入口会先清理 broker 凭据；shared node_repl 的可信配置随后从进程内捕获快照恢复它们。
@@ -165,11 +166,17 @@ function injectCuaCredentialsIntoNodeRepl(
   };
 }
 
-function isZCodeCuaStdioServer(
+// 导出供单测覆盖：marker 放行与旧形态退役的边界是 fork 的关键改动，不能只靠人工看。
+export function isZCodeCuaStdioServer(
   name: string,
   config: McpServerConfig,
 ): config is McpStdioServerConfig {
   if (config.type !== "stdio") return false;
+  // DWeis Next：驱动型 computer-use server（@trycua/cua-driver 引擎，built-in 注册时
+  // 写入 DWEIS_CUA_DRIVER_SERVER 标记）不是被上游退役的 Helper 形态，必须放行。
+  // 下面三条判据退役的是旧装机残留：无标记的裸名 server、Helper 形态的 official
+  // plugin server（按权威 plugin id 识别）与 zcode-cua 命令/参数形态。
+  if (config.env?.[DWEIS_CUA_DRIVER_SERVER_ENV_KEY] === "1") return false;
   if (name === "computer-use") return true;
   // 内置 official zcode-cua plugin 的 MCP server 走 __zcode-plugin-host，command 是 Helper
   // (非 zcode-cua)、args 是 [zcode.cjs, __zcode-plugin-host, server.js]（非 zcode-cua package arg），

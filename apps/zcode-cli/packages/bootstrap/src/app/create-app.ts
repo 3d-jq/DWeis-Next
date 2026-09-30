@@ -91,6 +91,7 @@ import {
   type NodeReplBrowserBroker,
 } from "./node-repl-browser-broker.js";
 import { resolveBuiltInNodeReplMcpServers } from "./built-in-node-repl.js";
+import { resolveBuiltInComputerUseMcpServer } from "./built-in-computer-use.js";
 import { resolveZCodeCustomCommandPrompt } from "../custom-command-prompt.js";
 import { resolveZCodeBuiltinPromptCommand } from "../builtin-prompt-command.js";
 import { collectDisabledPaths } from "../skill-command-overrides.js";
@@ -227,10 +228,18 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
       modelSelectionOverrides: zcodeSubagentProfileOutcome.pluginAgentModelSelectionOverrides,
     }).profiles;
     const pluginRuntimeFeatures = resolvePluginRuntimeFeatures(pluginOutcome);
-    const builtInMcpServers = resolveBuiltInNodeReplMcpServers({
-      pluginOutcome,
-      workingDirectory,
-    });
+    const builtInMcpServers = {
+      ...resolveBuiltInNodeReplMcpServers({
+        pluginOutcome,
+        workingDirectory,
+      }),
+      // 驱动型电脑控制：插件 enabled 时以裸名注册（mcp__computer-use__* 前缀
+      // 与操作浮层事件、cua-app-snapshot 的既有约定对齐）。
+      ...resolveBuiltInComputerUseMcpServer({
+        pluginOutcome,
+        workingDirectory,
+      }),
+    };
     // 用户目录已在 loader 前完成原地迁移；不能给项目/插件旧身份加内存兼容旁路。
     const subagentProfiles = [...zcodeSubagentProfiles, ...pluginSubagentProfiles];
     const ownsSessionStore = options.sessionStore === undefined;
