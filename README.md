@@ -120,6 +120,19 @@ pnpm bundle:desktop -- --help
 默认目标为 macOS arm64，输出目录为 `packages/desktop/dist/`。`--os` 支持 `mac`、
 `win`、`linux`，`--arch` 支持 `x64`、`arm64`；实际打包与签名需要目标平台对应的工具链。
 
+## Credits / 致谢
+
+- 本项目基于 [zai-org/ZCode](https://github.com/zai-org/ZCode)（Apache License 2.0）
+  构建，感谢原作者与全体贡献者的工作——品牌替换、遥测移除与运行形态裁剪等改造
+  都建立在他们的代码之上；上游声明见 [NOTICE.md](NOTICE.md)。
+- 电脑控制（Computer Use）引擎来自 [trycua/cua](https://github.com/trycua/cua)（MIT），
+  感谢 CUA 团队提供跨平台桌面驱动；工具面与生命周期设计参考了
+  [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（MIT）的
+  cua-driver 提供方实现。
+- 感谢所有为上游生态与本项目依赖做出贡献的开源开发者。
+
+DWeis Next 由 [3d-jq](https://github.com/3d-jq) 独立维护。
+
 ## License
 
 本项目基于 [Apache License 2.0](LICENSE) 开源，包含对
