@@ -112,6 +112,29 @@ const officialPluginPackages = [
     runtimeBuildScript: "scripts/build.mjs",
     stagedPath: "packages/node-repl-host",
   },
+
+  {
+    // 电脑控制（驱动型，DWeis Next）：skill + MCP server 产物 + @trycua 驱动闭包。
+    // node_modules 必须随包 stage（含平台 .node 二进制），否则 seed 缺运行时、
+    // server 启动即失败——includeTopLevelPaths 是对全局 node_modules 排除的按包放行，
+    // 拷贝时仍保留「剔除嵌套 node_modules/.DS_Store」的逐级过滤。
+    packageName: "@zcode/zcode-cua-plugin",
+    relativePath: "apps/zcode-cli/packages/zcode-cua-plugin",
+    requiresRuntime: true,
+    requiredRuntimePaths: [
+      "dist/mcp/server.js",
+      "skills/computer-use/SKILL.md",
+      "node_modules/@trycua/cua-driver/package.json",
+    ],
+    requiredSeedPaths: [
+      "dist/mcp/server.js",
+      "skills/computer-use/SKILL.md",
+      "node_modules/@trycua/cua-driver/package.json",
+    ],
+    includeTopLevelPaths: ["node_modules"],
+    runtimeBuildScript: "scripts/build.mjs",
+    stagedPath: "packages/zcode-cua-plugin",
+  },
 ];
 // 随 CLI 内置的技能包（不是插件）：bootstrap 的 resolveBundledSkillRoots 沿官方插件同款候选目录
 // 在 dweis.cjs 旁找 packages/bundled-skills 并原地读取。漏 stage 它，桌面包的 /workflow 会展开成
@@ -208,10 +231,14 @@ function buildOfficialPluginRuntimeForBootstrap(plugin) {
   // 这里仅在 bootstrap 开关下用当前 Node 直接执行等价 tsc + build-mcp，不改变插件自身 build 脚本。
   // browser-use 的 server 与 browser-client 是同一发布对；即使旧 server.js 存在也必须重建，
   // 否则会把旧 server 与当前 client（或缺失 client）一起 stage 到桌面安装包。
-  runCommand(process.execPath, ["../../node_modules/typescript/bin/tsc"], {
-    cwd: pluginRoot,
-    env: process.env,
-  });
+  // 无 tsconfig 的纯产物包（电脑控制插件：源码在 @zcode/computer-use-mcp，本包只有
+  // manifest/skill/构建脚本）没有 tsc 步骤，跳过——tsc 无输入会直接失败。
+  if (existsSync(resolve(pluginRoot, "tsconfig.json"))) {
+    runCommand(process.execPath, ["../../node_modules/typescript/bin/tsc"], {
+      cwd: pluginRoot,
+      env: process.env,
+    });
+  }
   runCommand(process.execPath, [plugin.runtimeBuildScript], {
     cwd: pluginRoot,
     env: process.env,
@@ -250,6 +277,21 @@ function stageOfficialPlugins() {
       cpSync(sourcePath, resolve(targetRoot, entryName), {
         recursive: true,
         filter: shouldCopyOfficialPluginAsset,
+      });
+    }
+    // 按包放行的顶层目录（目前只有电脑控制插件的 node_modules）：全局排除表仍会
+    // 剔除其内部嵌套的 node_modules；@zcode 链接与 .bin shim 是构建期依赖
+    // （pnpm 装的），不属于运行时，按 basename 一并排除，避免坏链接进安装包。
+    for (const entryName of plugin.includeTopLevelPaths ?? []) {
+      const sourcePath = resolve(sourceRoot, entryName);
+      if (!existsSync(sourcePath)) continue;
+      cpSync(sourcePath, resolve(targetRoot, entryName), {
+        recursive: true,
+        filter: (candidate) =>
+          candidate === sourcePath ||
+          (basename(candidate) !== "@zcode" &&
+            basename(candidate) !== ".bin" &&
+            shouldCopyOfficialPluginAsset(candidate)),
       });
     }
     for (const relativePath of plugin.requiredSeedPaths ?? []) {

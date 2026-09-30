@@ -60,6 +60,12 @@ const requiredDevPluginRuntimeBuilds = [
     packageName: "@zcode/browser-use-plugin",
     artifactPath: "browser-use-plugin/scripts/browser-client.mjs",
   },
+  {
+    // 电脑控制（驱动型）：server.js 由本包 build 产出，同时把 @trycua 驱动闭包
+    // vendor 进本包 node_modules（build 内含 .node 平台二进制守卫）。
+    packageName: "@zcode/zcode-cua-plugin",
+    artifactPath: "zcode-cua-plugin/dist/mcp/server.js",
+  },
 ];
 const defaultBuildFilters = [
   ...cliWorkspaceBuilds.map(({ packageName }) => packageName),
