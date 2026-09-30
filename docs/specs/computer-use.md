@@ -59,10 +59,24 @@
    `pnpm architecture:check --changed` 全绿；`pnpm bundle:desktop -- --os win`
    打包成功且安装包体积增量 ≈ 目标平台驱动（约几十 MB 内）。
 
-## 5. 已知边界
+## 5. 已知边界（2026-09-30 真机实测定性）
 
+- **Windows 键盘无法关闭开始菜单等 shell 弹层**（三路复现：
+  定向后台 PostMessage 被忽略、定向前台报 `foreground_unavailable` 并拒绝投递
+  ——Windows 要求 UIAccess worker 而该 worker 不在 @trycua/cua-driver 的 npm
+  分发中、全局路由只发给前台应用）。鼠标点击空白处是唯一可靠关闭路径。
+  该结论与绕法已写入 SKILL「Windows shell surfaces」段。
+- **`foreground_unavailable` 对 shell/瞬态窗口是结构性误报**：点击后校验要求
+  精确确认前台 HWND（500ms 内），此类窗口永远不满足 → 动作成功也报错。
+  校验逻辑在 Rust 原生层（JS dist 无源码、get_config 无开关、click schema
+  additionalProperties:false 无 verify 参数），本层不可配置 → SKILL 指引模型
+  按「不确定态：先截图核实、禁止盲重试」处理；如需根治需上游提供关闭项。
+- **截图"时间戳倒退"不来自驱动**：驱动输出（PNG 块、structuredContent、_meta）
+  均无时间戳字段（实测），倒退出现在 zcode 附件/时间线的下游展示层
+  （疑与附件按内容哈希复用旧 revision 有关）+ 驱动可能复用窗口帧缓存；
+  SKILL 指引「疑似旧帧先重截一次」。下游附件时间戳问题另案跟踪。
 - 进程内原生崩溃会带走该 server 进程（MCP 客户端断开重连），不影响 agent 主进程；
   后续可加 MCP 可执行程序形态作隔离选项。
-- `cua-app-snapshot` 的旧前缀表未含 `mcp__computer-use__`（应用投影降级，不影响
+- `cua-app-snapshot` 的旧前缀表未含 `mcp__computer-use__*`（应用投影降级，不影响
   浮层/工具）；如需 app identity 投影再补前缀。
 - 非开源代码零拷贝：不使用旧 ZCode 缓存里的 0.6.x 插件文件；skill/文档全部自写。

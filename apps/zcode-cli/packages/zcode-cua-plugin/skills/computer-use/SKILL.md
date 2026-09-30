@@ -41,3 +41,26 @@ The tool catalog is decided by the underlying driver at runtime — always read
 - Screenshots require a vision-capable model to be useful; if the model cannot
   see images, rely on textual state tools (`get_window_state`,
   `get_accessibility_tree`) instead of pasting image data.
+
+## Windows shell surfaces — verified behaviors (do not fight these)
+
+These were reproduced end-to-end on Windows 11 against this driver build:
+
+- **Shell popups (Start menu, taskbar menus) cannot be dismissed by keyboard
+  through this driver.** Targeted background `escape` is posted but ignored;
+  targeted foreground `escape` returns `foreground_unavailable` because Windows
+  refuses the foreground swap without an upstream UIAccess worker that this
+  build does not ship; `scope: "desktop"` keys go to whatever window happens to
+  be foreground. **Close shell popups by clicking an empty area of the screen
+  (desktop-scope click) instead of pressing keys.**
+- **`foreground_unavailable` after a click usually means the action LANDED.**
+  It reports that the driver could not confirm the foreground window within
+  500ms — shell and transient windows never satisfy that check. Treat the
+  result as INDETERMINATE: capture a screenshot and verify the actual outcome
+  before deciding anything. Never blind-retry a click that may have succeeded.
+- **If a screenshot looks older than the previous one** (stale frame or
+  timestamp regression), capture it again once and compare before reasoning
+  about screen state.
+- Prefer `scope: "window"` with `pid`/`window_id`, or element tokens from
+  `get_window_state`, over desktop-scope keys — desktop-scope keys cannot be
+  aimed at a specific surface.
