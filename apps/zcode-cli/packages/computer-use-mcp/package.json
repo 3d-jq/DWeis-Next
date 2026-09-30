@@ -1,0 +1,26 @@
+{
+  "name": "@zcode/computer-use-mcp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DWeis Next 电脑控制 MCP server：进程内包装 @trycua/cua-driver（MIT），按上游动态目录暴露工具。",
+  "type": "module",
+  "exports": {
+    ".": "./src/server.ts",
+    "./build": "./scripts/build.mjs"
+  },
+  "scripts": {
+    "build": "tsc && node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint src --no-ignore"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.0.0",
+    "@trycua/cua-driver": "0.28.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.9.0"
+  }
+}
