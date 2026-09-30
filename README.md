@@ -131,8 +131,6 @@ pnpm bundle:desktop -- --help
   cua-driver 提供方实现。
 - 感谢所有为上游生态与本项目依赖做出贡献的开源开发者。
 
-DWeis Next 由 [3d-jq](https://github.com/3d-jq) 独立维护。
-
 ## License
 
 本项目基于 [Apache License 2.0](LICENSE) 开源，包含对
