@@ -31,6 +31,17 @@ function usesComputerUse(input: unknown): boolean {
   return code.includes("setupComputerUseRuntime");
 }
 
+/**
+ * 驱动型 computer-use server（DWeis Next，裸名注册）的工具前缀：调用这些工具
+ * 本身就是 CUA 操作，无需再从 cell 源码找锚点。
+ */
+const COMPUTER_USE_TOOL_PREFIX = "mcp__computer-use__";
+
+function isComputerUseOperation(toolName: string, input: unknown): boolean {
+  if (toolName.startsWith(COMPUTER_USE_TOOL_PREFIX)) return true;
+  return toolName === "mcp__node_repl__js" && usesComputerUse(input);
+}
+
 function baseEvent(event: SessionEvent) {
   return {
     eventId: String(event.id),
@@ -62,7 +73,7 @@ export function mapComputerUseOperationEvent(
             turnId,
             toolCallId,
             toolName,
-            ...(toolName === "mcp__node_repl__js" && usesComputerUse(payload.input)
+            ...(isComputerUseOperation(toolName, payload.input)
               ? { computerUse: true as const }
               : {}),
           }

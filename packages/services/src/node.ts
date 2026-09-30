@@ -680,12 +680,15 @@ export function shouldEnableDefaultCuaProductHelper(
     env?: NodeJS.ProcessEnv;
   } = {},
 ): boolean {
-  // CUA 已随正式版默认开启（isZCodeCuaInternalFeatureEnabled 默认 ON，仅显式 0/false/off 关闭；2026-08 注释更正——旧注释称默认关闭已过期）。显式开启后 macOS 使用既有产品 Helper，Windows 使用安装包内 runtime；
-  // 两端都保持按需启动。关闭时不创建 host、不探测资源、不产生子进程或权限提示。
+  // CUA 已随正式版默认开启（isZCodeCuaInternalFeatureEnabled 默认 ON，仅显式 0/false/off 关闭；2026-08 注释更正——旧注释称默认关闭已过期）。
+  // DWeis Next：Windows 的执行引擎改为插件内驱动（@trycua/cua-driver，经 built-in
+  // computer-use MCP server 暴露），不再有 Helper 进程——win32 由此从启用平台移除，
+  // 否则会按占位 producer 去拉起并不存在的 resources/tools/cua-helper。
+  // macOS 暂不启用驱动（权限链仍按既有 Helper 语义保留，后续单独评估）。
   const env = options.env ?? process.env;
   if (!isZCodeCuaInternalFeatureEnabled(env)) return false;
   const platform = options.platform ?? process.platform;
-  return platform === "darwin" || platform === "win32";
+  return platform === "darwin";
 }
 
 /**
@@ -2110,13 +2113,16 @@ export function createLocalServices(options: {
       const cuaPluginEnabled = isCuaEnabledForContext(context);
       // 懒启动：darwin 上 spawn 绝不 acquire 拉起 Helper——已有 host（peek，比如刚走过
       // 授权流）则复用其 tuple；否则只注入稳定 socket，SDK 首次 CUA 调用自行拉起
-      // （宿主启动/spawn 均不使 Helper 常驻）。win32 保留 acquire（token 模式）。
+      // （宿主启动/spawn 均不使 Helper 常驻）。
+      // DWeis Next：win32 与 darwin 同样跳过 acquire——Windows 执行引擎是插件内驱动
+      // （@trycua/cua-driver），没有 Helper 可拉起，acquire 只会撞占位 producer 失败；
+      // 后续分支 darwin-only，win32 因此也不会注入 broker socket env。
       const peekedHelper = defaultCuaProductHelperLifecycle.peek()?.helper;
       const helper = !cuaPluginEnabled
         ? undefined
         : peekedHelper && isDefaultCuaProductHelperCurrent(peekedHelper)
           ? peekedHelper
-          : process.platform === "darwin"
+          : process.platform === "darwin" || process.platform === "win32"
             ? undefined
             : await getOrCreateDefaultCuaProductHelper(context);
       // setting.get / 生命周期队列都可能跨过 host dispose。仅凭调用前的 enabled 会让延迟恢复的
