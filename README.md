@@ -28,6 +28,11 @@ DWeis Next 基于 [zai-org/ZCode](https://github.com/zai-org/ZCode) v3.14.3（Ap
   不会被远端改动。
 - **自动更新默认关闭**：默认不连接任何更新源；自托管分发可用
   `ZCODE_UPDATE_FEED_URL` 指向自有 feed。
+- **新增电脑控制（Computer Use）**：上游开源版未包含该能力（占位包发行），本仓库基于
+  [trycua/cua-driver](https://github.com/trycua/cua)（MIT）实现——模型经
+  `mcp__computer-use__*` 动态工具观察并操作本机桌面（截图/元素树/点击/键鼠/窗口管理），
+  Windows 首发可用，设置 → 电脑控制 手动开启（默认关闭）；行为规格与已知边界见
+  `docs/specs/computer-use.md`。
 
 保留的通用能力：插件市场（官方插件随包内置，支持添加任意第三方 marketplace）、
 定时自动化与闲时任务、动态工作流、MCP、本地 App 用量统计。
