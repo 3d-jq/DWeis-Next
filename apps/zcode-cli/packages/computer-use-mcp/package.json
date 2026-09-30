@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/server": "2.0.0",
-    "@trycua/cua-driver": "0.28.0",
+    "@trycua/cua-driver": "0.30.4",
     "zod": "^4.4.3"
   },
   "devDependencies": {

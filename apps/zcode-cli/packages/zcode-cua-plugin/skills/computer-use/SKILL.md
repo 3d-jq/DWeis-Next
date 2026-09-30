@@ -46,13 +46,15 @@ The tool catalog is decided by the underlying driver at runtime — always read
 
 These were reproduced end-to-end on Windows 11 against this driver build:
 
-- **Shell popups (Start menu, taskbar menus) cannot be dismissed by keyboard
-  through this driver.** Targeted background `escape` is posted but ignored;
-  targeted foreground `escape` returns `foreground_unavailable` because Windows
-  refuses the foreground swap without an upstream UIAccess worker that this
-  build does not ship; `scope: "desktop"` keys go to whatever window happens to
-  be foreground. **Close shell popups by clicking an empty area of the screen
-  (desktop-scope click) instead of pressing keys.**
+- **Shell popups (Start menu, taskbar menus) barely respond to plain keys.**
+  Targeted background `escape` is posted but ignored by shell windows; targeted
+  foreground `escape` returns `foreground_unavailable` (Windows refuses the
+  foreground swap — foreground lock, and this build ships no UIAccess worker);
+  `scope: "desktop"` keys go to whatever window happens to be foreground.
+  **Preferred dismissals:** for the Start menu, send Ctrl+Esc with
+  `scope: "desktop"` again — it is a system toggle and reliably closes it.
+  For any other shell popup, click an empty area of the screen
+  (desktop-scope click) instead of pressing keys.
 - **`foreground_unavailable` after a click usually means the action LANDED.**
   It reports that the driver could not confirm the foreground window within
   500ms — shell and transient windows never satisfy that check. Treat the
